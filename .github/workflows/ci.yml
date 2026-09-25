@@ -105,11 +105,19 @@ jobs:
           fi
 
   sanitizers:
-    name: Linux core (ASan + UBSan)
+    name: Linux core (${{ matrix.sanitizers }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sanitizers: ASan + UBSan
+            preset: core-sanitize
+          - sanitizers: TSan
+            preset: core-tsan
     env:
-      PRESET: core-sanitize
+      PRESET: ${{ matrix.preset }}
     steps:
       - uses: actions/checkout@v7
 

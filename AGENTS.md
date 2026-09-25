@@ -21,7 +21,7 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 
 - `core/`: plain C++20 library with no JUCE dependency. Warnings are errors.
 - `app/`: the JUCE app, "Visona". Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
-- `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`.
+- `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
 
 Presets are in `CMakePresets.json`; build trees go to `build/<preset>/`.
 
@@ -36,4 +36,4 @@ cmake --preset macos && cmake --build --preset macos && ctest --preset macos
 cmake --preset core-gcc && cmake --build --preset core-gcc && ctest --preset core-gcc
 ```
 
-`core-clang` and `core-sanitize` (Clang with ASan and UBSan) work the same way. Format C++ with `clang-format`. CI in `.github/workflows/ci.yml` runs the `macos`, `core-gcc`, `core-clang` and `core-sanitize` presets on every pull request and on `main`.
+`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. CI in `.github/workflows/ci.yml` runs the `macos`, `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets on every pull request and on `main`.
