@@ -7,6 +7,7 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(visona_core_tests
     AllocationCounterTests.cpp
+    AnalysisPipelineTests.cpp
     AudioInputWriterTests.cpp
     AudioRingBufferTests.cpp
     SourceLayoutTests.cpp
