@@ -16,6 +16,7 @@ permissions:
 jobs:
   macos:
     name: macOS arm64 app (Xcode 26.6)
+    # Hosted images can only be pinned to a macOS major version; DEVELOPER_DIR pins Xcode.
     runs-on: macos-26
     timeout-minutes: 45
     env:
@@ -58,6 +59,14 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 30
+
+      # The documented local workflow uses the Xcode generator, so build that too.
+      - name: Build and test Xcode project (Debug)
+        run: |
+          cmake --preset xcode
+          cmake --build --preset xcode -- -quiet
+          ctest --preset xcode
+          codesign --verify --strict --verbose=2 build/xcode/app/Visona_artefacts/Debug/Visona.app
 
   linux:
     name: Linux core (${{ matrix.compiler }})
