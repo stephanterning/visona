@@ -6,6 +6,8 @@ add_library(visona_core STATIC
     include/visona/AudioRingBuffer.h
     include/visona/BlockTiming.h
     include/visona/CacheLine.h
+    include/visona/ColumnReduction.h
+    include/visona/LaneMapping.h
     include/visona/MidiClockEvent.h
     include/visona/SourceLayout.h
     include/visona/SpscQueue.h
@@ -17,6 +19,8 @@ add_library(visona_core STATIC
     src/AnalysisPipeline.cpp
     src/AudioInputWriter.cpp
     src/AudioRingBuffer.cpp
+    src/ColumnReduction.cpp
+    src/LaneMapping.cpp
     src/SourceLayout.cpp
     src/SweepAnalyzer.cpp
     src/SweepBuffer.cpp

@@ -10,6 +10,8 @@ add_executable(visona_core_tests
     AnalysisPipelineTests.cpp
     AudioInputWriterTests.cpp
     AudioRingBufferTests.cpp
+    ColumnReductionTests.cpp
+    LaneMappingTests.cpp
     SourceLayoutTests.cpp
     SpscQueueTests.cpp
     SweepAnalyzerTests.cpp
