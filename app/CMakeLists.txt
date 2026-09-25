@@ -26,6 +26,7 @@ target_sources(Visona PRIVATE
     src/Main.cpp
     src/MainComponent.cpp
     src/MainComponent.h
+    src/ProcessCpu.h
     src/RealtimeAllocationCheck.cpp
     src/RealtimeAllocationCheck.h
     src/Settings.cpp

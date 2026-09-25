@@ -1,4 +1,4 @@
-#include "DebugReadout.h"
+#include "DiagnosticsOverlay.h"
 
 #include "Palette.h"
 
@@ -16,10 +16,18 @@ constexpr float meterFloorDb = -60.0f;
 constexpr float barFallDbPerSecond = 24.0f;
 constexpr double peakHoldSeconds = 1.5;
 
-constexpr int rowHeight = 26;
-constexpr int labelWidth = 170;
-constexpr int maxContentWidth = 640;
-constexpr float fontHeight = 15.0f;
+constexpr int width = 440;
+constexpr int padding = 12;
+constexpr int rowHeight = 20;
+constexpr int labelWidth = 140;
+constexpr float fontHeight = 13.0f;
+
+// The title and the section headings.
+constexpr int headingRows = 5;
+constexpr int audioRows = 7;
+constexpr int analysisRows = 1;
+constexpr int renderingRows = 5;
+constexpr int processRows = 1;
 
 juce::String formatSampleRate(double sampleRate)
 {
@@ -38,6 +46,16 @@ juce::String formatDuration(double seconds)
            ":" + juce::String(total % 60).paddedLeft('0', 2);
 }
 
+juce::String formatLoad(double fraction)
+{
+    return juce::String(fraction * 100.0, 1) + " % of one core";
+}
+
+juce::String formatMs(double average, double maximum)
+{
+    return juce::String(average, 2) + " ms average, " + juce::String(maximum, 2) + " ms max";
+}
+
 float toDecibels(float gain)
 {
     return gain > 0.0f ? std::max(20.0f * std::log10(gain), silenceDb) : silenceDb;
@@ -52,12 +70,13 @@ juce::String formatLevel(float db)
 
 } // namespace
 
-DebugReadout::DebugReadout()
+DiagnosticsOverlay::DiagnosticsOverlay()
 {
     setOpaque(true);
+    setInterceptsMouseClicks(false, false);
 }
 
-void DebugReadout::update(const Values& values, double elapsedSeconds)
+void DiagnosticsOverlay::update(const Values& values, double elapsedSeconds)
 {
     values_ = values;
     meters_.resize(values_.channels.size(), {silenceDb, silenceDb, 0.0});
@@ -79,23 +98,44 @@ void DebugReadout::update(const Values& values, double elapsedSeconds)
     repaint();
 }
 
-void DebugReadout::paint(juce::Graphics& g)
+int DiagnosticsOverlay::numRows() const
 {
-    g.fillAll(palette::background);
+    return headingRows + audioRows + static_cast<int>(values_.channels.size()) +
+           (values_.callbackAllocations.has_value() ? 1 : 0) + analysisRows + renderingRows +
+           processRows;
+}
 
-    const auto numRows = 2 + 3 + static_cast<int>(values_.channels.size()) + 4 +
-                         (values_.callbackAllocations.has_value() ? 1 : 0);
-    const auto width = std::min(maxContentWidth, getWidth() - 32);
-    auto area =
-        juce::Rectangle<int>(width, numRows * rowHeight).withCentre(getLocalBounds().getCentre());
+juce::Rectangle<int> DiagnosticsOverlay::preferredSize() const
+{
+    return {width, numRows() * rowHeight + 2 * padding};
+}
 
+void DiagnosticsOverlay::paint(juce::Graphics& g)
+{
+    g.fillAll(palette::surface);
+    g.setColour(palette::outline);
+    g.drawRect(getLocalBounds());
+
+    auto area = getLocalBounds().reduced(padding);
     const juce::FontOptions labelFont(fontHeight);
+    const juce::FontOptions headingFont(fontHeight - 1.0f, juce::Font::bold);
     const juce::FontOptions valueFont(juce::Font::getDefaultMonospacedFontName(), fontHeight,
                                       juce::Font::plain);
 
+    // A window too small for every row shows the rows that fit whole.
+    const auto drawHeading = [&](const juce::String& text)
+    {
+        if (area.getHeight() < rowHeight)
+            return;
+        g.setFont(headingFont);
+        g.setColour(palette::textDim);
+        g.drawText(text, area.removeFromTop(rowHeight), juce::Justification::bottomLeft, true);
+    };
     const auto drawRow = [&](const juce::String& label, const juce::String& value,
                              juce::Colour valueColour = palette::text)
     {
+        if (area.getHeight() < rowHeight)
+            return;
         auto row = area.removeFromTop(rowHeight);
         g.setFont(labelFont);
         g.setColour(palette::textDim);
@@ -105,11 +145,17 @@ void DebugReadout::paint(juce::Graphics& g)
         g.drawText(value, row, juce::Justification::centredLeft, true);
     };
 
-    g.setFont(juce::FontOptions(fontHeight, juce::Font::bold));
-    g.setColour(palette::textDim);
-    g.drawText("AUDIO INPUT (DEBUG)", area.removeFromTop(rowHeight * 2),
-               juce::Justification::centredLeft, true);
+    {
+        auto title = area.removeFromTop(rowHeight);
+        g.setFont(juce::FontOptions(fontHeight, juce::Font::bold));
+        g.setColour(palette::text);
+        g.drawText("DIAGNOSTICS", title, juce::Justification::centredLeft, true);
+        g.setFont(labelFont);
+        g.setColour(palette::textDim);
+        g.drawText("D to hide", title, juce::Justification::centredRight, true);
+    }
 
+    drawHeading("AUDIO INPUT");
     const bool running = values_.running;
     drawRow("Device", running ? values_.device : "-");
     drawRow("Sample rate", running ? formatSampleRate(values_.sampleRate) : "-");
@@ -122,6 +168,8 @@ void DebugReadout::paint(juce::Graphics& g)
 
     for (std::size_t channel = 0; channel < values_.channels.size(); ++channel)
     {
+        if (area.getHeight() < rowHeight)
+            break;
         const auto& info = values_.channels[channel];
         const auto& meter = meters_[channel];
         auto row = area.removeFromTop(rowHeight);
@@ -133,10 +181,10 @@ void DebugReadout::paint(juce::Graphics& g)
 
         g.setFont(valueFont);
         g.setColour(palette::text);
-        g.drawText(formatLevel(meter.heldDb), row.removeFromRight(110),
+        g.drawText(formatLevel(meter.heldDb), row.removeFromRight(96),
                    juce::Justification::centredRight, true);
 
-        auto bar = row.removeFromRight(std::max(row.getWidth() / 2, 60)).reduced(8, 8).toFloat();
+        auto bar = row.removeFromRight(std::max(row.getWidth() / 2, 40)).reduced(6, 6).toFloat();
         g.setColour(palette::outline);
         g.fillRect(bar);
         const auto fraction =
@@ -162,11 +210,31 @@ void DebugReadout::paint(juce::Graphics& g)
     if (values_.callbackAllocations.has_value())
     {
         if (!values_.allocationCheckWorks)
-            drawRow("Callback allocations", "check is not working", palette::error);
+            drawRow("Callback allocs", "check is not working", palette::error);
         else
-            drawRow("Callback allocations", juce::String(*values_.callbackAllocations),
+            drawRow("Callback allocs", juce::String(*values_.callbackAllocations),
                     *values_.callbackAllocations > 0 ? palette::error : palette::text);
     }
+
+    drawHeading("ANALYSIS");
+    drawRow("Analysis thread", formatLoad(values_.analysisLoad));
+
+    drawHeading("RENDERING");
+    const auto& rendering = values_.rendering;
+    drawRow("Frame rate", juce::String(juce::roundToInt(rendering.framesPerSecond)) +
+                              " fps (display " +
+                              juce::String(juce::roundToInt(rendering.vblanksPerSecond)) + " Hz)");
+    drawRow("Render", formatMs(rendering.renderMsAverage, rendering.renderMsMax));
+    drawRow("Paint", formatMs(rendering.paintMsAverage, rendering.paintMsMax));
+    drawRow("Full redraws", juce::String(rendering.fullRedrawsPerSecond, 1) + " per second");
+    drawRow("Image", juce::String(rendering.imageWidth) + " x " +
+                         juce::String(rendering.imageHeight) + " px at " +
+                         juce::String(rendering.scale, 1) + "x, " +
+                         juce::String(static_cast<int>(rendering.tiles)) + " tiles");
+
+    drawHeading("PROCESS");
+    drawRow("Visona CPU",
+            values_.processCpu.has_value() ? formatLoad(*values_.processCpu) : "unknown");
 }
 
 } // namespace visona

@@ -1,11 +1,18 @@
 #include "MainComponent.h"
 
 #include "AudioEngine.h"
+#include "ProcessCpu.h"
 #include "RealtimeAllocationCheck.h"
 #include "ui/ChannelNames.h"
+#include "ui/ChromeLayout.h"
+#include "ui/GainControl.h"
 #include "ui/Palette.h"
 
+#include <visona/LaneMapping.h>
+#include <visona/SweepAnalyzer.h>
+
 #include <algorithm>
+#include <cmath>
 
 namespace visona
 {
@@ -13,10 +20,9 @@ namespace visona
 namespace
 {
 
-constexpr int readoutRefreshHz = 30;
-constexpr int buttonWidth = 110;
-constexpr int buttonHeight = 44;
-constexpr int margin = 16;
+constexpr int diagnosticsRefreshHz = 15;
+constexpr int idleRefreshHz = 4;
+constexpr int margin = 12;
 constexpr int bannerWidth = 560;
 constexpr int bannerHeight = 76;
 constexpr int settingsWidth = 480;
@@ -26,36 +32,52 @@ double nowSeconds()
     return juce::Time::getMillisecondCounterHiRes() * 0.001;
 }
 
+juce::String formatSampleRate(double sampleRate)
+{
+    const auto kilohertz = sampleRate / 1000.0;
+    const bool whole = std::abs(kilohertz - std::round(kilohertz)) < 1.0e-9;
+    return juce::String(kilohertz, whole ? 0 : 1) + " kHz";
+}
+
 } // namespace
 
 MainComponent::MainComponent(AudioEngine& engine)
     : engine_(engine)
+    , scope_(engine.snapshots(), engine.layout())
     , settingsPanel_(engine)
     , peaks_(engine.layout().totalChannelCount(), 0.0f)
     , lastUpdateSeconds_(nowSeconds())
+    , lastAnalysisBusyNs_(engine.analysisBusyNanoseconds())
+    , lastCpuSeconds_(processCpuSeconds())
     , allocationCheckWorks_(RealtimeAllocationCheck::selfTest())
 {
     setOpaque(true);
     lookAndFeel_.setColourScheme(palette::widgetColours());
     setLookAndFeel(&lookAndFeel_);
 
-    addAndMakeVisible(readout_);
+    addAndMakeVisible(statusBar_);
+    addAndMakeVisible(scope_);
+    addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
+    addChildComponent(diagnostics_);
+    addChildComponent(settingsPanel_);
 
-    settingsButton_.setButtonText("Settings");
-    settingsButton_.onClick = [this] { showSettings(!settingsPanel_.isVisible()); };
-    addAndMakeVisible(settingsButton_);
+    controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
+    controlBar_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
+    controlBar_.onFullScreen = [this] { toggleFullScreen(); };
+    controlBar_.onSettings = [this] { showSettings(!settingsPanel_.isVisible()); };
 
     settingsPanel_.onClose = [this] { showSettings(false); };
     settingsPanel_.onPreferredHeightChanged = [this] { resized(); };
-    addChildComponent(settingsPanel_);
+    settingsPanel_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
+    settingsPanel_.onFullScreen = [this] { toggleFullScreen(); };
 
     setWantsKeyboardFocus(true);
     setSize(1280, 720);
 
     engine_.deviceManager().addChangeListener(this);
     updateDeviceInfo();
-    startTimerHz(readoutRefreshHz);
+    startTimerHz(idleRefreshHz);
 }
 
 MainComponent::~MainComponent()
@@ -73,19 +95,32 @@ void MainComponent::paint(juce::Graphics& g)
 void MainComponent::resized()
 {
     auto area = getLocalBounds();
-    readout_.setBounds(area);
+    const auto step = chromeStepFor(getWidth(), getHeight());
+    statusBar_.setStep(step);
+    controlBar_.setStep(step);
+    settingsPanel_.setViewControlsVisible(!controlBar_.showsSecondaryControls());
+
+    statusBar_.setBounds(area.removeFromTop(statusBar_.preferredHeight()));
+    controlBar_.setBounds(area.removeFromBottom(controlBar_.preferredHeight(area.getWidth())));
+    scope_.setBounds(area);
 
     banner_.setBounds(
-        juce::Rectangle<int>(std::min(bannerWidth, getWidth() - 2 * margin), bannerHeight)
-            .withCentre({area.getCentreX(), margin + bannerHeight / 2}));
+        juce::Rectangle<int>(std::min(bannerWidth, area.getWidth() - 2 * margin), bannerHeight)
+            .withCentre({area.getCentreX(), area.getY() + margin + bannerHeight / 2}));
 
-    settingsButton_.setBounds(
-        area.reduced(margin).removeFromBottom(buttonHeight).removeFromRight(buttonWidth));
+    const auto overlay = diagnostics_.preferredSize();
+    const auto overlayWidth = std::min(overlay.getWidth(), area.getWidth() - 2 * margin);
+    const auto overlayHeight = std::min(overlay.getHeight(), area.getHeight() - 2 * margin);
+    diagnostics_.setBounds(area.getRight() - margin - overlayWidth, area.getY() + margin,
+                           overlayWidth, overlayHeight);
 
     const auto panelHeight = std::min(settingsPanel_.preferredHeight(), getHeight() - 2 * margin);
     settingsPanel_.setBounds(
         juce::Rectangle<int>(std::min(settingsWidth, getWidth() - 2 * margin), panelHeight)
-            .withCentre(area.getCentre()));
+            .withCentre(getLocalBounds().getCentre()));
+
+    // Entering or leaving full screen resizes the window.
+    updateToggles();
 }
 
 bool MainComponent::keyPressed(const juce::KeyPress& key)
@@ -100,6 +135,34 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         showSettings(!settingsPanel_.isVisible());
         return true;
     }
+
+    const auto modifiers = key.getModifiers();
+    if (modifiers.isCommandDown() || modifiers.isCtrlDown() || modifiers.isAltDown())
+        return false;
+
+    const auto character = juce::CharacterFunctions::toLowerCase(key.getTextCharacter());
+    if (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
+        character == '+' || character == '=')
+    {
+        setGainDb(gainDb_ + 1);
+        return true;
+    }
+    if (key.isKeyCode(juce::KeyPress::downKey) ||
+        key.isKeyCode(juce::KeyPress::numberPadSubtract) || character == '-')
+    {
+        setGainDb(gainDb_ - 1);
+        return true;
+    }
+    if (character == 'f')
+    {
+        toggleFullScreen();
+        return true;
+    }
+    if (character == 'd')
+    {
+        showDiagnostics(!diagnostics_.isVisible());
+        return true;
+    }
     return false;
 }
 
@@ -110,15 +173,121 @@ void MainComponent::changeListenerCallback(juce::ChangeBroadcaster*)
 
 void MainComponent::timerCallback()
 {
+    updateToggles();
+    updateDiagnostics();
+}
+
+void MainComponent::setGainDb(int gainDb)
+{
+    gainDb = DisplayGain::clampDb(gainDb);
+    if (gainDb == gainDb_)
+        return;
+    gainDb_ = gainDb;
+    scope_.setGainDb(gainDb_);
+    controlBar_.gain().setGainDb(gainDb_);
+    updateStatus();
+}
+
+void MainComponent::showSettings(bool shouldShow)
+{
+    settingsPanel_.setVisible(shouldShow);
+    updateToggles();
+    if (!shouldShow)
+        grabKeyboardFocus();
+}
+
+void MainComponent::showDiagnostics(bool shouldShow)
+{
+    diagnostics_.setVisible(shouldShow);
+    startTimerHz(shouldShow ? diagnosticsRefreshHz : idleRefreshHz);
+    updateDiagnostics();
+    resized();
+}
+
+void MainComponent::toggleFullScreen()
+{
+    if (auto* const window = findParentComponentOfClass<juce::ResizableWindow>())
+        window->setFullScreen(!window->isFullScreen());
+}
+
+bool MainComponent::isFullScreen() const
+{
+    const auto* const window = findParentComponentOfClass<juce::ResizableWindow>();
+    return window != nullptr && window->isFullScreen();
+}
+
+void MainComponent::updateToggles()
+{
+    const auto fullScreen = isFullScreen();
+    controlBar_.setToggles(diagnostics_.isVisible(), fullScreen, settingsPanel_.isVisible());
+    settingsPanel_.setViewToggles(diagnostics_.isVisible(), fullScreen);
+}
+
+void MainComponent::updateDeviceInfo()
+{
+    auto* const device = engine_.deviceManager().getCurrentAudioDevice();
+    deviceName_ = device != nullptr ? device->getName() : juce::String();
+    sampleRate_ = device != nullptr ? device->getCurrentSampleRate() : 0.0;
+    bufferSize_ = device != nullptr ? device->getCurrentBufferSizeSamples() : 0;
+    inputNames_ = device != nullptr ? device->getInputChannelNames() : juce::StringArray();
+    inputRunning_ = engine_.isInputRunning();
+
+    if (!inputRunning_)
+        banner_.setText("NO AUDIO INPUT",
+                        engine_.noInputReason() + " Choose a device in Settings.");
+    banner_.setVisible(!inputRunning_);
+    updateStatus();
+}
+
+void MainComponent::updateStatus()
+{
+    StatusBar::Values values;
+    values.state = inputRunning_ ? "FREE RUN" : "NO INPUT";
+    values.stateIsError = !inputRunning_;
+    if (inputRunning_ && sampleRate_ > 0.0)
+        values.sampleRate = formatSampleRate(sampleRate_);
+    values.window = juce::String(juce::roundToInt(freeRunningWindowSeconds)) + " s";
+    values.gain = GainControl::format(gainDb_);
+    statusBar_.setValues(values);
+}
+
+void MainComponent::updateDiagnostics()
+{
     const auto now = nowSeconds();
-    const auto elapsed = now - lastUpdateSeconds_;
+    const auto elapsed = std::max(now - lastUpdateSeconds_, 1.0e-3);
     lastUpdateSeconds_ = now;
+
+    const auto busyNs = engine_.analysisBusyNanoseconds();
+    const auto analysisLoad = static_cast<double>(busyNs - lastAnalysisBusyNs_) * 1.0e-9 / elapsed;
+    lastAnalysisBusyNs_ = busyNs;
+
+    const auto cpuSeconds = processCpuSeconds();
+    std::optional<double> processCpu;
+    if (cpuSeconds.has_value() && lastCpuSeconds_.has_value())
+        processCpu = (*cpuSeconds - *lastCpuSeconds_) / elapsed;
+    lastCpuSeconds_ = cpuSeconds;
+
+    std::optional<std::uint64_t> callbackAllocations;
+    if constexpr (RealtimeAllocationCheck::enabled)
+    {
+        callbackAllocations = RealtimeAllocationCheck::allocationCount();
+
+        // An allocation in the audio callback is a bug; stop here under a debugger.
+        if (*callbackAllocations > 0 && !reportedCallbackAllocation_)
+        {
+            reportedCallbackAllocation_ = true;
+            jassertfalse;
+        }
+    }
+
+    if (!diagnostics_.isVisible())
+        return;
 
     const auto stream = engine_.streamStatus();
     const auto& layout = engine_.layout();
     engine_.takePeaks(peaks_);
 
-    DebugReadout::Values values;
+    DiagnosticsOverlay::Values values;
     values.running = stream.has_value();
     values.device = deviceName_;
     values.sampleRate = sampleRate_;
@@ -137,44 +306,13 @@ void MainComponent::timerCallback()
         values.deviceHostTime = stream->deviceHostTime;
     }
     values.deviceXruns = engine_.deviceManager().getXRunCount();
+    values.callbackAllocations = callbackAllocations;
+    values.allocationCheckWorks = allocationCheckWorks_;
+    values.analysisLoad = analysisLoad;
+    values.rendering = scope_.stats();
+    values.processCpu = processCpu;
 
-    if constexpr (RealtimeAllocationCheck::enabled)
-    {
-        values.callbackAllocations = RealtimeAllocationCheck::allocationCount();
-        values.allocationCheckWorks = allocationCheckWorks_;
-
-        // An allocation in the audio callback is a bug; stop here under a debugger.
-        if (*values.callbackAllocations > 0 && !reportedCallbackAllocation_)
-        {
-            reportedCallbackAllocation_ = true;
-            jassertfalse;
-        }
-    }
-
-    readout_.update(values, elapsed);
-}
-
-void MainComponent::showSettings(bool shouldShow)
-{
-    settingsPanel_.setVisible(shouldShow);
-    settingsButton_.setToggleState(shouldShow, juce::dontSendNotification);
-    if (!shouldShow)
-        grabKeyboardFocus();
-}
-
-void MainComponent::updateDeviceInfo()
-{
-    auto* const device = engine_.deviceManager().getCurrentAudioDevice();
-    deviceName_ = device != nullptr ? device->getName() : juce::String();
-    sampleRate_ = device != nullptr ? device->getCurrentSampleRate() : 0.0;
-    bufferSize_ = device != nullptr ? device->getCurrentBufferSizeSamples() : 0;
-    inputNames_ = device != nullptr ? device->getInputChannelNames() : juce::StringArray();
-
-    const bool noInput = !engine_.isInputRunning();
-    if (noInput)
-        banner_.setText("NO AUDIO INPUT",
-                        engine_.noInputReason() + " Choose a device in Settings.");
-    banner_.setVisible(noInput);
+    diagnostics_.update(values, elapsed);
 }
 
 } // namespace visona

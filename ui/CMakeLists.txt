@@ -7,8 +7,19 @@ target_sources(Visona PRIVATE
     Banner.h
     ChannelNames.cpp
     ChannelNames.h
-    DebugReadout.cpp
-    DebugReadout.h
+    ChromeButton.cpp
+    ChromeButton.h
+    ChromeLayout.h
+    ControlBar.cpp
+    ControlBar.h
+    DiagnosticsOverlay.cpp
+    DiagnosticsOverlay.h
+    GainControl.cpp
+    GainControl.h
     Palette.h
+    ScopeView.cpp
+    ScopeView.h
     SettingsPanel.cpp
-    SettingsPanel.h)
+    SettingsPanel.h
+    StatusBar.cpp
+    StatusBar.h)
