@@ -48,6 +48,10 @@ jobs:
           test "$(lipo -archs "$executable")" = "arm64"
           vtool -show-build "$executable" | grep -E '^ +minos 14\.0$'
           codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+          plist="$APP_BUNDLE/Contents/Info.plist"
+          test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.stephanterning.visona"
+          # Without a usage text, macOS delivers silence from every audio input.
+          plutil -extract NSMicrophoneUsageDescription raw "$plist"
 
       - name: Package app
         run: ditto -c -k --keepParent "$APP_BUNDLE" Visona-macos-arm64.zip
