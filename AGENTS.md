@@ -20,8 +20,11 @@ The maintainer may talk to agents in Swedish. Translate to English before anythi
 Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple Silicon (arm64) only, with macOS 14.0 as the deployment target. CMake downloads JUCE 9.0.2 and Catch2 v3 with `FetchContent`.
 
 - `core/`: plain C++20 library with no JUCE dependency. Warnings are errors.
-- `app/`: the JUCE app, "Visona". Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
+- `app/`: the JUCE app, "Visona": audio device, audio callback, settings and wiring. Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
+- `ui/`: JUCE components, compiled into the app target.
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
+
+The audio callback must not allocate, lock, wait or log. Debug builds of the app count allocations made in it (`app/src/RealtimeAllocationCheck.h`), and the debug readout shows the count, which must stay at 0.
 
 ### macOS prerequisites
 
