@@ -1,4 +1,7 @@
+#include "AudioEngine.h"
 #include "MainComponent.h"
+#include "Settings.h"
+#include "ui/Palette.h"
 
 #include <visona/Version.h>
 
@@ -12,11 +15,11 @@ namespace visona
 class MainWindow final : public juce::DocumentWindow
 {
 public:
-    explicit MainWindow(const juce::String& name)
-        : DocumentWindow(name, MainComponent::backgroundColour, DocumentWindow::allButtons)
+    MainWindow(const juce::String& name, AudioEngine& engine)
+        : DocumentWindow(name, palette::background, DocumentWindow::allButtons)
     {
         setUsingNativeTitleBar(true);
-        setContentOwned(new MainComponent(), true);
+        setContentOwned(new MainComponent(engine), true);
 
         // On macOS, a resizable window with a maximise button gets native fullscreen
         // from the green title bar button.
@@ -25,6 +28,7 @@ public:
 
         centreWithSize(getWidth(), getHeight());
         setVisible(true);
+        getContentComponent()->grabKeyboardFocus();
     }
 
     void closeButtonPressed() override
@@ -61,12 +65,19 @@ public:
 
     void initialise(const juce::String&) override
     {
-        mainWindow = std::make_unique<MainWindow>(getApplicationName());
+        settings = std::make_unique<Settings>();
+        audioEngine = std::make_unique<AudioEngine>(*settings);
+        mainWindow = std::make_unique<MainWindow>(getApplicationName(), *audioEngine);
+
+        // Opened after the window is up, so the system's microphone prompt appears over it.
+        audioEngine->openSavedDevice();
     }
 
     void shutdown() override
     {
         mainWindow = nullptr;
+        audioEngine = nullptr;
+        settings = nullptr;
     }
 
     void systemRequestedQuit() override
@@ -77,6 +88,8 @@ public:
     void anotherInstanceStarted(const juce::String&) override {}
 
 private:
+    std::unique_ptr<Settings> settings;
+    std::unique_ptr<AudioEngine> audioEngine;
     std::unique_ptr<MainWindow> mainWindow;
 };
 

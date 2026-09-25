@@ -1,0 +1,299 @@
+#include "AudioEngine.h"
+
+#include "HostTime.h"
+#include "InputPeakReader.h"
+#include "RealtimeAllocationCheck.h"
+#include "Settings.h"
+
+#include <visona/AudioInputWriter.h>
+#include <visona/AudioRingBuffer.h>
+
+#include <algorithm>
+#include <atomic>
+#include <cmath>
+#include <utility>
+
+namespace visona
+{
+
+namespace
+{
+
+// JUCE opens the first N input channels by default. N is above any real device's channel count,
+// so every input channel is opened.
+constexpr int allInputChannels = 1024;
+
+constexpr double ringSeconds = 1.0;
+
+// The frames fill up before the timings unless blocks average fewer frames than this.
+constexpr std::size_t framesPerTimingSlot = 16;
+
+std::size_t ringCapacityFrames(double sampleRate, int bufferSize)
+{
+    const auto oneSecond =
+        static_cast<std::size_t>(std::ceil(std::max(sampleRate, 1.0) * ringSeconds));
+    return std::max(oneSecond, static_cast<std::size_t>(std::max(bufferSize, 1)) * 4);
+}
+
+/** The index of a device input channel among the channels the callback delivers, or noInput. The
+    callback delivers the active channels in ascending order, without gaps. */
+int callbackInputIndex(const juce::BigInteger& activeInputs, int deviceChannel)
+{
+    if (deviceChannel < 0 || !activeInputs[deviceChannel])
+        return AudioInputWriter::noInput;
+    return activeInputs.getBitRange(0, deviceChannel).countNumberOfSetBits();
+}
+
+} // namespace
+
+struct AudioEngine::Stream
+{
+    Stream(std::size_t numChannels, std::size_t capacityFrames, juce::BigInteger activeInputsIn,
+           int numDeviceInputsIn)
+        : ring(numChannels, capacityFrames,
+               std::max<std::size_t>(capacityFrames / framesPerTimingSlot, 1))
+        , writer(ring)
+        , reader(ring)
+        , activeInputs(std::move(activeInputsIn))
+        , numDeviceInputs(numDeviceInputsIn)
+    {
+    }
+
+    AudioRingBuffer ring;
+    AudioInputWriter writer;
+    InputPeakReader reader;
+    const juce::BigInteger activeInputs;
+    const int numDeviceInputs;
+
+    std::atomic<std::uint32_t> blockSize{0};
+    std::atomic<bool> deviceHostTime{false};
+};
+
+AudioEngine::AudioEngine(Settings& settings)
+    : settings_(settings)
+    , layout_{2} // MVP 1.0 has exactly one stereo source (D-052).
+    , inputChannels_(settings.inputChannels(layout_.totalChannelCount()))
+{
+    deviceManager_.addAudioCallback(this);
+    deviceManager_.addChangeListener(this);
+}
+
+AudioEngine::~AudioEngine()
+{
+    deviceManager_.removeChangeListener(this);
+    deviceManager_.removeAudioCallback(this);
+    deviceManager_.closeAudioDevice();
+}
+
+void AudioEngine::openSavedDevice()
+{
+    const auto savedState = settings_.audioDeviceState();
+    lastError_ = deviceManager_.initialise(allInputChannels, 0, savedState.get(), false);
+
+    // JUCE does not count the default device it opens without a saved state as chosen, so it
+    // would not be saved. Reopening it as a choice saves it, and the next start restores this
+    // device instead of whatever the default is then.
+    if (savedState == nullptr && deviceManager_.getCurrentAudioDevice() != nullptr)
+    {
+        const auto setup = deviceManager_.getAudioDeviceSetup();
+        deviceManager_.closeAudioDevice();
+        applySetup(setup);
+    }
+}
+
+bool AudioEngine::isInputRunning() const
+{
+    auto* const device = deviceManager_.getCurrentAudioDevice();
+    return device != nullptr && device->isPlaying() && !device->getActiveInputChannels().isZero();
+}
+
+juce::String AudioEngine::noInputReason() const
+{
+    if (isInputRunning())
+        return {};
+
+    auto* const type = deviceManager_.getCurrentDeviceTypeObject();
+    const auto availableDevices =
+        type != nullptr ? type->getDeviceNames(true) : juce::StringArray{};
+
+    if (const auto state = deviceManager_.createStateXml())
+    {
+        const auto savedDevice = state->getStringAttribute("audioInputDeviceName");
+        if (savedDevice.isNotEmpty() && !availableDevices.contains(savedDevice))
+            return "The saved audio device \"" + savedDevice + "\" was not found.";
+    }
+    if (lastError_.isNotEmpty())
+        return lastError_;
+    if (availableDevices.isEmpty())
+        return "No audio input device was found.";
+    return "No audio input device is selected.";
+}
+
+std::optional<AudioEngine::StreamStatus> AudioEngine::streamStatus() const
+{
+    const std::scoped_lock lock(lock_);
+    if (stream_ == nullptr)
+        return std::nullopt;
+
+    return StreamStatus{stream_->writer.nextSampleIndex(),
+                        stream_->blockSize.load(std::memory_order_relaxed),
+                        stream_->deviceHostTime.load(std::memory_order_relaxed),
+                        stream_->ring.overrunCount(), stream_->ring.droppedFrameCount()};
+}
+
+void AudioEngine::takePeaks(std::span<float> peaks)
+{
+    const std::scoped_lock lock(lock_);
+    for (std::size_t channel = 0; channel < peaks.size(); ++channel)
+    {
+        const bool known = stream_ != nullptr && channel < stream_->ring.numChannels();
+        peaks[channel] = known ? stream_->reader.takePeak(channel) : 0.0f;
+    }
+}
+
+juce::AudioDeviceManager& AudioEngine::deviceManager() noexcept
+{
+    return deviceManager_;
+}
+
+juce::String AudioEngine::selectDeviceType(const juce::String& typeName)
+{
+    // A new type starts from its default setup, which uses the default (all) input channels.
+    deviceManager_.setCurrentAudioDeviceType(typeName, true);
+    lastError_.clear();
+    return {};
+}
+
+juce::String AudioEngine::selectDevice(const juce::String& inputDeviceName)
+{
+    auto setup = deviceManager_.getAudioDeviceSetup();
+    setup.inputDeviceName = inputDeviceName;
+    // Keep the new device at its current rate instead of forcing the previous device's rate on it,
+    // since a device synced to a digital input must run at the incoming rate.
+    setup.sampleRate = 0.0;
+    return applySetup(setup);
+}
+
+juce::String AudioEngine::selectSampleRate(double sampleRate)
+{
+    auto setup = deviceManager_.getAudioDeviceSetup();
+    setup.sampleRate = sampleRate;
+    return applySetup(setup);
+}
+
+juce::String AudioEngine::selectBufferSize(int bufferSizeSamples)
+{
+    auto setup = deviceManager_.getAudioDeviceSetup();
+    setup.bufferSize = bufferSizeSamples;
+    return applySetup(setup);
+}
+
+const SourceLayout& AudioEngine::layout() const noexcept
+{
+    return layout_;
+}
+
+int AudioEngine::inputChannel(std::size_t channel) const
+{
+    const std::scoped_lock lock(lock_);
+    return effectiveInputChannel(channel, stream_ != nullptr ? stream_->numDeviceInputs : 0);
+}
+
+void AudioEngine::setInputChannel(std::size_t channel, int deviceInputChannel)
+{
+    jassert(channel < inputChannels_.size() && deviceInputChannel >= 0);
+    std::vector<int> chosen;
+    {
+        const std::scoped_lock lock(lock_);
+        inputChannels_[channel] = deviceInputChannel;
+        routeInputs();
+        chosen = inputChannels_;
+    }
+    settings_.setInputChannels(chosen);
+}
+
+void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device)
+{
+    auto stream = std::make_unique<Stream>(
+        layout_.totalChannelCount(),
+        ringCapacityFrames(device->getCurrentSampleRate(), device->getCurrentBufferSizeSamples()),
+        device->getActiveInputChannels(), device->getInputChannelNames().size());
+
+    const std::scoped_lock lock(lock_);
+    stream_ = std::move(stream);
+    routeInputs();
+}
+
+void AudioEngine::audioDeviceIOCallbackWithContext(
+    const float* const* inputChannelData, int numInputChannels, float* const* outputChannelData,
+    int numOutputChannels, int numSamples, const juce::AudioIODeviceCallbackContext& context)
+{
+    const bool deviceHostTime = context.hostTimeNs != nullptr;
+    const auto hostTimeNs = deviceHostTime ? *context.hostTimeNs : monotonicHostTimeNs();
+    [[maybe_unused]] const RealtimeAllocationCheck::Scope allocationCheck;
+
+    for (int channel = 0; channel < numOutputChannels; ++channel)
+        if (outputChannelData[channel] != nullptr)
+            juce::FloatVectorOperations::clear(outputChannelData[channel], numSamples);
+
+    auto* const stream = stream_.get();
+    if (stream == nullptr || numSamples <= 0)
+        return;
+
+    const auto numFrames = static_cast<std::uint32_t>(numSamples);
+    const std::span<const float* const> inputs(
+        inputChannelData, static_cast<std::size_t>(std::max(numInputChannels, 0)));
+    stream->writer.write(inputs, numFrames, hostTimeNs);
+    stream->blockSize.store(numFrames, std::memory_order_relaxed);
+    stream->deviceHostTime.store(deviceHostTime, std::memory_order_relaxed);
+}
+
+void AudioEngine::audioDeviceStopped()
+{
+    std::unique_ptr<Stream> stopped;
+    {
+        const std::scoped_lock lock(lock_);
+        stopped = std::move(stream_);
+    }
+    // Destroying the stream joins its reader thread, so do it outside the lock.
+}
+
+void AudioEngine::changeListenerCallback(juce::ChangeBroadcaster*)
+{
+    // The state is the last device the user chose. JUCE keeps it when the saved device is missing,
+    // so a missing device stays saved for the next start.
+    if (const auto state = deviceManager_.createStateXml())
+        settings_.setAudioDeviceState(*state);
+}
+
+juce::String AudioEngine::applySetup(juce::AudioDeviceManager::AudioDeviceSetup setup)
+{
+    setup.outputDeviceName.clear();
+    setup.useDefaultInputChannels = true;
+    setup.useDefaultOutputChannels = true;
+    lastError_ = deviceManager_.setAudioDeviceSetup(setup, true);
+    return lastError_;
+}
+
+int AudioEngine::effectiveInputChannel(std::size_t channel, int numDeviceInputs) const
+{
+    if (numDeviceInputs <= 0)
+        return -1;
+    const auto saved = inputChannels_[channel];
+    if (saved >= 0 && saved < numDeviceInputs)
+        return saved;
+    return std::min(static_cast<int>(channel), numDeviceInputs - 1);
+}
+
+void AudioEngine::routeInputs()
+{
+    if (stream_ == nullptr)
+        return;
+    for (std::size_t channel = 0; channel < layout_.totalChannelCount(); ++channel)
+    {
+        const auto deviceChannel = effectiveInputChannel(channel, stream_->numDeviceInputs);
+        stream_->writer.route(channel, callbackInputIndex(stream_->activeInputs, deviceChannel));
+    }
+}
+
+} // namespace visona

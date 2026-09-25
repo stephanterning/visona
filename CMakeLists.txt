@@ -51,4 +51,5 @@ endif()
 
 if(VISONA_BUILD_APP)
     add_subdirectory(app)
+    add_subdirectory(ui)
 endif()
