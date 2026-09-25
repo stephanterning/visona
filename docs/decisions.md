@@ -11,6 +11,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - D-001–D-032 come from the original product specification.
   - D-033–D-053 come from three planning review rounds.
   - D-054–D-060 come from the approval of the MVP plan.
+  - D-061 onward are made during implementation.
 - Open question IDs keep their original numbers. Resolved questions are not listed; their answers are recorded as decisions.
 
 ---
@@ -211,6 +212,11 @@ A lightweight log of decisions and open questions. The architecture is described
   Simplest for the MVP. The position may be off until the next Start, or SPP + Continue.
 - **D-060 — Before the first Start, the free-running sweep uses a fixed 2 s window.** `Active`
   Completes D-045.
+
+### Implementation
+
+- **D-061 — The macOS bundle ID is `io.github.stephanterning.visona` for now.** `Active`
+  It matches the GitHub-hosted project and is used by the skeleton ([PR #4](https://github.com/stephanterning/visona/pull/4)). `se.stephanterning.visona` remains a possible later switch. Changing it later means users must re-grant the microphone permission, and saved settings move.
 
 ---
 
