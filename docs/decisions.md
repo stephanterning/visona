@@ -217,6 +217,8 @@ A lightweight log of decisions and open questions. The architecture is described
 
 - **D-061 — The macOS bundle ID is `io.github.stephanterning.visona` for now.** `Active`
   It matches the GitHub-hosted project and is used by the skeleton ([PR #4](https://github.com/stephanterning/visona/pull/4)). `se.stephanterning.visona` remains a possible later switch. Changing it later means users must re-grant the microphone permission, and saved settings move.
+- **D-062 — When the audio ring is full, the audio thread drops the whole incoming block and counts an overrun.** `Active`
+  The audio thread never waits, never splits a block and never overwrites audio the analysis thread has not read. `sampleIndex` keeps counting through dropped blocks, so the analysis sees a drop as a jump in `sampleIndex` instead of as shifted time. Overwriting the oldest audio instead would require the producer to move the consumer's read position, which a lock-free SPSC ring cannot do safely.
 
 ---
 
