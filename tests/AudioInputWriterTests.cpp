@@ -311,7 +311,7 @@ TEST_CASE("AudioInputWriter hot paths are noexcept", "[audio-input][realtime]")
 {
     AudioRingBuffer ring(1, 8, 2);
     AudioInputWriter writer(ring);
-    const std::vector<const float*> inputs{nullptr};
+    const std::array<const float*, 1> inputs{nullptr};
     STATIC_REQUIRE(noexcept(writer.write(inputs, 1, 0)));
     STATIC_REQUIRE(noexcept(writer.route(0, 0)));
     STATIC_REQUIRE(noexcept(writer.routeOf(0)));
