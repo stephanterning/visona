@@ -231,11 +231,13 @@ A lightweight log of decisions and open questions. The architecture is described
   Visona must keep up while it is in the background, for example behind the DAW. App Nap throttles timers, which would starve the thread that drains the audio ring and cause overruns.
 - **D-067 — Frames missing from the stream leave their bins empty in the current pass.** `Active`
   When the ring drops a block (D-062), `sampleIndex` jumps, and the sweep empties every bin the missing frames would have filled. The gap shows as a gap in the waveform, instead of the previous pass's data drawn as if it were new, or a flat line that looks like silence. A jump of a whole window or more empties every bin.
-- **D-068 — The write head is a 1.5-pixel accent-green line followed by a 6-pixel erase gap, and the previous pass is drawn at 55 % brightness.** `Active`
+- **D-068 — The write head is a 1.5-pixel accent-green line followed by a 6-pixel erase gap, and the previous pass is not dimmed.** `Active`
   - Sizes are logical pixels. The accent is `#3fe08a`, which is outside the band palette and the status colours.
   - The erase gap is the "small erase gap ahead of the head" that the architecture proposed to try.
-  - A new pass redraws the whole scope, since every column of the old pass changes from bright to dimmed at once. In the free-running sweep, that is every 2 s.
-  - All of these are tokens in `ui/Palette.h` and constants in `ui/ScopeView.cpp`, to be tuned on real hardware.
+  - The plan dimmed the previous pass to 50–60 %. In the hardware check of [PR #7](https://github.com/stephanterning/visona/pull/7), the maintainer found the green line enough to read the sweep, so both passes are drawn at full brightness.
+  - Bins still carry their pass, so the column at the head shows only the new pass, and dimming could return as a setting.
+  - Since the start of a new pass leaves the old columns as they are, it redraws only the columns across the end of the window.
+  - The colour and sizes are a token in `ui/Palette.h` and constants in `ui/ScopeView.cpp`.
 - **D-069 — The chrome reflows in three steps with breakpoints at 760 and 480 logical pixels of width and 360 of height.** `Active`
   - *Wide* (760 or wider): everything on one row with full labels.
   - *Narrow*: icon-only buttons; control groups wrap onto a second row if they do not fit.

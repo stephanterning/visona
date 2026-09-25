@@ -136,7 +136,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Cell.** `sweep[source][channel][band][bin] = {min, max}`, signed float (D-050).
   - `full` (broadband) always defines the waveform shape.
   - `low`, `mid` and `high` drive the frequency coloring only (D-056). PR 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
-- **Pass metadata.** Each bin carries a `passId`, so the renderer can dim the previous pass ahead of the write head.
+- **Pass metadata.** Each bin carries a `passId`, so the renderer can tell the new pass from the previous one ahead of the write head. The column at the head shows only the new pass.
 - **Writing.** Each sample maps to bin *b = ⌊φ·B⌋*. When *b* changes, the new bin is reset and stamped with the current `passId`.
   - Start and window changes clear the buffer.
   - Continue after an SPP relocate increments `passId` without clearing.
@@ -162,16 +162,16 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - At the lane edge the waveform is clipped with a *neutral* marker, so display overshoot is not mistaken for audio clipping.
 - **Amplitude references.** A center line, plus faint lines where 0 dBFS and −6 dBFS land after display gain.
 - **Write head and passes** (D-068).
-  - The new pass is drawn at full brightness; the previous pass ahead of the head is dimmed to 55 %.
   - The head is a thin line in an accent color outside the band palette. It is never white, blue, orange or red.
   - A small erase gap follows the head.
+  - The previous pass ahead of the head is drawn at full brightness, like the new one; the head line and gap are enough to read the sweep.
 - **Grid.** Neutral gray, not blue.
   - Downbeats and bar lines are strongest and beat lines weaker. Sixteenths show only at ¼ and ½ bar.
   - Small bar numbers sit at the lane edge.
 - **Color tokens.** One central palette holds band, grid, head, lane background, status and error colors. That keeps themes cheap later, without building a theme UI now.
 - **Implementation** (D-054):
   - CPU rasterization into `juce::Image` tiles 64 physical pixels wide via `BitmapData`, at physical pixel resolution (HiDPI) (D-071).
-  - Only columns that changed since the last frame are redrawn, and only their tiles are repainted. Resize, gain, window changes and a new pass trigger a full redraw.
+  - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass. Resize, gain and window changes trigger a full redraw.
   - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. Without a new snapshot, nothing is drawn. OpenGL only if measurements show it is needed.
 
 ### 3.6 UI layout

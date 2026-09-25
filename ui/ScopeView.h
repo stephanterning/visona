@@ -18,8 +18,8 @@ namespace visona
     The sweep scope: one lane per channel, stacked with L on top (D-057). Each lane shows the
     full-band signed min/max per pixel column in the neutral mono/precise colour (D-050, D-056).
 
-    - The pass being written is drawn at full brightness and the previous pass, ahead of the write
-      head, dimmed. The head is a thin accent line followed by a small erase gap (D-068).
+    - The write head is a thin accent line followed by a small erase gap. The previous pass ahead
+      of it is drawn like the new one (D-068).
     - Faint lines mark the centre and where 0 dBFS and -6 dBFS land after display gain. Display
       overshoot is cut at the lane edge with a neutral marker.
     - Display gain is applied only here (D-024).
@@ -27,7 +27,7 @@ namespace visona
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
     vertical image tiles. Frames follow the display's vertical blank, capped at 60 per second, and
     only when there is a new snapshot. A frame redraws only the columns the head passed since the
-    previous frame, so only the tiles holding them change; a new pass, stream, size or gain redraws
+    previous frame, so only the tiles holding them change; a new stream, size or gain redraws
     everything. The component is opaque and never repaints what did not change.
 */
 class ScopeView final : public juce::Component

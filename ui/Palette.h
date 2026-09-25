@@ -32,9 +32,6 @@ inline const juce::Colour laneLabel{0xff6e727c};
 // Waveform. Mono/precise mode draws the full band in one neutral colour.
 inline const juce::Colour waveform{0xffd3d7de};
 
-/** The previous pass, ahead of the write head, is drawn at this fraction of full brightness. */
-inline constexpr float previousPassBrightness = 0.55f;
-
 /** Marks display overshoot at a lane edge. Neutral, so it is not mistaken for audio clipping. */
 inline const juce::Colour clipMarker{0xff8e939d};
 
@@ -53,12 +50,6 @@ inline const juce::Colour bandHigh{0xfff4f4f4};
 
 // State
 inline const juce::Colour error{0xffc93b35};
-
-/** `colour` as drawn for the previous pass, blended towards the lane background. */
-inline juce::Colour dimmed(juce::Colour colour)
-{
-    return laneBackground.interpolatedWith(colour, previousPassBrightness);
-}
 
 /** Colours for JUCE's own widgets, such as combo boxes and buttons. */
 inline juce::LookAndFeel_V4::ColourScheme widgetColours()

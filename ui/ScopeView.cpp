@@ -82,9 +82,7 @@ struct Colours
     juce::PixelARGB centreLine = palette::centreLine.getPixelARGB();
     juce::PixelARGB referenceLine = palette::referenceLine.getPixelARGB();
     juce::PixelARGB waveform = palette::waveform.getPixelARGB();
-    juce::PixelARGB waveformDimmed = palette::dimmed(palette::waveform).getPixelARGB();
     juce::PixelARGB clipMarker = palette::clipMarker.getPixelARGB();
-    juce::PixelARGB clipMarkerDimmed = palette::dimmed(palette::clipMarker).getPixelARGB();
     juce::PixelARGB head = palette::head.getPixelARGB();
 };
 
@@ -255,26 +253,39 @@ juce::Rectangle<int> ScopeView::renderChanges()
 {
     const auto& snapshot = snapshots_.readBuffer();
     const auto& sweep = snapshot.sweep;
-    const bool full = needsFullRender_ || !rendered_ || snapshot.streamId != renderedStream_ ||
-                      sweep.generation() != renderedGeneration_ || sweep.pass() != renderedPass_;
-    if (full)
+    const bool sameSweep = rendered_ && !needsFullRender_ && snapshot.streamId == renderedStream_ &&
+                           sweep.generation() == renderedGeneration_;
+    if (sameSweep && sweep.pass() == 0)
+        return {};
+
+    // Within a window, the head only changes the columns it passes. Both passes look the same,
+    // so the start of a new pass changes only the columns across the end of the window.
+    const bool samePass = sweep.pass() == renderedPass_ && sweep.head() >= renderedHead_;
+    const bool nextPass = sweep.pass() == renderedPass_ + 1 && sweep.head() < renderedHead_;
+    if (!sameSweep || renderedPass_ == 0 || !(samePass || nextPass))
     {
         renderAll();
         return getLocalBounds();
     }
-    if (sweep.pass() == 0 || sweep.numBins() == 0)
-        return {};
 
     // The columns from where the head was to the end of the erase gap after where it is now.
     const auto first =
         std::min(static_cast<int>(mapping_.firstColumn(renderedHead_)), renderedHeadStart_);
     const auto [headStart, gapEnd] = headColumns(sweep);
     const auto last = std::max(gapEnd, static_cast<int>(mapping_.lastColumn(sweep.head())));
-    renderColumns(first, last);
-
+    renderedPass_ = sweep.pass();
     renderedHead_ = sweep.head();
     renderedHeadStart_ = headStart;
-    return logicalColumns(first, last);
+
+    if (samePass)
+    {
+        renderColumns(first, last);
+        return logicalColumns(first, last);
+    }
+    renderColumns(first, width_ - 1);
+    renderColumns(0, last);
+    repaint(logicalColumns(first, width_ - 1));
+    return logicalColumns(0, last);
 }
 
 void ScopeView::renderAll()
@@ -357,12 +368,11 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
             if (span.pass == ColumnSpan::Pass::none || (column >= headStart && column <= gapEnd))
                 continue;
 
-            const bool current = span.pass == ColumnSpan::Pass::current;
             const auto rows = mapping.rowsOf(span.min, span.max);
             auto top = rows.top;
             auto bottom = rows.bottom;
             // The waveform stops short of the marker, so the marker reads as a marker.
-            const auto marker = current ? colour.clipMarker : colour.clipMarkerDimmed;
+            const auto marker = colour.clipMarker;
             const auto markerGap = std::max(1, markerHeight_ / 2);
             if (rows.clippedTop)
             {
@@ -375,8 +385,7 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
                 bottom = std::min(bottom, laneBottom - markerHeight_ - markerGap);
             }
             if (top <= bottom)
-                canvas.fill(column, column, top, bottom,
-                            current ? colour.waveform : colour.waveformDimmed);
+                canvas.fill(column, column, top, bottom, colour.waveform);
         }
     }
 
