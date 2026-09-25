@@ -1,0 +1,100 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "macos-only",
+      "hidden": true,
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" }
+    },
+    {
+      "name": "xcode",
+      "displayName": "macOS: app and tests, Xcode project",
+      "inherits": ["base", "macos-only"],
+      "generator": "Xcode",
+      "cacheVariables": {
+        "VISONA_BUILD_APP": "ON"
+      }
+    },
+    {
+      "name": "macos",
+      "displayName": "macOS: app and tests, Ninja, Release",
+      "inherits": ["base", "macos-only"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VISONA_BUILD_APP": "ON"
+      }
+    },
+    {
+      "name": "core-gcc",
+      "displayName": "Core and tests only (no JUCE), GCC, Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "VISONA_BUILD_APP": "OFF"
+      }
+    },
+    {
+      "name": "core-clang",
+      "displayName": "Core and tests only (no JUCE), Clang, Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "VISONA_BUILD_APP": "OFF"
+      }
+    },
+    {
+      "name": "core-sanitize",
+      "displayName": "Core and tests only (no JUCE), Clang, Debug, ASan + UBSan",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "VISONA_BUILD_APP": "OFF",
+        "VISONA_SANITIZERS": "address,undefined"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "xcode", "configurePreset": "xcode", "configuration": "Debug" },
+    { "name": "macos", "configurePreset": "macos" },
+    { "name": "core-gcc", "configurePreset": "core-gcc" },
+    { "name": "core-clang", "configurePreset": "core-clang" },
+    { "name": "core-sanitize", "configurePreset": "core-sanitize" }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" }
+    },
+    { "name": "xcode", "inherits": "base", "configurePreset": "xcode", "configuration": "Debug" },
+    { "name": "macos", "inherits": "base", "configurePreset": "macos" },
+    { "name": "core-gcc", "inherits": "base", "configurePreset": "core-gcc" },
+    { "name": "core-clang", "inherits": "base", "configurePreset": "core-clang" },
+    {
+      "name": "core-sanitize",
+      "inherits": "base",
+      "configurePreset": "core-sanitize",
+      "environment": {
+        "ASAN_OPTIONS": "strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    }
+  ]
+}

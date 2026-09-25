@@ -1,0 +1,37 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+ColumnLimit: 100
+IndentWidth: 4
+AccessModifierOffset: -4
+BreakBeforeBraces: Allman
+NamespaceIndentation: None
+FixNamespaceComments: true
+PointerAlignment: Left
+ReferenceAlignment: Left
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+AlwaysBreakTemplateDeclarations: Yes
+BreakConstructorInitializers: BeforeComma
+PackConstructorInitializers: Never
+Cpp11BracedListStyle: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Headers in the same directory ("...")
+  - Regex: '^"'
+    Priority: 1
+  # Visona headers
+  - Regex: '^<visona/'
+    Priority: 2
+  # JUCE and other third-party headers
+  - Regex: '^<(juce_|catch2/)'
+    Priority: 3
+  # Standard library
+  - Regex: '^<'
+    Priority: 4
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+SpaceBeforeParens: ControlStatements
