@@ -11,10 +11,13 @@ add_executable(visona_core_tests
     AudioRingBufferTests.cpp
     SourceLayoutTests.cpp
     SpscQueueTests.cpp
+    SweepAnalyzerTests.cpp
+    SweepBufferTests.cpp
     TripleBufferTests.cpp
     VersionTests.cpp
     support/AllocationCounter.cpp
-    support/AllocationCounter.h)
+    support/AllocationCounter.h
+    support/Signals.h)
 
 target_compile_definitions(visona_core_tests PRIVATE VISONA_EXPECTED_VERSION="${PROJECT_VERSION}")
 target_link_libraries(visona_core_tests PRIVATE visona::core visona::warnings Catch2::Catch2WithMain)

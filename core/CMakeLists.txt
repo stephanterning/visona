@@ -8,11 +8,15 @@ add_library(visona_core STATIC
     include/visona/MidiClockEvent.h
     include/visona/SourceLayout.h
     include/visona/SpscQueue.h
+    include/visona/SweepAnalyzer.h
+    include/visona/SweepBuffer.h
     include/visona/TripleBuffer.h
     include/visona/Version.h
     src/AudioInputWriter.cpp
     src/AudioRingBuffer.cpp
     src/SourceLayout.cpp
+    src/SweepAnalyzer.cpp
+    src/SweepBuffer.cpp
     src/Version.cpp)
 add_library(visona::core ALIAS visona_core)
 
