@@ -5,7 +5,8 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 **Status:**
 - The MVP plan is approved (D-054).
 - The license (AGPLv3) and `AGENTS.md` are in place.
-- PR 1 (skeleton and CI) is in progress.
+- PR 1 (skeleton and CI) is merged ([#4](https://github.com/stephanterning/visona/pull/4)).
+- PR 2 (core primitives) is in review ([#5](https://github.com/stephanterning/visona/pull/5)).
 
 ## 1. MVP 1.0
 
