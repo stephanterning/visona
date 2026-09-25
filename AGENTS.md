@@ -23,6 +23,23 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 - `app/`: the JUCE app, "Visona". Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
 
+### macOS prerequisites
+
+Before the first build on a Mac:
+
+1. Install CMake 3.22 or later with `brew install cmake`. The command-line `macos` preset also needs `brew install ninja`.
+2. Select the full Xcode, accept its license and finish its first-launch setup:
+
+   ```sh
+   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+   sudo xcodebuild -license accept
+   xcodebuild -runFirstLaunch
+   ```
+
+If CMake reports "No CMAKE_C_COMPILER could be found", Xcode is not set up yet. Fix it with step 2, then run `rm -rf build/xcode` (or `build/<preset>` for another preset) before running the preset again, because CMake caches the failed compiler check.
+
+### Presets
+
 Presets are in `CMakePresets.json`; build trees go to `build/<preset>/`.
 
 ```sh
