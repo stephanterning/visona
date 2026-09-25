@@ -130,6 +130,8 @@ private:
     int renderedHeadStart_ = 0;
 
     double nextFrameSeconds_ = 0.0;
+    double firstFrameSeconds_ = 0.0;
+    double lastFrameSeconds_ = 0.0;
     double statsWindowStart_ = 0.0;
     int vblanks_ = 0;
     int fullRedraws_ = 0;

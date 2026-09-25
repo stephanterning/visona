@@ -176,6 +176,9 @@ void ScopeView::onVBlank(double timestampSeconds)
     const auto start = nowMs();
     const auto dirty = renderChanges();
     renderTiming_.add(nowMs() - start);
+    if (renderTiming_.count == 1)
+        firstFrameSeconds_ = timestampSeconds;
+    lastFrameSeconds_ = timestampSeconds;
     if (!dirty.isEmpty())
         repaint(dirty);
 }
@@ -187,7 +190,13 @@ void ScopeView::updateStats(double timestampSeconds)
         return;
     if (statsWindowStart_ > 0.0)
     {
-        stats_.framesPerSecond = renderTiming_.count / elapsed;
+        // While frames keep coming, count the intervals between them: counting frames in a window
+        // is off by one whenever a frame lands just inside either end of it.
+        const bool continuous =
+            renderTiming_.count > 1 && timestampSeconds - lastFrameSeconds_ < 2.0 * frameInterval;
+        stats_.framesPerSecond =
+            continuous ? (renderTiming_.count - 1) / (lastFrameSeconds_ - firstFrameSeconds_)
+                       : renderTiming_.count / elapsed;
         stats_.vblanksPerSecond = vblanks_ / elapsed;
         stats_.fullRedrawsPerSecond = fullRedraws_ / elapsed;
         stats_.renderMsAverage =
