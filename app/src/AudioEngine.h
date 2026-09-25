@@ -1,8 +1,11 @@
 #pragma once
 
+#include "AnalysisThread.h"
 #include "ui/AudioSettings.h"
 
 #include <visona/SourceLayout.h>
+#include <visona/SweepSnapshot.h>
+#include <visona/TripleBuffer.h>
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_events/juce_events.h>
@@ -27,9 +30,10 @@ class Settings;
     input channel chosen for each source channel into the audio ring, so choosing other input
     channels takes effect at once and never restarts the device.
 
-    Every time the device starts, a new stream begins, with its own ring, writer and reader, and
-    sampleIndex from 0. The device state and the input channels are saved in Settings whenever they
-    change. Public functions are for the message thread.
+    Every time the device starts, a new stream begins, with its own ring and writer, and sampleIndex
+    from 0. The analysis thread follows the current stream and publishes sweep snapshots. The device
+    state and the input channels are saved in Settings whenever they change. Public functions are
+    for the message thread.
 */
 class AudioEngine final : public AudioSettings,
                           private juce::AudioIODeviceCallback,
@@ -72,6 +76,12 @@ public:
     /** Fills `peaks` with the peak level of each source channel since the previous call. */
     void takePeaks(std::span<float> peaks);
 
+    /** The sweep snapshots of the analysis thread. The message thread is their only reader. */
+    [[nodiscard]] TripleBuffer<SweepSnapshot>& snapshots() noexcept;
+
+    /** Time the analysis thread has spent analyzing, in nanoseconds. */
+    [[nodiscard]] std::uint64_t analysisBusyNanoseconds() const noexcept;
+
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override;
     juce::String selectDeviceType(const juce::String& typeName) override;
     juce::String selectDevice(const juce::String& inputDeviceName) override;
@@ -101,6 +111,10 @@ private:
 
     Settings& settings_;
     const SourceLayout layout_;
+
+    // Outlives the device manager, whose callbacks hand it streams.
+    AnalysisThread analysis_;
+
     juce::AudioDeviceManager deviceManager_;
     juce::String lastError_;
 
@@ -114,8 +128,8 @@ private:
     // while the audio callback runs, so the callback reads it without the lock.
     std::unique_ptr<Stream> stream_;
 
-    // The reader drains a ring of about a second; App Nap's timer throttling would overflow it
-    // while Visona is in the background.
+    // The analysis thread drains a ring of about a second; App Nap's timer throttling would
+    // overflow it while Visona is in the background.
     juce::ScopedLowPowerModeDisabler appNapDisabler_;
 };
 
