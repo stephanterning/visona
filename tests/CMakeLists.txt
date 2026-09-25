@@ -6,11 +6,22 @@ FetchContent_Declare(Catch2
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(visona_core_tests
-    VersionTests.cpp)
+    AllocationCounterTests.cpp
+    AudioRingBufferTests.cpp
+    SourceLayoutTests.cpp
+    SpscQueueTests.cpp
+    TripleBufferTests.cpp
+    VersionTests.cpp
+    support/AllocationCounter.cpp
+    support/AllocationCounter.h)
 
 target_compile_definitions(visona_core_tests PRIVATE VISONA_EXPECTED_VERSION="${PROJECT_VERSION}")
 target_link_libraries(visona_core_tests PRIVATE visona::core visona::warnings Catch2::Catch2WithMain)
 
+find_package(Threads REQUIRED)
+target_link_libraries(visona_core_tests PRIVATE Threads::Threads)
+
 list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
 include(Catch)
-catch_discover_tests(visona_core_tests DISCOVERY_MODE PRE_TEST)
+# The timeout turns a deadlock in a multi-threaded stress test into a failure instead of a hang.
+catch_discover_tests(visona_core_tests DISCOVERY_MODE PRE_TEST PROPERTIES TIMEOUT 300)
