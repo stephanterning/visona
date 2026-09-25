@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS arm64 app (Xcode 26.6)
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      APP_BUNDLE: build/macos/app/Visona_artefacts/Release/Visona.app
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          cmake --version
+          ninja --version
+
+      - name: Configure
+        run: cmake --preset macos
+
+      - name: Build
+        run: cmake --build --preset macos
+
+      - name: Test
+        run: ctest --preset macos
+
+      - name: Check app bundle
+        run: |
+          executable="$APP_BUNDLE/Contents/MacOS/Visona"
+          test "$(lipo -archs "$executable")" = "arm64"
+          vtool -show-build "$executable" | grep -E '^ +minos 14\.0$'
+          codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+
+      - name: Package app
+        run: ditto -c -k --keepParent "$APP_BUNDLE" Visona-macos-arm64.zip
+
+      - name: Upload app
+        uses: actions/upload-artifact@v7
+        with:
+          path: Visona-macos-arm64.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  linux:
+    name: Linux core (${{ matrix.compiler }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    env:
+      PRESET: core-${{ matrix.compiler }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: |
+          cmake --version
+          ninja --version
+          g++ --version
+          clang++ --version
+
+      - name: Configure
+        run: cmake --preset "$PRESET"
+
+      - name: Build
+        run: cmake --build --preset "$PRESET"
+
+      - name: Test
+        run: ctest --preset "$PRESET"
+
+      - name: Check that JUCE was not fetched
+        run: |
+          if compgen -G "build/$PRESET/_deps/juce*" > /dev/null; then
+            echo "::error::JUCE was downloaded in a core-only build"
+            exit 1
+          fi
+
+  sanitizers:
+    name: Linux core (ASan + UBSan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PRESET: core-sanitize
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: |
+          cmake --version
+          ninja --version
+          clang++ --version
+
+      - name: Configure
+        run: cmake --preset "$PRESET"
+
+      - name: Build
+        run: cmake --build --preset "$PRESET"
+
+      - name: Test
+        run: ctest --preset "$PRESET"
