@@ -10,8 +10,10 @@ add_executable(visona_core_tests
     AnalysisPipelineTests.cpp
     AudioInputWriterTests.cpp
     AudioRingBufferTests.cpp
+    ClockTimeMapperTests.cpp
     ColumnReductionTests.cpp
     LaneMappingTests.cpp
+    MidiClockTransportTests.cpp
     MusicalTimeTests.cpp
     SourceLayoutTests.cpp
     SpscQueueTests.cpp
@@ -21,7 +23,8 @@ add_executable(visona_core_tests
     VersionTests.cpp
     support/AllocationCounter.cpp
     support/AllocationCounter.h
-    support/Signals.h)
+    support/Signals.h
+    support/SyntheticClock.h)
 
 target_compile_definitions(visona_core_tests PRIVATE VISONA_EXPECTED_VERSION="${PROJECT_VERSION}")
 target_link_libraries(visona_core_tests PRIVATE visona::core visona::warnings Catch2::Catch2WithMain)
