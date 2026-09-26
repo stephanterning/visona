@@ -122,10 +122,10 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 
 **MIDI time to audio sample time**
 
-- MIDI events carry a host time from JUCE's timestamp. Whether that is the CoreMIDI packet timestamp or the arrival time is verified in PR 7.
+- MIDI events carry a host time from JUCE's timestamp. On macOS it is the CoreMIDI packet time, the driver's receive time, converted to JUCE's millisecond counter; Visona converts it back to host nanoseconds (D-077).
 - Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback, in the same time base (D-065).
 - `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime`: a least-squares line through the blocks of the last 2 s (D-076). It absorbs callback jitter and drift between the audio clock and the host clock.
-- A MIDI event's sample time is `mapper(t_midi) − latencyOffset`. `latencyOffset` starts as the reported input latency plus an internal calibration constant with no UI. It is measured in PR 8.
+- A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, since audio captured at a moment appears in the stream the input latency later than a MIDI event stamped at that moment (D-078). `latencyOffset` starts as the reported input latency, without one buffer when the device supplies input timestamps, plus an internal calibration constant with no UI. It is measured in PR 8.
 
 ### 3.4 Sweep data model
 
@@ -141,7 +141,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Pass metadata.** Each bin carries a `passId`, so the renderer can tell the new pass from the previous one ahead of the write head. The column at the head shows only the new pass.
 - **Writing.** Each sample maps to bin *b = ⌊φ·B⌋*. When *b* changes, the new bin is reset and stamped with the current `passId`.
   - Start and window changes clear the buffer.
-  - Continue after an SPP relocate increments `passId` without clearing.
+  - Continue after an SPP relocate increments `passId` without clearing. The sweep recognizes it as a position that does not carry on within one tick of where it froze (D-079).
   - Frames missing because the ring dropped a block leave their bins empty in the current pass (D-067).
 - **Free-running (`Waiting`).** φ = frac(sampleIndex / (2 s × sampleRate)) (D-060).
 - **Freeze (`Stopped`/`ClockLost`).** No bins are written, but the ring is still drained and status keeps updating.
@@ -169,7 +169,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The previous pass ahead of the head is drawn at full brightness, like the new one; the head line and gap are enough to read the sweep.
 - **Grid.** Neutral gray, not blue.
   - Downbeats and bar lines are strongest and beat lines weaker. Sixteenths show only at ¼ and ½ bar.
-  - Small bar numbers sit at the lane edge.
+  - Small bar numbers sit at the bottom edge; a window that starts between bars is labelled bar.beat (D-080).
 - **Color tokens.** One central palette holds band, grid, head, lane background, status and error colors. That keeps themes cheap later, without building a theme UI now.
 - **Implementation** (D-054):
   - CPU rasterization into `juce::Image` tiles 64 physical pixels wide via `BitmapData`, at physical pixel resolution (HiDPI) (D-071).
@@ -191,7 +191,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ```
 
 - **Status (top)** (D-046): BPM, MIDI state (`WAITING`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
-  - Until MIDI Clock is wired in (PR 7), the state reads `FREE RUN`, or `NO INPUT` in red when no audio input runs.
+  - The state reads `WAITING`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080).
   - Values are calm white or gray text with tabular digits.
   - Color is used for state only, and red is reserved for errors.
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
@@ -280,7 +280,7 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Measure the offset in PR 8.
   - Ableton Live's MIDI Clock Sync Delay can serve as a calibration knob.
   - A sync offset in the UI waits for measured data.
-- **JUCE MIDI timestamp semantics on macOS are unverified.** Arrival-time stamps would add jitter. *Mitigation:* verify in PR 7, and add thin CoreMIDI timestamping in `app/` if needed.
+- **JUCE MIDI timestamps on macOS are CoreMIDI packet times, but only to within about 1 ms.** This was checked in PR 7 (D-077); JUCE anchors its conversion with a whole millisecond. *Mitigation:* the offset measurement in PR 8, and thin CoreMIDI timestamping in `app/` if it matters.
 - **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2 ms. That is ≈ 13 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* measure in PR 5 and compensate with a constant delay in the band data if needed.
 - **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in PR 4, and OpenGL as a fallback.
 - **Toolchain versions.** CI runner images lag behind new macOS and Xcode releases, and JUCE 9's CoreAudio implementation is new code. *Mitigation:* pin the JUCE tag, the runner image and the Xcode version, and treat the maintainer's local build as the reference.

@@ -270,6 +270,31 @@ A lightweight log of decisions and open questions. The architecture is described
 - **D-076 — `ClockTimeMapper` fits a least-squares line through the audio blocks of the last 2 s.** `Active`
   - With one block, or with a fit more than 1 % off the nominal sample rate, it maps through the newest block at the nominal rate.
   - With ±100 µs of timestamp jitter at 96 kHz, it maps MIDI times to within 0.7 samples on average and 3 at most, over 300 test seeds.
+- **D-077 — On macOS, JUCE stamps MIDI input with the CoreMIDI packet time, converted to its millisecond counter. Visona converts it back to host nanoseconds.** `Active`
+  - This is the PR 7 check of JUCE's MIDI timestamps, read from the JUCE 9.0.2 source (`juce_CoreMidi_mac.mm`, `juce_SystemStats_mac.mm`).
+  - The packet time is the driver's receive time, not the moment the app sees the message.
+  - JUCE anchors the conversion with a whole millisecond, so its timestamp can be up to about 1 ms early. The error is constant while the input stays open.
+  - The counter is `mach_absolute_time()` in milliseconds, modulo 2^32. The MIDI callback undoes the wrap relative to `CLOCK_UPTIME_RAW`, the audio's time base (D-065).
+  - The remaining error of up to 1 ms is left to the offset measurement in PR 8. Thin CoreMIDI timestamping in `app/` stays the fallback if it matters.
+- **D-078 — A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, with the audio input latency as the offset.** `Active`
+  - Sound captured at time T carries a stream timestamp of T plus the input latency. A MIDI event stamped at T therefore belongs to the audio that appears later in the stream by that latency. The architecture had the sign the other way.
+  - With CoreAudio's input timestamps, which mark the start of each buffer, the offset is the device latency plus the safety offset plus the stream latency: JUCE's input latency minus one buffer.
+  - With the fallback clock, which is read after the buffer has filled, it is JUCE's full input latency.
+  - The diagnostics overlay shows the offset in use. PR 8 measures the real one.
+- **D-079 — After a freeze, a position that does not carry on from where the sweep froze is a relocation.** `Active`
+  - Carrying on means resuming within one tick of the frozen position, which covers a Stop that came before its extrapolated tick ended.
+  - On a relocation the head jumps to the new phase and starts a new pass without emptying anything, so the old content becomes the previous pass (architecture 3.4).
+  - Start and window changes clear the sweep. Frames missing without a freeze, such as a dropped block, still empty their bins (D-067).
+- **D-080 — The beat-synced UI.** `Active`
+  - The status bar reads `WAITING`, `MIDI RUN`, `STOPPED` or, in red, `MIDI CLOCK LOST`, next to the tempo such as `126.0 BPM`. The window reads `1 BAR` and so on, or `2 s` while the sweep runs free before the first Start.
+  - Bar numbers are absolute, such as 17 after relocating there, and sit at the bottom edge. A window that starts between bars is labelled bar.beat.
+  - The grid of each column is the grid of the pass it was drawn in, so columns ahead of the head keep the previous window's lines.
+  - `STOPPED` dims the frozen view by 30 % and shows a pause mark. `MIDI CLOCK LOST` is a red banner over the scope, like `NO AUDIO INPUT`, which takes precedence.
+  - Keys 1 to 5 choose the window.
+- **D-081 — A new audio stream resets the transport to `Waiting`, and MIDI events wait for the stream's first block.** `Active`
+  - The ticks' sample times belong to the old stream, so a device restart, for example a new sample rate in Settings, needs a new Start or Continue. That is rare, and simpler than carrying positions across streams.
+  - Events that arrive before the first block wait in the queue; without any stream they are dropped.
+  - The MIDI input is saved by JUCE identifier and by name. A saved input that is missing stays chosen, and the next start opens it if it is back.
 
 ---
 
