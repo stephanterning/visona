@@ -80,7 +80,7 @@ Audio thread (JUCE callback)              MIDI thread (JUCE MidiInput)
   - The channel count comes from the source layout.
   - The device is opened with all of its input channels, and the callback copies the input channel chosen for each source channel (D-063).
 - **MIDI thread.** Filters real-time messages and Song Position Pointer (SPP), and pushes `MidiClockEvent{type, sppValue, hostTimeNs}`.
-- **Analysis thread.** Not hard real-time, but allocation-free in steady state.
+- **Analysis thread.** Not hard real-time, but allocation-free in steady state. It flushes denormals to zero, for the band filters (D-095).
   - It runs about one tick behind audio, so position is *interpolated* between known ticks rather than extrapolated.
 - **UI thread.** Reads the latest snapshot and renders it.
   - Window changes reach the analysis through an atomic or a small command queue.
