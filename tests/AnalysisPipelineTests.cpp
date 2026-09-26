@@ -20,7 +20,11 @@
 using visona::AnalysisPipeline;
 using visona::AudioInputWriter;
 using visona::AudioRingBuffer;
+using visona::Band;
+using visona::BandSplitter;
 using visona::freeRunningWindowFrames;
+using visona::splitBands;
+using visona::splitIndex;
 using visona::SweepAnalyzer;
 using visona::SweepCell;
 using visona::test::AllocationCounter;
@@ -83,6 +87,7 @@ TEST_CASE("AnalysisPipeline analyzes a stream into the same sweep as the analyze
 
     const auto input = stereoTestSignal(sampleRate, 30'000);
     SweepAnalyzer reference(2);
+    reference.setSampleRate(sampleRate);
     reference.start(freeRunningWindowFrames(sampleRate));
     const std::array<const float*, 2> pointers{input[0].data(), input[1].data()};
     reference.process(0, pointers, input[0].size());
@@ -109,6 +114,10 @@ TEST_CASE("AnalysisPipeline analyzes a stream into the same sweep as the analyze
     CHECK(snapshot.nextSampleIndex == 30'000);
     CHECK(snapshot.overruns == 0);
     CHECK(snapshot.sweep == reference.buffer());
+    CHECK_FALSE(snapshot.sweep.band(1, Band::high)[100].isEmpty());
+    const BandSplitter splitter(sampleRate);
+    for (const auto band : splitBands)
+        CHECK(snapshot.bandDelayFrames[splitIndex(band)] == splitter.delayFrames(band));
 
     CHECK(pipeline.takePeak(0) == std::ranges::max(input[0]));
     CHECK(pipeline.takePeak(1) == std::ranges::max(input[1]));
@@ -176,6 +185,55 @@ TEST_CASE("AnalysisPipeline starts a new, cleared sweep for every stream", "[ana
     REQUIRE(snapshots.fetch());
     CHECK_FALSE(snapshots.readBuffer().hasStream);
     CHECK(snapshots.readBuffer().windowFrames == 0);
+    CHECK(snapshots.readBuffer().bandDelayFrames == std::array<double, 3>{});
+}
+
+TEST_CASE("AnalysisPipeline restarts the sweep when the window length changes", "[analysis]")
+{
+    constexpr double sampleRate = 48'000.0;
+    AudioRingBuffer ring(2, 48'000, 1'024);
+    AudioInputWriter writer(ring);
+    writer.route(0, 0);
+    writer.route(1, 1);
+    AnalysisPipeline pipeline(2, 1'024);
+    auto& snapshots = pipeline.snapshots();
+
+    pipeline.setWindowSeconds(0.5);
+    pipeline.setStream(&ring, sampleRate);
+    const auto input = stereoTestSignal(sampleRate, 20'000);
+    const std::vector<std::vector<float>> first{{input[0].begin(), input[0].begin() + 10'000},
+                                                {input[1].begin(), input[1].begin() + 10'000}};
+    const std::vector<std::vector<float>> second{{input[0].begin() + 10'000, input[0].end()},
+                                                 {input[1].begin() + 10'000, input[1].end()}};
+    pushAll(writer, first, 480);
+    pipeline.poll();
+    REQUIRE(snapshots.fetch());
+    CHECK(snapshots.readBuffer().windowFrames == 24'000);
+    const auto generation = snapshots.readBuffer().sweep.generation();
+
+    pipeline.setWindowSeconds(0.125);
+    pushAll(writer, second, 480);
+    pipeline.poll();
+    REQUIRE(snapshots.fetch());
+    const auto& snapshot = snapshots.readBuffer();
+    CHECK(snapshot.windowFrames == 6'000);
+    CHECK(snapshot.sweep.generation() > generation);
+
+    // The band split runs on through the restart, since the stream does.
+    SweepAnalyzer reference(2, 1'024);
+    reference.setSampleRate(sampleRate);
+    reference.start(24'000);
+    std::array<const float*, 2> pointers{input[0].data(), input[1].data()};
+    reference.process(0, pointers, 10'000);
+    reference.start(6'000);
+    pointers = {input[0].data() + 10'000, input[1].data() + 10'000};
+    reference.process(10'000, pointers, 10'000);
+    CHECK(snapshot.sweep == reference.buffer());
+
+    // Setting the same length again changes nothing.
+    pipeline.setWindowSeconds(0.125);
+    CHECK(pipeline.poll() == 0);
+    CHECK_FALSE(snapshots.fetch());
 }
 
 TEST_CASE("AnalysisPipeline does not allocate while it runs", "[analysis][realtime]")

@@ -16,7 +16,10 @@
 #include <vector>
 
 using Catch::Matchers::WithinAbs;
+using visona::Band;
+using visona::BandSplitter;
 using visona::freeRunningWindowFrames;
+using visona::splitBands;
 using visona::SweepAnalyzer;
 using visona::SweepBuffer;
 using visona::SweepCell;
@@ -79,6 +82,14 @@ TEST_CASE("The free-running window is 2 s at every sample rate", "[sweep]")
     CHECK(freeRunningWindowFrames(96'000.0) == window96k);
     CHECK(freeRunningWindowFrames(192'000.0) == 384'000);
     CHECK(freeRunningWindowFrames(0.0) == 1);
+}
+
+TEST_CASE("A free-running window of any length rounds to whole frames", "[sweep]")
+{
+    CHECK(freeRunningWindowFrames(96'000.0, 0.125) == 12'000);
+    CHECK(freeRunningWindowFrames(44'100.0, 0.125) == 5'513);
+    CHECK(freeRunningWindowFrames(48'000.0, 8.0) == 384'000);
+    CHECK(freeRunningWindowFrames(48'000.0, 0.0) == 1);
 }
 
 TEST_CASE("A 1 kHz sine at 96 kHz gives a deterministic sweep", "[sweep]")
@@ -384,14 +395,203 @@ TEST_CASE("SweepAnalyzer does not allocate while it runs", "[sweep][realtime]")
     SweepAnalyzer analyzer(2);
     const auto input = sine(1'000.0, sampleRate96k, 1.0f, 4'096);
     const std::array<const float*, 2> channels{input.data(), input.data()};
+    STATIC_REQUIRE(noexcept(analyzer.setSampleRate(sampleRate96k)));
     STATIC_REQUIRE(noexcept(analyzer.start(window96k)));
     STATIC_REQUIRE(noexcept(analyzer.process(0, channels, input.size())));
 
     const AllocationCounter allocations;
+    analyzer.setSampleRate(sampleRate96k);
     analyzer.start(window96k);
     for (std::uint64_t block = 0; block < 100; ++block)
         analyzer.process(block * 5'000, channels, input.size());
     const auto allocationCount = allocations.count();
 
     CHECK(allocationCount == 0);
+}
+
+namespace
+{
+
+/** The largest absolute value in the cells [first, end) of `band` of channel 0. */
+float peakOf(const SweepBuffer& sweep, Band band, std::size_t first, std::size_t end)
+{
+    float peak = 0.0f;
+    const auto cells = sweep.band(0, band);
+    for (auto bin = first; bin < end; ++bin)
+        if (!cells[bin].isEmpty())
+            peak = std::max({peak, std::abs(cells[bin].min), std::abs(cells[bin].max)});
+    return peak;
+}
+
+} // namespace
+
+TEST_CASE("Without a sample rate, the split bands stay empty", "[sweep][bands]")
+{
+    SweepAnalyzer analyzer(1, 64);
+    analyzer.start(6'400);
+    feed(analyzer, {sine(50.0, 48'000.0, 0.5f, 6'400)}, 256);
+    for (const auto band : splitBands)
+    {
+        CHECK(analyzer.bandDelayFrames(band) == 0.0);
+        for (const auto& cell : analyzer.buffer().band(0, band))
+            CHECK(cell.isEmpty());
+    }
+}
+
+TEST_CASE("Each bin holds the min and max of every band", "[sweep][bands]")
+{
+    const auto sampleRate = GENERATE(44'100.0, 96'000.0, 192'000.0);
+    CAPTURE(sampleRate);
+    const auto windowFrames = freeRunningWindowFrames(sampleRate);
+    constexpr float amplitude = 0.5f;
+
+    struct Tone
+    {
+        double frequency;
+        Band band;
+    };
+    for (const auto tone :
+         {Tone{50.0, Band::low}, Tone{1'000.0, Band::mid}, Tone{8'000.0, Band::high}})
+    {
+        CAPTURE(tone.frequency);
+        SweepAnalyzer analyzer(1);
+        analyzer.setSampleRate(sampleRate);
+        analyzer.start(windowFrames);
+        feed(analyzer,
+             {sine(tone.frequency, sampleRate, amplitude, static_cast<std::size_t>(windowFrames))},
+             512);
+        const auto& sweep = analyzer.buffer();
+
+        // After the first half second, the filters have settled.
+        constexpr auto numBins = SweepBuffer::defaultBinCount;
+        for (const auto band : splitBands)
+        {
+            const auto peak = peakOf(sweep, band, numBins / 4, numBins);
+            CAPTURE(static_cast<int>(band), peak);
+            if (band == tone.band)
+                CHECK_THAT(static_cast<double>(peak),
+                           WithinAbs(static_cast<double>(amplitude), 0.02));
+            else
+                CHECK(peak < amplitude * 0.04f); // at least 28 dB down
+        }
+    }
+}
+
+TEST_CASE("The full band does not depend on the band split", "[sweep][bands]")
+{
+    std::mt19937 random(7);
+    std::uniform_real_distribution<float> noise(-1.0f, 1.0f);
+    std::vector<float> input(40'000);
+    for (auto& sample : input)
+        sample = noise(random);
+
+    SweepAnalyzer fullOnly(1, 512);
+    fullOnly.start(30'000);
+    feed(fullOnly, {input}, 333);
+
+    SweepAnalyzer split(1, 512);
+    split.setSampleRate(48'000.0);
+    split.start(30'000);
+    feed(split, {input}, 333);
+
+    const auto expected = fullOnly.buffer().channel(0);
+    const auto actual = split.buffer().channel(0);
+    CHECK(std::equal(expected.begin(), expected.end(), actual.begin(), actual.end()));
+    CHECK_FALSE(split.buffer().band(0, Band::low)[0].isEmpty());
+}
+
+TEST_CASE("The bands do not depend on how the audio is split into blocks", "[sweep][bands]")
+{
+    constexpr std::uint64_t windowFrames = 9'600;
+    std::mt19937 random(99);
+    std::uniform_real_distribution<float> noise(-1.0f, 1.0f);
+    std::vector<std::vector<float>> input(2, std::vector<float>(25'000));
+    for (auto& channel : input)
+        for (auto& sample : channel)
+            sample = noise(random);
+
+    SweepAnalyzer reference(2, 1'024);
+    reference.setSampleRate(48'000.0);
+    reference.start(windowFrames);
+    feed(reference, input, input[0].size());
+
+    const auto blockSize = GENERATE(std::size_t{1}, std::size_t{7}, std::size_t{480});
+    CAPTURE(blockSize);
+    SweepAnalyzer analyzer(2, 1'024);
+    analyzer.setSampleRate(48'000.0);
+    analyzer.start(windowFrames);
+    feed(analyzer, input, blockSize);
+    CHECK(analyzer.buffer() == reference.buffer());
+}
+
+TEST_CASE("Each channel's bands are the same whatever the channel count", "[sweep][bands]")
+{
+    constexpr std::uint64_t windowFrames = 4'800;
+    const auto signal = sine(440.0, 48'000.0, 0.7f, 7'000);
+
+    SweepAnalyzer mono(1);
+    mono.setSampleRate(48'000.0);
+    mono.start(windowFrames);
+    feed(mono, {signal}, 128);
+
+    const auto numChannels = GENERATE(std::size_t{2}, std::size_t{6});
+    CAPTURE(numChannels);
+    SweepAnalyzer analyzer(numChannels);
+    analyzer.setSampleRate(48'000.0);
+    analyzer.start(windowFrames);
+    feed(analyzer, std::vector<std::vector<float>>(numChannels, signal), 128);
+
+    for (std::size_t channel = 0; channel < numChannels; ++channel)
+    {
+        for (const auto band : splitBands)
+        {
+            const auto expected = mono.buffer().band(0, band);
+            const auto actual = analyzer.buffer().band(channel, band);
+            CAPTURE(channel, static_cast<int>(band));
+            CHECK(std::equal(expected.begin(), expected.end(), actual.begin(), actual.end()));
+        }
+    }
+}
+
+TEST_CASE("A jump in the stream restarts the band split", "[sweep][bands]")
+{
+    constexpr std::uint64_t windowFrames = 48'000;
+    constexpr std::size_t numBins = 480; // 100 frames per bin
+    const auto tone = sine(60.0, 48'000.0, 0.5f, 10'000);
+
+    // The same audio, after a gap and from the start of a fresh stream, gives the same bands.
+    SweepAnalyzer afterGap(1, numBins);
+    afterGap.setSampleRate(48'000.0);
+    afterGap.start(windowFrames);
+    feed(afterGap, {sine(3'000.0, 48'000.0, 0.9f, 10'000)}, 500);
+    feed(afterGap, {tone}, 500, 20'000);
+
+    SweepAnalyzer fresh(1, numBins);
+    fresh.setSampleRate(48'000.0);
+    fresh.start(windowFrames);
+    feed(fresh, {tone}, 500, 20'000);
+
+    for (const auto band : splitBands)
+    {
+        const auto expected = fresh.buffer().band(0, band);
+        const auto actual = afterGap.buffer().band(0, band);
+        for (std::size_t bin = 200; bin < 300; ++bin)
+        {
+            CAPTURE(static_cast<int>(band), bin);
+            REQUIRE(actual[bin] == expected[bin]);
+        }
+    }
+}
+
+TEST_CASE("SweepAnalyzer reports the delay of each band at the sample rate", "[sweep][bands]")
+{
+    SweepAnalyzer analyzer(2);
+    analyzer.setSampleRate(96'000.0);
+    const BandSplitter splitter(96'000.0);
+    for (const auto band : splitBands)
+        CHECK(analyzer.bandDelayFrames(band) == splitter.delayFrames(band));
+    CHECK(analyzer.bandDelayFrames(Band::full) == 0.0);
+
+    analyzer.setSampleRate(0.0);
+    CHECK(analyzer.bandDelayFrames(Band::low) == 0.0);
 }

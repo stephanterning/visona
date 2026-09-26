@@ -45,12 +45,31 @@ void AnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) noexc
     ++streamId_;
     sampleRate_ = ring_ != nullptr ? sampleRate : 0.0;
     nextSampleIndex_ = 0;
-    analyzer_.start(ring_ != nullptr ? freeRunningWindowFrames(sampleRate) : 0);
+    analyzer_.setSampleRate(sampleRate_);
+    windowSeconds_ = requestedWindowSeconds_.load(std::memory_order_relaxed);
+    startSweep();
+}
+
+void AnalysisPipeline::setWindowSeconds(double seconds) noexcept
+{
+    requestedWindowSeconds_.store(seconds, std::memory_order_relaxed);
+}
+
+void AnalysisPipeline::startSweep() noexcept
+{
+    analyzer_.start(ring_ != nullptr ? freeRunningWindowFrames(sampleRate_, windowSeconds_) : 0);
     changed_ = true;
 }
 
 std::size_t AnalysisPipeline::poll() noexcept
 {
+    if (const auto requested = requestedWindowSeconds_.load(std::memory_order_relaxed);
+        requested != windowSeconds_)
+    {
+        windowSeconds_ = requested;
+        startSweep();
+    }
+
     std::size_t framesAnalyzed = 0;
     if (ring_ != nullptr)
     {
@@ -92,6 +111,8 @@ void AnalysisPipeline::publish() noexcept
     snapshot.hasStream = ring_ != nullptr;
     snapshot.sampleRate = sampleRate_;
     snapshot.windowFrames = analyzer_.windowFrames();
+    for (const auto band : splitBands)
+        snapshot.bandDelayFrames[splitIndex(band)] = analyzer_.bandDelayFrames(band);
     snapshot.nextSampleIndex = nextSampleIndex_;
     snapshot.overruns = ring_ != nullptr ? ring_->overrunCount() : 0;
     snapshot.droppedFrames = ring_ != nullptr ? ring_->droppedFrameCount() : 0;

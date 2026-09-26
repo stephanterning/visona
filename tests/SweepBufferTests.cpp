@@ -10,6 +10,7 @@
 #include <random>
 #include <stdexcept>
 
+using visona::Band;
 using visona::SweepBuffer;
 using visona::SweepCell;
 using visona::test::AllocationCounter;
@@ -140,6 +141,39 @@ TEST_CASE("SweepBuffer empties and stamps every bin the head enters", "[sweep]")
     }
 }
 
+TEST_CASE("SweepBuffer keeps every band of every channel apart", "[sweep][bands]")
+{
+    SweepBuffer buffer(2, 4);
+    buffer.advanceHead(1, 1);
+    for (std::size_t channel = 0; channel < 2; ++channel)
+    {
+        for (const auto band : {Band::full, Band::low, Band::mid, Band::high})
+        {
+            const auto value = static_cast<float>(channel * 10 + static_cast<std::size_t>(band));
+            buffer.addToHead(channel, band, {-value, value});
+        }
+    }
+
+    for (std::size_t channel = 0; channel < 2; ++channel)
+    {
+        for (const auto band : {Band::full, Band::low, Band::mid, Band::high})
+        {
+            const auto value = static_cast<float>(channel * 10 + static_cast<std::size_t>(band));
+            CAPTURE(channel, static_cast<int>(band));
+            CHECK(buffer.band(channel, band).size() == 4);
+            CHECK(buffer.band(channel, band)[1] == SweepCell{-value, value});
+            CHECK(buffer.band(channel, band)[0].isEmpty());
+        }
+        CHECK(buffer.channel(channel).data() == buffer.band(channel, Band::full).data());
+    }
+
+    buffer.advanceHead(1, 2);
+    buffer.advanceHead(2, 1);
+    for (std::size_t channel = 0; channel < 2; ++channel)
+        for (const auto band : {Band::full, Band::low, Band::mid, Band::high})
+            CHECK(buffer.band(channel, band)[1].isEmpty());
+}
+
 TEST_CASE("SweepBuffer clear empties every bin and starts a new generation", "[sweep]")
 {
     SweepBuffer buffer(1, 4);
@@ -168,6 +202,8 @@ void writeAhead(SweepBuffer& buffer, std::uint64_t& position, std::uint64_t step
     {
         const auto value = static_cast<float>(position % 1'000) + static_cast<float>(channel);
         buffer.addToHead(channel, {-value, value});
+        buffer.addToHead(channel, Band::low, {-value, 0.5f * value});
+        buffer.addToHead(channel, Band::high, {0.0f, 0.25f * value});
     }
 }
 

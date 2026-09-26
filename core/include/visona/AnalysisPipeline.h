@@ -19,7 +19,8 @@ namespace visona
 
     setStream() and poll() are the analysis side. They must not run concurrently; the app calls
     both under one lock, which only the analysis thread and stream changes take. The UI thread is
-    the only consumer of snapshots(). takePeak() may be called from any thread.
+    the only consumer of snapshots(). takePeak() and setWindowSeconds() may be called from any
+    thread.
 
     All storage, including the three snapshots, is allocated in the constructor. setStream() and
     poll() never allocate.
@@ -47,6 +48,13 @@ public:
     void setStream(AudioRingBuffer* ring, double sampleRate) noexcept;
 
     /**
+        Any thread. Sets the length of the free-running window, 2 s unless changed (D-060). The
+        next poll() restarts the sweep with it. Until PR 7 adds the WINDOW control, this serves the
+        temporary debug control (D-076).
+    */
+    void setWindowSeconds(double seconds) noexcept;
+
+    /**
         Analysis side. Analyzes every frame in the ring and publishes a snapshot if anything
         changed. Returns the number of frames analyzed.
     */
@@ -62,6 +70,7 @@ public:
     [[nodiscard]] float takePeak(std::size_t channel) noexcept;
 
 private:
+    void startSweep() noexcept;
     void publish() noexcept;
 
     SweepAnalyzer analyzer_;
@@ -72,6 +81,9 @@ private:
     double sampleRate_ = 0.0;
     std::uint64_t nextSampleIndex_ = 0;
     bool changed_ = true;
+
+    std::atomic<double> requestedWindowSeconds_{freeRunningWindowSeconds};
+    double windowSeconds_ = freeRunningWindowSeconds;
 
     std::vector<const float*> channels_;
     std::vector<std::atomic<float>> peaks_;

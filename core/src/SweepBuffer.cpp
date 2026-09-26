@@ -13,9 +13,9 @@ std::size_t checkedCellCount(std::size_t numChannels, std::size_t numBins)
 {
     if (numBins == 0)
         throw std::invalid_argument("SweepBuffer needs at least 1 bin");
-    if (numChannels > std::numeric_limits<std::size_t>::max() / numBins)
+    if (numChannels > std::numeric_limits<std::size_t>::max() / bandCount / numBins)
         throw std::length_error("SweepBuffer is too large");
-    return numChannels * numBins;
+    return numChannels * bandCount * numBins;
 }
 
 } // namespace
@@ -28,10 +28,10 @@ SweepBuffer::SweepBuffer(std::size_t numChannels, std::size_t numBins)
 {
 }
 
-std::span<const SweepCell> SweepBuffer::channel(std::size_t channel) const noexcept
+std::span<const SweepCell> SweepBuffer::band(std::size_t channel, Band band) const noexcept
 {
     assert(channel < numChannels_);
-    return {cells_.data() + channel * numBins_, numBins_};
+    return {cells_.data() + rowOffset(channel, band), numBins_};
 }
 
 void SweepBuffer::clear() noexcept
@@ -76,11 +76,11 @@ void SweepBuffer::advanceHead(std::uint64_t pass, std::size_t bin) noexcept
     head_ = bin;
 }
 
-void SweepBuffer::addToHead(std::size_t channel, const SweepCell& span) noexcept
+void SweepBuffer::addToHead(std::size_t channel, Band band, const SweepCell& span) noexcept
 {
     assert(channel < numChannels_);
     assert(pass_ > 0);
-    cells_[channel * numBins_ + head_].merge(span);
+    cells_[rowOffset(channel, band) + head_].merge(span);
 }
 
 void SweepBuffer::copyFrom(const SweepBuffer& source) noexcept
@@ -112,18 +112,18 @@ void SweepBuffer::copyFrom(const SweepBuffer& source) noexcept
 void SweepBuffer::resetBin(std::size_t bin, std::uint64_t pass) noexcept
 {
     passes_[bin] = pass;
-    for (std::size_t channel = 0; channel < numChannels_; ++channel)
-        cells_[channel * numBins_ + bin] = SweepCell{};
+    for (std::size_t row = 0; row < numChannels_ * bandCount; ++row)
+        cells_[row * numBins_ + bin] = SweepCell{};
 }
 
 void SweepBuffer::copyBins(const SweepBuffer& source, std::size_t first, std::size_t end) noexcept
 {
     const auto count = static_cast<std::ptrdiff_t>(end - first);
     const auto offset = static_cast<std::ptrdiff_t>(first);
-    for (std::size_t channel = 0; channel < numChannels_; ++channel)
+    for (std::size_t row = 0; row < numChannels_ * bandCount; ++row)
     {
-        const auto channelOffset = static_cast<std::ptrdiff_t>(channel * numBins_) + offset;
-        std::copy_n(source.cells_.begin() + channelOffset, count, cells_.begin() + channelOffset);
+        const auto start = static_cast<std::ptrdiff_t>(row * numBins_) + offset;
+        std::copy_n(source.cells_.begin() + start, count, cells_.begin() + start);
     }
     std::copy_n(source.passes_.begin() + offset, count, passes_.begin() + offset);
 }
