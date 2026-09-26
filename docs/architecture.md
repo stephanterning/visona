@@ -135,7 +135,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Resizing therefore never touches the analysis, and tests stay deterministic.
 - **Cell.** `sweep[source][channel][band][bin] = {min, max}`, signed float (D-050).
   - `full` (broadband) always defines the waveform shape.
-  - `low`, `mid` and `high` drive the frequency coloring only (D-056). PR 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
+  - `low`, `mid` and `high` drive the frequency coloring only (D-056). Per-band min/max is enough; no per-bin energy value is needed (D-091).
 - **Pass metadata.** Each bin carries a `passId`, so the renderer can tell the new pass from the previous one ahead of the write head. The column at the head shows only the new pass.
 - **Writing.** Each sample maps to bin *b = ⌊φ·B⌋*. When *b* changes, the new bin is reset and stamped with the current `passId`.
   - Start and window changes clear the buffer.
@@ -143,19 +143,36 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Frames missing because the ring dropped a block leave their bins empty in the current pass (D-067).
 - **Free-running (`Waiting`).** φ = frac(sampleIndex / (2 s × sampleRate)) (D-060).
 - **Freeze (`Stopped`/`ClockLost`).** No bins are written, but the ring is still drained and status keeps updating.
-- **Snapshot.** Contains the sweep buffer (whole or dirty range), write head bin, `passId`, transport state, BPM, sample rate, window and overrun counters. Display gain is not part of it.
+- **Snapshot.** Contains the sweep buffer (whole or dirty range), write head bin, `passId`, transport state, BPM, sample rate, window, each band's group delay and overrun counters. Display gain is not part of it.
   - Each triple-buffer slot remembers the sweep state it holds, and publishing copies only the bins that changed since then, so the consumer always reads a whole buffer.
-- **`BandSplitter`.** An in-house fourth-order Linkwitz-Riley (LR4) crossover, with starting values around 200 Hz and 2.5 kHz (D-051).
-  - The low band gets allpass compensation, so the bands sum flat.
-  - Coefficients are computed from the current sample rate.
+- **`BandSplitter`.** An in-house fourth-order Linkwitz-Riley (LR4) crossover, with starting values around 200 Hz and 2.5 kHz (D-051, D-090).
+  - Each LR4 filter is two second-order Butterworth sections. The low band also passes the upper crossover's allpass, so the bands sum flat.
+  - Coefficients are computed from the current sample rate, by the bilinear transform prewarped at each crossover.
+  - One splitter per channel runs in `SweepAnalyzer`, and is reset when the stream jumps.
   - It feeds the coloring only; `full` is computed directly from the input.
+  - Measured group delay of each band, relative to `full`. It is the same within 0.01 ms from 44.1 to 192 kHz, and the tests check it. The reference frequencies are what the renderer compensates (D-092).
+
+    | Band | Frequency | Group delay | At 96 kHz |
+    |---|---|---|---|
+    | low | 50 Hz | 2.56 ms | 246 frames |
+    | low | 63 Hz (reference) | 2.63 ms | 253 frames |
+    | low | 100 Hz | 2.83 ms | 271 frames |
+    | mid | 707 Hz (reference) | 0.39 ms | 37 frames |
+    | mid | 1 kHz | 0.30 ms | 28 frames |
+    | high | 7.1 kHz (reference) | 0.03 ms | 3 frames |
+    | high | 8 kHz | 0.02 ms | 2 frames |
 
 ### 3.5 Rendering
 
 - **Shape.** For every pixel column, the span between the full-band min and max is filled. That area is the waveform in every mode (D-056).
-- **Frequency coloring.** A visualization aid that shows which frequencies make up the sound. The starting palette is blue lows, orange mids and white highs (D-051). PR 5 picks one of two methods, based on which keeps the waveform correct and readable at ¼ and 4 bars:
-  - *Blended color per column:* the full-band span is filled with one color, mixed from each band's share of that column.
-  - *Bands inside the full-band outline:* the band envelopes are drawn clipped to the full-band outline and never extend beyond it.
+- **Frequency coloring.** A visualization aid that shows which frequencies make up the sound. The starting palette is blue lows, orange mids and white highs (D-051). PR 5 implements two methods, and the maintainer picks one after the hardware check, based on which keeps the waveform correct and readable at ¼ and 4 bars (D-093):
+  - *Blended color per column:* the full-band span is filled with one color, the band colors mixed in linear light and weighted by each band's share of the column's energy.
+  - *Bands inside the full-band outline:* the span is filled with the loudest band's color, then each band's envelope, from −level to +level, is drawn in the order low, mid, high, cut to the full-band outline, so it never extends beyond it.
+  - `paintColumn()` in core turns a column's full-band rows and band levels into runs of colors. Every run lies within the rows and the first covers them exactly, so the shape never depends on the method.
+- **Band levels** (D-092). For each column and band, the renderer takes the band's peak absolute value:
+  - read later by the band's group delay, so the colors line up with the full-band waveform;
+  - held over a quarter period of 50 Hz, 200 Hz and 2.5 kHz on either side, so a band's level does not ripple with its own oscillation;
+  - only from bins that still hold those stream positions, so no band data comes from the wrong pass.
 - **Mono/precise mode.** Draws `full` in a neutral color only. It stays available as a mode and as a reference that coloring does not change the shape.
 - **Lanes.** Stacked, with L on top (D-057). Each lane is a generic *channel view*, which in the MVP is one channel; Mid, Side or a single lane can become a setting later.
 - **Vertical mapping.** *y = center − value × dbToGain(gainDb) × laneHalfHeight* (D-024).
@@ -171,7 +188,8 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Color tokens.** One central palette holds band, grid, head, lane background, status and error colors. That keeps themes cheap later, without building a theme UI now.
 - **Implementation** (D-054):
   - CPU rasterization into `juce::Image` tiles 64 physical pixels wide via `BitmapData`, at physical pixel resolution (HiDPI) (D-071).
-  - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass. Resize, gain and window changes trigger a full redraw.
+  - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass. Resize, gain, window and coloring changes trigger a full redraw.
+  - When coloring, the columns behind the head whose band levels were still waiting for the delayed bands are redrawn too (D-092).
   - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. Without a new snapshot, nothing is drawn. OpenGL only if measurements show it is needed.
 
 ### 3.6 UI layout
@@ -197,8 +215,9 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Controls (bottom):** no knobs.
   - WINDOW is an always-visible segmented control.
   - GAIN is `[−] +12 dB [+]`, from 0 to +36 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB.
+  - COLOR is a segmented control, `[Precise][Blend][Bands]`, next to GAIN, and the choice is saved (D-093). Once the maintainer has picked a method, it becomes a choice between that method and Precise.
   - Secondary buttons: Diagnostics and Full screen, next to ⚙.
-  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics.
+  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, M for mono/precise, C for the other coloring method, F for fullscreen, D for diagnostics.
 - **Responsive chrome** (D-069). The layout reflows in steps:
   - Wide windows put everything on one row.
   - Narrow windows use two rows with abbreviated labels.
@@ -208,6 +227,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Diagnostics overlay** (D-070): audio input, overruns, analysis load, frame rate, render time and CPU use, hidden by default.
 - **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair and MIDI input.
   - The input channel for Left and for Right is chosen separately (D-063).
+  - Until PR 7, a debug section sets the free-running window, the band delay compensation and a debug grid (D-094).
   - It is a separate overlay that never forces the scope to repaint.
   - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
   - If the saved audio device is missing at startup, `NO AUDIO INPUT` is shown and no other device is opened (D-064).
@@ -258,10 +278,12 @@ Everything below runs in CI on Linux without hardware (D-032).
   - SPP while `Running` is ignored; the maximum value, 16383, is handled.
 - **Clock mapping.** Synthetic block timestamps with callback jitter and drift. The mapping error must average under 1 sample and stay within a fixed maximum.
 - **Band split.**
-  - 50 Hz lands in low, 1 kHz in mid and 8 kHz in high, each by a clear dB margin.
+  - 50 Hz lands in low, 1 kHz in mid and 8 kHz in high, each by a clear dB margin: every other band is at least 30 dB lower.
   - At each crossover both bands are at ≈ −6 dB, and the bands sum flat within ±0.1 dB.
-  - Group delay per band is measured and documented, from 44.1 to 192 kHz.
-- **Shape invariance.** The rendered outline is identical in every coloring mode and in mono/precise mode for the same input (D-056).
+  - Group delay per band is measured from the impulse response and checked against the table in 3.4, from 44.1 to 192 kHz.
+  - Each bin holds every band's min and max, whatever the block size and channel count, and the full band does not depend on the split.
+- **Band levels.** The renderer's band reading: delay, hold, and the pass boundary at the head.
+- **Shape invariance.** The rendered outline is identical in every coloring mode and in mono/precise mode for the same input (D-056). The test runs synthetic music through the analyzer, the column reduction and `paintColumn()`, at windows from 0.125 to 8 s.
 - **Sweep and rendering.**
   - A 1 kHz sine at 96 kHz, 120 BPM and 1 bar produces a deterministic buffer: every bin holds exactly the min and max of its samples. A bin is 46.875 samples, about half a cycle, so every three neighbouring bins reach min ≈ −A and max ≈ +A. A sine with at least one cycle per bin, such as 4 kHz, reaches them in every bin.
   - A click per beat peaks at 0, ¼, ½ and ¾ of the window (±1 bin).
@@ -279,7 +301,7 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Ableton Live's MIDI Clock Sync Delay can serve as a calibration knob.
   - A sync offset in the UI waits for measured data.
 - **JUCE MIDI timestamp semantics on macOS are unverified.** Arrival-time stamps would add jitter. *Mitigation:* verify in PR 7, and add thin CoreMIDI timestamping in `app/` if needed.
-- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2 ms. That is ≈ 13 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* measure in PR 5 and compensate with a constant delay in the band data if needed.
+- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by 2.6 ms, measured in PR 5. That is ≈ 15 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* the renderer reads each band later by its group delay (D-092); the hardware check of PR 5 confirms it.
 - **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in PR 4, and OpenGL as a fallback.
 - **Toolchain versions.** CI runner images lag behind new macOS and Xcode releases, and JUCE 9's CoreAudio implementation is new code. *Mitigation:* pin the JUCE tag, the runner image and the Xcode version, and treat the maintainer's local build as the reference.
 - **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from PR 3, and build locally or clear the quarantine on the artifact.

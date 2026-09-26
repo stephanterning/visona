@@ -23,7 +23,7 @@ freeRunningWindowFrames(double sampleRate, double seconds = freeRunningWindowSec
 /**
     Writes every channel into a SweepBuffer, as a sweep across a window of a fixed number of frames:
     the free-running sweep (D-045, D-060). Each bin gets the signed min/max of the full band and,
-    once setSampleRate() has set up the band splitters, of the low, mid and high bands (D-073).
+    once setSampleRate() has set up the band splitters, of the low, mid and high bands (D-091).
 
     The frame at stream position s lies at phase φ = frac(s / windowFrames) and goes into bin
     ⌊φ · numBins⌋ of pass ⌊s / windowFrames⌋ + 1. Windows therefore start at every multiple of

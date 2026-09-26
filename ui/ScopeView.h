@@ -18,14 +18,14 @@ namespace visona
 /**
     The sweep scope: one lane per channel, stacked with L on top (D-057). Each pixel column fills
     the full-band signed min/max span, which is the waveform's shape in every colouring (D-050,
-    D-056). The colouring only chooses the colours inside it (D-075):
+    D-056). The colouring only chooses the colours inside it (D-093):
 
     - precise: the neutral mono/precise colour;
     - blended: one colour per column, mixed from the bands' shares;
     - layered: the band envelopes inside the full-band outline, lows behind mids behind highs.
 
     The bands are read later by their group delay, unless that is switched off for comparison, and
-    each band's level is its peak over a short hold (BandReading, D-074).
+    each band's level is its peak over a short hold (BandReading, D-092).
 
     - The write head is a thin accent line followed by a small erase gap. The previous pass ahead
       of it is drawn like the new one (D-068).
@@ -33,7 +33,7 @@ namespace visona
       overshoot is cut at the lane edge with a neutral marker.
     - Display gain is applied only here (D-024).
     - A temporary debug grid treats the window as one 4/4 bar, to judge the grid colours against
-      the bands until PR 7 adds the real grid (D-076).
+      the bands until PR 7 adds the real grid (D-094).
 
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
     vertical image tiles. Frames follow the display's vertical blank, capped at 60 per second, and
@@ -45,7 +45,7 @@ namespace visona
 class ScopeView final : public juce::Component
 {
 public:
-    /** The temporary debug grid (D-076). */
+    /** The temporary debug grid (D-094). */
     enum class DebugGrid
     {
         off,

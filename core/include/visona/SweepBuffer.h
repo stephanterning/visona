@@ -45,7 +45,7 @@ struct SweepCell
 
 /**
     The data behind the sweep display: for every channel, a fixed number of bins across the window,
-    each holding the signed min/max of its samples in every Band (D-050, D-054, D-073). The full
+    each holding the signed min/max of its samples in every Band (D-050, D-054, D-091). The full
     band defines the waveform's shape; low, mid and high drive the colouring only (D-056). The
     renderer reduces bins to pixel columns, so the number of bins never depends on the screen.
 

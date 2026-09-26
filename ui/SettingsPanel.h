@@ -17,7 +17,7 @@ namespace visona
     holds the view controls that no longer fit in the control bar. The panel is opaque, so it never
     makes the view behind it repaint.
 
-    A temporary debug section (D-076) sets the free-running window, whether the band colouring
+    A temporary debug section (D-094) sets the free-running window, whether the band colouring
     makes up for the bands' group delay, and a debug grid. PR 7 replaces it with the WINDOW control
     and the real grid.
 */
@@ -41,7 +41,7 @@ public:
     void setViewControlsVisible(bool visible);
     void setViewToggles(bool diagnostics, bool fullScreen);
 
-    /** The debug settings (D-076), each as an index into its choices. */
+    /** The debug settings (D-094), each as an index into its choices. */
     struct DebugValues
     {
         int window = 0;

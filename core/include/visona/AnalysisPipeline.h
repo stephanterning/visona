@@ -50,7 +50,7 @@ public:
     /**
         Any thread. Sets the length of the free-running window, 2 s unless changed (D-060). The
         next poll() restarts the sweep with it. Until PR 7 adds the WINDOW control, this serves the
-        temporary debug control (D-076).
+        temporary debug control (D-094).
     */
     void setWindowSeconds(double seconds) noexcept;
 

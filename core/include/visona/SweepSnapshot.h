@@ -29,7 +29,7 @@ struct SweepSnapshot
     std::uint64_t windowFrames = 0;
 
     /** How many frames each split band (low, mid, high; see splitIndex()) lags the full band, for
-        the renderer to make up for (D-074). */
+        the renderer to make up for (D-092). */
     std::array<double, splitBands.size()> bandDelayFrames{};
 
     /** Stream position of the next frame to analyze: every frame analyzed or dropped so far. */

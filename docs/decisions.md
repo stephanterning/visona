@@ -175,7 +175,7 @@ A lightweight log of decisions and open questions. The architecture is described
 
 - **D-050 — The waveform is drawn as signed min/max per pixel, not as a mirrored envelope.** `Active`
   Signed min/max preserves asymmetry, such as DC offset and asymmetric transients, which a mirrored envelope hides. Refines D-023.
-- **D-051 — There are three bands, with blue lows, orange mids and white highs, and crossovers around 200 Hz and 2.5 kHz as starting values.** `Amended by D-056`
+- **D-051 — There are three bands, with blue lows, orange mids and white highs, and crossovers around 200 Hz and 2.5 kHz as starting values.** `Amended by D-056`, `Refined by D-090`
   The bands drive the frequency coloring only, and are tuned after testing with real music.
 - **D-052 — Inputs are modeled as sources, each a group of 1..N channels. The MVP has exactly one stereo source.** `Active`
   The concrete model for D-049: the core iterates over sources and channels, never over a fixed L/R pair.
@@ -210,7 +210,7 @@ A lightweight log of decisions and open questions. The architecture is described
   The sweep buffer and bins do not assume ¼–4 bars, so ⅛ bar and 8 bars can be added as settings later. Confirms D-020.
 - **D-059 — Clock recovery: when ticks return after a clock loss, the transport continues counting from the last position.** `Active`
   Simplest for the MVP. The position may be off until the next Start, or SPP + Continue.
-- **D-060 — Before the first Start, the free-running sweep uses a fixed 2 s window.** `Active`
+- **D-060 — Before the first Start, the free-running sweep uses a fixed 2 s window.** `Active`, `Extended by D-094`
   Completes D-045.
 
 ### Implementation
@@ -251,6 +251,36 @@ A lightweight log of decisions and open questions. The architecture is described
   - It is opaque, so updating it never repaints the scope behind it.
 - **D-071 — The scope is rasterized into image tiles 64 physical pixels wide.** `Active`
   On macOS, JUCE 9 copies the whole `juce::Image` into a new `CFData` every time a changed image is drawn. One window-sized image would copy up to about 58 MB per frame in Retina full screen on a 5K display. With tiles, a frame only changes, and copies, the one or two tiles the write head passed. This implements the incremental rendering of D-054 without OpenGL.
+- **D-090 — `BandSplitter` builds each LR4 crossover from two second-order Butterworth sections, and passes the low band through the upper crossover's allpass.** `Active`
+  - The crossovers are at 200 Hz and 2.5 kHz (D-051). The coefficients come from the bilinear transform, prewarped at each crossover, for the current sample rate. The filters run in transposed direct form II with double-precision state.
+  - The low- and high-pass of an LR4 crossover sum to a second-order allpass, so low + mid + high is an allpass: the bands sum flat, and both bands are at −6 dB at their crossover.
+  - Measured from 44.1 to 192 kHz: 50 Hz reaches the low band at −0.03 dB, 1 kHz the mid band at −0.23 dB and 8 kHz the high band at −0.08 dB or better, and every other band is at least 30 dB lower. Both bands are at −6.02 dB at each crossover, and the sum is flat within 0.001 dB.
+  - The upper crossover is kept at or below 0.45 × the sample rate and the lower one at or below half the upper, so that tests at low sample rates still get three bands.
+  - The splitters are reset whenever the stream jumps, since the audio before a dropped block or a new stream does not lead into the audio after it.
+- **D-091 — A bin holds the signed min/max of every band; no per-bin energy value is needed.** `Active`
+  - Answers the question left open for PR 5 in the architecture (3.4): the cell is `{min, max}` for `full`, `low`, `mid` and `high`.
+  - The colouring needs a band's level, and the renderer takes it as the band's peak absolute value over a short hold (D-092). That serves as well as an energy value, and keeps one kind of cell.
+- **D-092 — The renderer makes up for each band's group delay and holds its level; the full band is always drawn as it is.** `Active`
+  - Measured group delay, the same within 0.01 ms from 44.1 to 192 kHz: the low band lags the full band by 2.63 ms at 63 Hz, the mid band by 0.39 ms at 707 Hz and the high band by 0.03 ms at 7.1 kHz. The architecture (3.4) has the full table.
+  - Uncompensated, the low band's colour would trail the waveform by up to about 22 physical pixels at ¼ bar and 174 BPM on a Retina display, and by less than one at 4 bars.
+  - The renderer reads each band later by its group delay at the band's geometric centre, with 20 Hz and 20 kHz as the outer edges. It takes the band's peak over a quarter period of 50 Hz, 200 Hz and 2.5 kHz on either side, 5, 1.25 and 0.1 ms, so that a band's level does not ripple with its own oscillation.
+  - Only bins that still hold the positions read count, and the columns up to that reach behind the head are redrawn as the head moves on.
+  - Delaying the whole analysis instead would delay the full band too. Writing band data into bins behind the head would make copying snapshots and redrawing depend on the bands. Doing it in the renderer keeps the full band's path as it was.
+  - The compensation can be turned off for comparison (D-094).
+- **D-093 — PR 5 implements both colouring methods, and the maintainer chooses one after the hardware check.** `Proposed`
+  - *Blended* fills the full-band span with the band colours mixed in linear light, each weighted by its share of the column's energy, i.e. by its level squared.
+  - *Bands inside the outline* fills the span with the loudest band's colour, then draws each band's envelope, from −level to +level, in the order low, mid, high, cut to the span. A later band hides an earlier one where they overlap, as on a CDJ. An envelope thinner than one row is left out.
+  - In every mode, including mono/precise, the painted rows are exactly the full-band span. `paintColumn()` in core guarantees it, and a test checks it end to end with synthetic music.
+  - A `COLOR` segmented control next to `GAIN` switches between *Precise*, *Blend* and *Bands*, and the choice is saved. M toggles mono/precise, and C switches between the two methods.
+  - *Recommendation: bands inside the outline.* It shows lows, mids and highs in their own colours, and gives the CDJ look at 1 to 4 bars. Blending the D-051 palette mixes blue and orange, which are complementary, into lavender and mauve, and at short windows the bass's energy turns nearly every column blue. Its weakness shows at the shortest windows: the thin trace takes the colour of the envelopes at its height, so it turns white or orange where it crosses zero.
+  - Once the maintainer has chosen, this becomes `Active` and the other method is removed.
+- **D-094 — Until PR 7, temporary debug settings help judge the colouring.** `Active`
+  - The free-running window can be set from 0.125 to 8 s, with 2 s as the default (D-060). At 120 BPM, 0.5 s is ¼ bar and 8 s is 4 bars.
+  - The band delay compensation (D-092) can be turned off.
+  - A grid in the palette's grid colours treats the window as one 4/4 bar, behind or over the waveform.
+  - They sit in a debug section of the settings panel, and on keys: `[` and `]` (or `,` and `.`) step the window, B toggles the compensation and G cycles the grid. None of them is saved. PR 7 replaces the window setting with WINDOW and the grid with the real one.
+- **D-095 — The analysis thread flushes denormals to zero.** `Active`
+  In silence, the band filters' state decays into denormal numbers, which are slow on some CPUs. `juce::ScopedNoDenormals` in `AnalysisThread` covers every filter without code in core.
 
 ---
 

@@ -37,7 +37,7 @@ void AnalysisThread::setStream(AudioRingBuffer* ring, double sampleRate)
 void AnalysisThread::run()
 {
     // The band splitters' filter state decays towards denormals in silence, which are slow on
-    // some CPUs (D-077).
+    // some CPUs (D-095).
     const juce::ScopedNoDenormals noDenormals;
 
     using Clock = std::chrono::steady_clock;

@@ -17,7 +17,7 @@ struct BandSample
 
 /**
     Splits one channel into low, mid and high bands with fourth-order Linkwitz-Riley (LR4)
-    crossovers (D-051, D-072).
+    crossovers (D-051, D-090).
 
     Each LR4 filter is two cascaded second-order Butterworth sections. The low band also passes the
     allpass that the upper crossover's low- and high-pass sum to, so low + mid + high is an allpass:

@@ -11,7 +11,7 @@ namespace visona
 {
 
 /**
-    How the waveform is coloured (D-056, D-075). The shape is the full-band span in every mode;
+    How the waveform is coloured (D-056, D-093). The shape is the full-band span in every mode;
     only the colours inside it differ.
 */
 enum class WaveformColoring : std::uint8_t

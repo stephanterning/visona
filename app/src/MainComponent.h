@@ -28,7 +28,7 @@ class Settings;
     diagnostics overlay, Cmd+, the settings panel, and Esc closes the settings panel. M toggles
     mono/precise, and C switches between the two colouring methods.
 
-    Temporary debug shortcuts (D-076): [ and ] (or , and .) step the free-running window, B
+    Temporary debug shortcuts (D-094): [ and ] (or , and .) step the free-running window, B
     toggles the band delay compensation, and G cycles the debug grid.
 */
 class MainComponent final : public juce::Component,

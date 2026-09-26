@@ -79,7 +79,7 @@ public:
     /** The sweep snapshots of the analysis thread. The message thread is their only reader. */
     [[nodiscard]] TripleBuffer<SweepSnapshot>& snapshots() noexcept;
 
-    /** The length of the free-running window, for the temporary debug control (D-076). */
+    /** The length of the free-running window, for the temporary debug control (D-094). */
     void setWindowSeconds(double seconds) noexcept;
 
     /** Time the analysis thread has spent analyzing, in nanoseconds. */

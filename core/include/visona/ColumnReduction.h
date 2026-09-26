@@ -74,7 +74,7 @@ void reduceColumns(const SweepBuffer& sweep, std::size_t channel, const ColumnMa
                    std::size_t firstColumn, std::span<ColumnSpan> out) noexcept;
 
 /**
-    How the renderer reads the split bands for the frequency colouring (D-074). Presentation only:
+    How the renderer reads the split bands for the frequency colouring (D-092). Presentation only:
     it never changes the sweep, and the full band is always read as it is. Arrays are indexed by
     splitIndex().
 */
