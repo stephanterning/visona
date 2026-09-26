@@ -57,7 +57,7 @@ void StatusBar::paint(juce::Graphics& g)
     const auto gap = metrics.gap * 3;
 
     // Each value gets a slot as wide as its widest possible text, so nothing moves when a value
-    // changes. The state comes first and is always shown.
+    // changes. The BPM and the state come first and are always shown.
     struct Item
     {
         const juce::String& text;
@@ -65,10 +65,11 @@ void StatusBar::paint(juce::Graphics& g)
         bool bold;
         juce::Colour colour;
     };
-    const std::array<Item, 4> items{{
+    const std::array<Item, 5> items{{
+        {values_.bpm, "999.9 BPM", true, palette::text},
         {values_.state, "", true, values_.stateIsError ? palette::error : palette::text},
         {values_.sampleRate, "192 kHz", false, palette::level},
-        {values_.window, "2 s", false, palette::level},
+        {values_.window, "4 BARS", false, palette::level},
         {values_.gain, "+36 dB", false, palette::level},
     }};
 
@@ -80,7 +81,7 @@ void StatusBar::paint(juce::Graphics& g)
         const auto font = fontFor(step_, item.bold);
         const auto width = std::max(juce::GlyphArrangement::getStringWidthInt(font, item.text),
                                     juce::GlyphArrangement::getStringWidthInt(font, item.widest));
-        if (index > 0 && width > area.getWidth())
+        if (index > 1 && width > area.getWidth())
             break;
         g.setFont(font);
         g.setColour(item.colour);

@@ -16,6 +16,8 @@ namespace visona
 
     - audio: the device, sample rate, block size, the level of each channel, and the overrun
       counters;
+    - MIDI Clock: the input, the transport and its position, the tempo, the message counts and
+      the offset between MIDI and audio time;
     - analysis: the analysis thread's load;
     - rendering: frame rate and time per frame;
     - process: Visona's total CPU use.
@@ -49,6 +51,16 @@ public:
         /** Allocations in the audio callback, if the build checks for them. */
         std::optional<std::uint64_t> callbackAllocations;
         bool allocationCheckWorks = true;
+
+        juce::String midiInput;
+        TransportState transportState = TransportState::waiting;
+        std::int64_t nextTick = 0;
+        TimeSignature timeSignature;
+        double bpm = 0.0;
+        std::uint64_t midiEvents = 0;
+        std::uint64_t midiDrops = 0;
+        std::uint64_t ignoredSpp = 0;
+        double midiOffsetFrames = 0.0;
 
         /** Fraction of one CPU core. */
         double analysisLoad = 0.0;

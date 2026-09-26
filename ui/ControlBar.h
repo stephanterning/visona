@@ -3,26 +3,33 @@
 #include "ChromeButton.h"
 #include "ChromeLayout.h"
 #include "GainControl.h"
+#include "WindowControl.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <array>
 #include <functional>
 
 namespace visona
 {
 
 /**
-    The control bar at the bottom (D-046): display gain on the left; diagnostics, full screen and
-    settings on the right. No knobs, and touch-sized targets (D-025).
+    The control bar at the bottom (D-046): the window and display gain on the left; diagnostics,
+    full screen and settings on the right. No knobs, and touch-sized targets (D-025).
 
-    It reflows in steps (ChromeStep): labels shorten when narrow, the groups wrap onto two rows if
-    they do not fit on one, and in the compact step the secondary buttons move into the settings
-    panel.
+    It reflows in steps (ChromeStep): labels shorten when narrow, the groups flow onto more rows
+    when they do not fit on one, and in the compact step the secondary buttons move into the
+    settings panel.
 */
 class ControlBar final : public juce::Component
 {
 public:
     ControlBar();
+
+    [[nodiscard]] WindowControl& window() noexcept
+    {
+        return window_;
+    }
 
     [[nodiscard]] GainControl& gain() noexcept
     {
@@ -49,10 +56,17 @@ public:
     void resized() override;
 
 private:
-    [[nodiscard]] int leftWidth() const;
-    [[nodiscard]] int rightWidth() const;
-    [[nodiscard]] int rowsFor(int width) const;
+    /** The groups in order, window, gain and buttons, each placed in a row. */
+    struct Placement
+    {
+        std::array<int, 3> rows{};
+        int numRows = 1;
+    };
 
+    [[nodiscard]] std::array<int, 3> groupWidths() const;
+    [[nodiscard]] Placement place(int width) const;
+
+    WindowControl window_;
     GainControl gain_;
     ChromeButton diagnostics_{"Diagnostics", ChromeButton::Icon::diagnostics};
     ChromeButton fullScreen_{"Full screen", ChromeButton::Icon::fullScreen};

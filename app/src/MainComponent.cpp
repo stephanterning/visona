@@ -10,6 +10,7 @@
 
 #include <visona/LaneMapping.h>
 #include <visona/SweepAnalyzer.h>
+#include <visona/SweepWindow.h>
 
 #include <algorithm>
 #include <cmath>
@@ -45,6 +46,7 @@ MainComponent::MainComponent(AudioEngine& engine)
     : engine_(engine)
     , scope_(engine.snapshots(), engine.layout())
     , settingsPanel_(engine)
+    , window_(defaultSweepWindow)
     , peaks_(engine.layout().totalChannelCount(), 0.0f)
     , lastUpdateSeconds_(nowSeconds())
     , lastAnalysisBusyNs_(engine.analysisBusyNanoseconds())
@@ -62,7 +64,13 @@ MainComponent::MainComponent(AudioEngine& engine)
     addChildComponent(diagnostics_);
     addChildComponent(settingsPanel_);
 
+    controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
+    scope_.onTransportChange = [this]
+    {
+        updateBanner();
+        updateStatus();
+    };
     controlBar_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
     controlBar_.onFullScreen = [this] { toggleFullScreen(); };
     controlBar_.onSettings = [this] { showSettings(!settingsPanel_.isVisible()); };
@@ -141,6 +149,11 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         return false;
 
     const auto character = juce::CharacterFunctions::toLowerCase(key.getTextCharacter());
+    if (character >= '1' && character < static_cast<juce::juce_wchar>('1' + sweepWindowBars.size()))
+    {
+        setWindow(static_cast<std::size_t>(character - '1'));
+        return true;
+    }
     if (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
         character == '+' || character == '=')
     {
@@ -174,6 +187,7 @@ void MainComponent::changeListenerCallback(juce::ChangeBroadcaster*)
 void MainComponent::timerCallback()
 {
     updateToggles();
+    updateStatus();
     updateDiagnostics();
 }
 
@@ -185,6 +199,15 @@ void MainComponent::setGainDb(int gainDb)
     gainDb_ = gainDb;
     scope_.setGainDb(gainDb_);
     controlBar_.gain().setGainDb(gainDb_);
+    updateStatus();
+}
+
+void MainComponent::setWindow(std::size_t window)
+{
+    window = std::min(window, sweepWindowBars.size() - 1);
+    window_ = window;
+    engine_.setWindow(window);
+    controlBar_.window().setWindow(window);
     updateStatus();
 }
 
@@ -231,22 +254,59 @@ void MainComponent::updateDeviceInfo()
     bufferSize_ = device != nullptr ? device->getCurrentBufferSizeSamples() : 0;
     inputNames_ = device != nullptr ? device->getInputChannelNames() : juce::StringArray();
     inputRunning_ = engine_.isInputRunning();
+    updateBanner();
+    updateStatus();
+}
 
+void MainComponent::updateBanner()
+{
     if (!inputRunning_)
         banner_.setText("NO AUDIO INPUT",
                         engine_.noInputReason() + " Choose a device in Settings.");
-    banner_.setVisible(!inputRunning_);
-    updateStatus();
+    else if (scope_.snapshot().transportState == TransportState::clockLost)
+        banner_.setText("MIDI CLOCK LOST",
+                        "No MIDI Clock for over half a second. The view is frozen until it "
+                        "returns.");
+    banner_.setVisible(!inputRunning_ ||
+                       scope_.snapshot().transportState == TransportState::clockLost);
 }
 
 void MainComponent::updateStatus()
 {
+    const auto& snapshot = scope_.snapshot();
     StatusBar::Values values;
-    values.state = inputRunning_ ? "FREE RUN" : "NO INPUT";
-    values.stateIsError = !inputRunning_;
+    if (snapshot.bpm > 0.0)
+        values.bpm = juce::String(snapshot.bpm, 1) + " BPM";
+    if (!inputRunning_)
+    {
+        values.state = "NO INPUT";
+        values.stateIsError = true;
+    }
+    else
+    {
+        switch (snapshot.transportState)
+        {
+        case TransportState::waiting:
+            values.state = "WAITING";
+            break;
+        case TransportState::running:
+            values.state = "MIDI RUN";
+            break;
+        case TransportState::stopped:
+            values.state = "STOPPED";
+            break;
+        case TransportState::clockLost:
+            values.state = "MIDI CLOCK LOST";
+            values.stateIsError = true;
+            break;
+        }
+    }
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
-    values.window = juce::String(juce::roundToInt(freeRunningWindowSeconds)) + " s";
+    // Before the first Start the sweep runs free, whatever window is chosen.
+    values.window = snapshot.musical
+                        ? WindowControl::describe(window_)
+                        : juce::String(juce::roundToInt(freeRunningWindowSeconds)) + " s";
     values.gain = GainControl::format(gainDb_);
     statusBar_.setValues(values);
 }
@@ -311,6 +371,19 @@ void MainComponent::updateDiagnostics()
     values.analysisLoad = analysisLoad;
     values.rendering = scope_.stats();
     values.processCpu = processCpu;
+
+    const auto& snapshot = scope_.snapshot();
+    const auto& midi = engine_.midi();
+    values.midiInput =
+        midi.isOpen() || midi.name().isEmpty() ? midi.name() : midi.name() + " (not found)";
+    values.transportState = snapshot.transportState;
+    values.nextTick = snapshot.nextTick;
+    values.timeSignature = snapshot.timeSignature;
+    values.bpm = snapshot.bpm;
+    values.midiEvents = snapshot.midiEvents;
+    values.midiDrops = midi.droppedEvents();
+    values.ignoredSpp = snapshot.ignoredSpp;
+    values.midiOffsetFrames = engine_.midiOffsetFrames();
 
     diagnostics_.update(values, elapsed);
 }

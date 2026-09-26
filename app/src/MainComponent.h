@@ -23,8 +23,9 @@ class AudioEngine;
     and the control bar at the bottom, with the banner, the diagnostics overlay and the settings
     panel over the scope (architecture.md 3.6).
 
-    Shortcuts: + and - (or the up and down arrows) change the gain, F toggles full screen, D the
-    diagnostics overlay, Cmd+, the settings panel, and Esc closes the settings panel.
+    Shortcuts: 1 to 5 pick the window, + and - (or the up and down arrows) change the gain, F
+    toggles full screen, D the diagnostics overlay, Cmd+, the settings panel, and Esc closes the
+    settings panel.
 */
 class MainComponent final : public juce::Component,
                             private juce::ChangeListener,
@@ -43,12 +44,14 @@ private:
     void timerCallback() override;
 
     void setGainDb(int gainDb);
+    void setWindow(std::size_t window);
     void showSettings(bool shouldShow);
     void showDiagnostics(bool shouldShow);
     void toggleFullScreen();
     [[nodiscard]] bool isFullScreen() const;
     void updateToggles();
     void updateDeviceInfo();
+    void updateBanner();
     void updateStatus();
     void updateDiagnostics();
 
@@ -64,6 +67,7 @@ private:
     juce::TooltipWindow tooltips_{this};
 
     int gainDb_ = 0;
+    std::size_t window_;
 
     // Cached on device changes, because reading them from the device queries the driver.
     juce::String deviceName_;

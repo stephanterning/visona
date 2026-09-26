@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace visona
@@ -22,6 +23,9 @@ namespace visona
       of it is drawn like the new one (D-068).
     - Faint lines mark the centre and where 0 dBFS and -6 dBFS land after display gain. Display
       overshoot is cut at the lane edge with a neutral marker.
+    - While the sweep follows MIDI Clock, a neutral grey grid marks bars, beats and, in windows
+      of a half bar or less, sixteenths, with small bar numbers at the bottom edge.
+    - STOPPED dims the frozen view slightly and shows a pause mark.
     - Display gain is applied only here (D-024).
 
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
@@ -43,6 +47,15 @@ public:
     {
         return gainDb_;
     }
+
+    /** The snapshot on screen, for the status bar. Message thread only. */
+    [[nodiscard]] const SweepSnapshot& snapshot() const noexcept
+    {
+        return snapshots_.readBuffer();
+    }
+
+    /** Called when the transport state, the sweep's mode or the window changes. */
+    std::function<void()> onTransportChange;
 
     /** Rendering statistics over the most recent whole second. */
     struct Stats
@@ -75,6 +88,27 @@ private:
         int height = 1;
     };
 
+    enum class GridLine : std::uint8_t
+    {
+        none,
+        sixteenth,
+        beat,
+        bar
+    };
+
+    /** What the grid depends on. Musical windows are whole numbers of ticks. */
+    struct GridKey
+    {
+        bool musical = false;
+        std::int64_t windowTicks = 0;
+        std::int64_t windowStartTick = 0;
+        int ticksPerBar = 0;
+        int ticksPerBeat = 0;
+        int width = 0;
+
+        friend bool operator==(const GridKey&, const GridKey&) = default;
+    };
+
     struct Timing
     {
         int count = 0;
@@ -86,6 +120,11 @@ private:
 
     void onVBlank(double timestampSeconds);
     void updateStats(double timestampSeconds);
+    void noticeTransport();
+    void updateGrid();
+    [[nodiscard]] juce::Rectangle<int> barNumberArea() const noexcept;
+    void drawBarNumbers(juce::Graphics& g) const;
+    void drawStopped(juce::Graphics& g) const;
 
     /** Makes the tiles match the component's size at `scale`. Returns true if they changed. */
     bool ensureTiles(float scale);
@@ -116,6 +155,8 @@ private:
     std::vector<Lane> lanes_;
     ColumnMapping mapping_{1, 1};
     std::vector<ColumnSpan> spans_;
+    std::vector<GridLine> grid_;
+    GridKey gridKey_;
     int headWidth_ = 1;
     int gapWidth_ = 0;
     int markerHeight_ = 1;
@@ -128,6 +169,12 @@ private:
     std::uint64_t renderedPass_ = 0;
     std::size_t renderedHead_ = 0;
     int renderedHeadStart_ = 0;
+
+    // The transport as last shown.
+    TransportState shownState_ = TransportState::waiting;
+    bool shownMusical_ = false;
+    std::size_t shownWindow_ = 0;
+    double shownWindowStart_ = 0.0;
 
     double nextFrameSeconds_ = 0.0;
     double firstFrameSeconds_ = 0.0;

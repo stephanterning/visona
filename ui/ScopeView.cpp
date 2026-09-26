@@ -31,6 +31,11 @@ constexpr float eraseGapWidth = 6.0f;
 constexpr float clipMarkerHeight = 3.0f;
 constexpr float labelMargin = 6.0f;
 constexpr float labelFontHeight = 11.0f;
+constexpr float gridLineWidth = 1.0f;
+constexpr float stoppedDimming = 0.3f;
+
+/** Sixteenths are one MIDI beat of 6 ticks. */
+constexpr int ticksPerSixteenth = 6;
 
 /** The amplitude reference lines: 0 dBFS and -6 dBFS, with their labels in UTF-8. */
 struct Reference
@@ -84,6 +89,9 @@ struct Colours
     juce::PixelARGB waveform = palette::waveform.getPixelARGB();
     juce::PixelARGB clipMarker = palette::clipMarker.getPixelARGB();
     juce::PixelARGB head = palette::head.getPixelARGB();
+    juce::PixelARGB gridBar = palette::gridBar.getPixelARGB();
+    juce::PixelARGB gridBeat = palette::gridBeat.getPixelARGB();
+    juce::PixelARGB gridSixteenth = palette::gridSixteenth.getPixelARGB();
 };
 
 const Colours& colours()
@@ -147,6 +155,8 @@ void ScopeView::paint(juce::Graphics& g)
                                    .scaled(1.0f / scale_));
     }
     drawLabels(g);
+    drawBarNumbers(g);
+    drawStopped(g);
 
     paintTiming_.add(nowMs() - start);
 }
@@ -176,11 +186,31 @@ void ScopeView::onVBlank(double timestampSeconds)
     const auto start = nowMs();
     const auto dirty = renderChanges();
     renderTiming_.add(nowMs() - start);
+    noticeTransport();
     if (renderTiming_.count == 1)
         firstFrameSeconds_ = timestampSeconds;
     lastFrameSeconds_ = timestampSeconds;
     if (!dirty.isEmpty())
         repaint(dirty);
+}
+
+void ScopeView::noticeTransport()
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    const bool stateChanged = snapshot.transportState != shownState_;
+    const bool modeChanged = snapshot.musical != shownMusical_ || snapshot.window != shownWindow_;
+    if (stateChanged && (snapshot.transportState == TransportState::stopped ||
+                         shownState_ == TransportState::stopped))
+        repaint();
+    if (modeChanged || !juce::exactlyEqual(snapshot.windowStartTick, shownWindowStart_))
+        repaint(barNumberArea());
+
+    shownState_ = snapshot.transportState;
+    shownMusical_ = snapshot.musical;
+    shownWindow_ = snapshot.window;
+    shownWindowStart_ = snapshot.windowStartTick;
+    if ((stateChanged || modeChanged) && onTransportChange)
+        onTransportChange();
 }
 
 void ScopeView::updateStats(double timestampSeconds)
@@ -323,6 +353,7 @@ void ScopeView::renderColumns(int first, int last)
     if (sweep.numBins() > 0 && (mapping_.numBins() != sweep.numBins() ||
                                 mapping_.numColumns() != static_cast<std::size_t>(width_)))
         mapping_ = ColumnMapping(sweep.numBins(), static_cast<std::size_t>(width_));
+    updateGrid();
 
     first = std::max(first, 0);
     last = std::min(last, width_ - 1);
@@ -355,6 +386,23 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
         const LaneMapping mapping(lane.top, lane.height, gain);
 
         canvas.fill(first, last, lane.top, laneBottom, colour.laneBackground);
+        for (int column = first; column <= last; ++column)
+        {
+            switch (grid_[static_cast<std::size_t>(column)])
+            {
+            case GridLine::none:
+                break;
+            case GridLine::sixteenth:
+                canvas.fill(column, column, lane.top, laneBottom, colour.gridSixteenth);
+                break;
+            case GridLine::beat:
+                canvas.fill(column, column, lane.top, laneBottom, colour.gridBeat);
+                break;
+            case GridLine::bar:
+                canvas.fill(column, column, lane.top, laneBottom, colour.gridBar);
+                break;
+            }
+        }
         for (const auto& reference : references)
         {
             if (!mapping.isInside(reference.level))
@@ -409,6 +457,94 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
     const auto headEnd = std::min(headStart + headWidth_ - 1, last);
     if (headStart >= 0 && std::max(headStart, first) <= headEnd)
         canvas.fill(std::max(headStart, first), headEnd, 0, height_ - 1, colour.head);
+}
+
+void ScopeView::updateGrid()
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    const GridKey key{snapshot.musical,
+                      std::llround(snapshot.windowTicks),
+                      std::llround(snapshot.windowStartTick),
+                      snapshot.timeSignature.ticksPerBar(),
+                      snapshot.timeSignature.ticksPerBeat(),
+                      width_};
+    if (key == gridKey_ && grid_.size() == static_cast<std::size_t>(width_))
+        return;
+    gridKey_ = key;
+    grid_.assign(static_cast<std::size_t>(width_), GridLine::none);
+    if (!key.musical || key.windowTicks <= 0 || key.ticksPerBar <= 0 || key.ticksPerBeat <= 0)
+        return;
+
+    // The lines of the window the head is in; a column the head has not reached yet keeps the
+    // lines it was drawn with.
+    const bool sixteenths = 2 * key.windowTicks <= key.ticksPerBar;
+    const auto lineWidth = toPhysical(gridLineWidth, scale_);
+    for (std::int64_t tick = 0; tick < key.windowTicks; tick += ticksPerSixteenth)
+    {
+        const auto absolute = key.windowStartTick + tick;
+        const auto line = absolute % key.ticksPerBar == 0    ? GridLine::bar
+                          : absolute % key.ticksPerBeat == 0 ? GridLine::beat
+                          : sixteenths                       ? GridLine::sixteenth
+                                                             : GridLine::none;
+        if (line == GridLine::none)
+            continue;
+        const auto column = static_cast<int>(tick * width_ / key.windowTicks);
+        for (int x = column; x < std::min(column + lineWidth, width_); ++x)
+            grid_[static_cast<std::size_t>(x)] = std::max(grid_[static_cast<std::size_t>(x)], line);
+    }
+}
+
+juce::Rectangle<int> ScopeView::barNumberArea() const noexcept
+{
+    const auto height = juce::roundToInt(labelFontHeight + 6.0f);
+    return getLocalBounds().removeFromBottom(height);
+}
+
+void ScopeView::drawBarNumbers(juce::Graphics& g) const
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    const auto ticksPerBar = snapshot.timeSignature.ticksPerBar();
+    const auto ticksPerBeat = snapshot.timeSignature.ticksPerBeat();
+    const auto area = barNumberArea();
+    if (!snapshot.musical || snapshot.windowTicks <= 0.0 || ticksPerBar <= 0 || ticksPerBeat <= 0 ||
+        !g.clipRegionIntersects(area))
+        return;
+
+    g.setFont(juce::FontOptions(labelFontHeight).withFeatureEnabled("tnum"));
+    g.setColour(palette::laneLabel);
+    const auto startTick = static_cast<std::int64_t>(std::llround(snapshot.windowStartTick));
+    const auto label = [&](std::int64_t tick, const juce::String& text)
+    {
+        const auto x = static_cast<float>(static_cast<double>(tick) / snapshot.windowTicks *
+                                          static_cast<double>(getWidth()));
+        g.drawText(text,
+                   juce::Rectangle<float>(x + 4.0f, static_cast<float>(area.getY()), 60.0f,
+                                          static_cast<float>(area.getHeight())),
+                   juce::Justification::centredLeft, false);
+    };
+
+    // A window that starts between bars shows where it starts as bar.beat.
+    if (startTick % ticksPerBar != 0)
+        label(0, juce::String(startTick / ticksPerBar + 1) + "." +
+                     juce::String(startTick % ticksPerBar / ticksPerBeat + 1));
+    const auto firstBar = (startTick + ticksPerBar - 1) / ticksPerBar * ticksPerBar;
+    for (auto bar = firstBar; static_cast<double>(bar - startTick) < snapshot.windowTicks;
+         bar += ticksPerBar)
+        label(bar - startTick, juce::String(bar / ticksPerBar + 1));
+}
+
+void ScopeView::drawStopped(juce::Graphics& g) const
+{
+    if (snapshots_.readBuffer().transportState != TransportState::stopped)
+        return;
+    g.setColour(palette::background.withAlpha(stoppedDimming));
+    g.fillRect(getLocalBounds());
+
+    // A pause mark next to the top lane's name.
+    const auto mark = juce::Rectangle<float>(labelMargin + 18.0f, labelMargin, 11.0f, 13.0f);
+    g.setColour(palette::text);
+    g.fillRoundedRectangle(mark.withWidth(3.5f), 1.0f);
+    g.fillRoundedRectangle(mark.withTrimmedLeft(7.5f), 1.0f);
 }
 
 std::pair<int, int> ScopeView::headColumns(const SweepBuffer& sweep) const noexcept
