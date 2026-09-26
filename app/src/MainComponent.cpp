@@ -58,6 +58,7 @@ MainComponent::MainComponent(AudioEngine& engine)
     setLookAndFeel(&lookAndFeel_);
 
     addAndMakeVisible(statusBar_);
+    addChildComponent(zoomOverview_);
     addAndMakeVisible(scope_);
     addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
@@ -68,9 +69,17 @@ MainComponent::MainComponent(AudioEngine& engine)
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     scope_.onTransportChange = [this]
     {
+        zoomOverview_.setTimeline(scope_.snapshot());
         updateBanner();
         updateStatus();
     };
+    scope_.onZoomChange = [this] { updateZoom(); };
+    scope_.onFrame = [this]
+    {
+        if (zoomOverview_.isVisible())
+            zoomOverview_.setHead(scope_.headPosition());
+    };
+    zoomOverview_.onReset = [this] { scope_.resetZoom(); };
     controlBar_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
     controlBar_.onFullScreen = [this] { toggleFullScreen(); };
     controlBar_.onSettings = [this] { showSettings(!settingsPanel_.isVisible()); };
@@ -105,10 +114,13 @@ void MainComponent::resized()
     auto area = getLocalBounds();
     const auto step = chromeStepFor(getWidth(), getHeight());
     statusBar_.setStep(step);
+    zoomOverview_.setStep(step);
     controlBar_.setStep(step);
     settingsPanel_.setViewControlsVisible(!controlBar_.showsSecondaryControls());
 
     statusBar_.setBounds(area.removeFromTop(statusBar_.preferredHeight()));
+    if (zoomOverview_.isVisible())
+        zoomOverview_.setBounds(area.removeFromTop(zoomOverview_.preferredHeight()));
     controlBar_.setBounds(area.removeFromBottom(controlBar_.preferredHeight(area.getWidth())));
     scope_.setBounds(area);
 
@@ -136,6 +148,11 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
     if (key == juce::KeyPress::escapeKey && settingsPanel_.isVisible())
     {
         showSettings(false);
+        return true;
+    }
+    if (key == juce::KeyPress::escapeKey && scope_.zoom().isZoomed())
+    {
+        scope_.resetZoom();
         return true;
     }
     if (key == juce::KeyPress(',', juce::ModifierKeys::commandModifier, 0))
@@ -206,6 +223,7 @@ void MainComponent::setWindow(std::size_t window)
 {
     window = std::min(window, sweepWindowBars.size() - 1);
     window_ = window;
+    scope_.resetZoom();
     engine_.setWindow(window);
     controlBar_.window().setWindow(window);
     updateStatus();
@@ -308,7 +326,23 @@ void MainComponent::updateStatus()
                         ? WindowControl::describe(window_)
                         : juce::String(juce::roundToInt(freeRunningWindowSeconds)) + " s";
     values.gain = GainControl::format(gainDb_);
+    if (scope_.zoom().isZoomed())
+        values.zoom = ZoomOverview::describe(scope_.zoom(), snapshot);
     statusBar_.setValues(values);
+}
+
+void MainComponent::updateZoom()
+{
+    const auto zoom = scope_.zoom();
+    zoomOverview_.setZoom(zoom);
+    if (zoom.isZoomed() != zoomOverview_.isVisible())
+    {
+        zoomOverview_.setTimeline(scope_.snapshot());
+        zoomOverview_.setHead(scope_.headPosition());
+        zoomOverview_.setVisible(zoom.isZoomed());
+        resized();
+    }
+    updateStatus();
 }
 
 void MainComponent::updateDiagnostics()

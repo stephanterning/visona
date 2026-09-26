@@ -6,6 +6,7 @@
 #include "ui/ScopeView.h"
 #include "ui/SettingsPanel.h"
 #include "ui/StatusBar.h"
+#include "ui/ZoomOverview.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -19,13 +20,13 @@ namespace visona
 class AudioEngine;
 
 /**
-    Root content component of the main window: the status bar at the top, the scope in the middle
-    and the control bar at the bottom, with the banner, the diagnostics overlay and the settings
-    panel over the scope (architecture.md 3.6).
+    Root content component of the main window: the status bar at the top, the zoom's overview strip
+    under it while zoomed in, the scope in the middle and the control bar at the bottom, with the
+    banner, the diagnostics overlay and the settings panel over the scope (architecture.md 3.6).
 
     Shortcuts: 1 to 5 pick the window, + and - (or the up and down arrows) change the gain, F
     toggles full screen, D the diagnostics overlay, Cmd+, the settings panel, and Esc closes the
-    settings panel.
+    settings panel or, with it closed, resets the zoom.
 */
 class MainComponent final : public juce::Component,
                             private juce::ChangeListener,
@@ -53,12 +54,14 @@ private:
     void updateDeviceInfo();
     void updateBanner();
     void updateStatus();
+    void updateZoom();
     void updateDiagnostics();
 
     AudioEngine& engine_;
     juce::LookAndFeel_V4 lookAndFeel_;
 
     StatusBar statusBar_;
+    ZoomOverview zoomOverview_;
     ScopeView scope_;
     ControlBar controlBar_;
     Banner banner_;

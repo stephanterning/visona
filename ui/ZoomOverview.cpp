@@ -1,0 +1,276 @@
+#include "ZoomOverview.h"
+
+#include "Palette.h"
+
+#include <visona/SweepAnalyzer.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+
+namespace visona
+{
+
+namespace
+{
+
+constexpr int stripHeight = 26;
+constexpr int compactStripHeight = 22;
+constexpr float trackHeightRatio = 0.4f;
+constexpr float trackRadius = 3.0f;
+constexpr float regionOverhang = 2.0f;
+constexpr float regionMinWidth = 3.0f;
+constexpr float regionFillAlpha = 0.28f;
+constexpr float regionEdgeAlpha = 0.75f;
+constexpr float headLineWidth = 1.5f;
+constexpr float headOverhang = 3.0f;
+constexpr float buttonRadius = 4.0f;
+constexpr float crossInset = 0.32f;
+constexpr float crossThickness = 1.5f;
+
+constexpr int ticksPerSixteenth = 6;
+
+/** A position this close above a boundary counts as on it, despite rounding. */
+constexpr double boundaryTolerance = 1.0e-6;
+
+/** Free-running marks: every half second of the 2-second window. */
+constexpr int freeRunningMarks = 4;
+
+juce::String formatFactor(double factor)
+{
+    const auto number =
+        factor < 9.95 ? juce::String(factor, 1) : juce::String(juce::roundToInt(factor));
+    return number + juce::String::fromUTF8("\xc3\x97");
+}
+
+} // namespace
+
+ZoomOverview::ZoomOverview()
+{
+    setOpaque(true);
+    setWantsKeyboardFocus(false);
+    setMouseClickGrabsKeyboardFocus(false);
+}
+
+void ZoomOverview::setZoom(SweepZoom zoom)
+{
+    if (juce::exactlyEqual(zoom.offset, zoom_.offset) && juce::exactlyEqual(zoom.span, zoom_.span))
+        return;
+    zoom_ = zoom;
+    repaint();
+}
+
+void ZoomOverview::setHead(double position)
+{
+    const bool shown = head_ >= 0.0;
+    const bool willShow = position >= 0.0;
+    if (shown == willShow && (!shown || std::abs(xOf(position) - xOf(head_)) < 0.25f))
+    {
+        head_ = position;
+        return;
+    }
+    if (shown)
+        repaint(headArea(xOf(head_)));
+    head_ = position;
+    if (willShow)
+        repaint(headArea(xOf(head_)));
+}
+
+void ZoomOverview::setTimeline(const SweepSnapshot& snapshot)
+{
+    std::vector<Mark> marks;
+    const auto ticksPerBar = snapshot.timeSignature.ticksPerBar();
+    const auto ticksPerBeat = snapshot.timeSignature.ticksPerBeat();
+    const auto windowTicks = std::llround(snapshot.windowTicks);
+    if (snapshot.musical && windowTicks > 0 && ticksPerBar > 0 && ticksPerBeat > 0)
+    {
+        // A window of whole bars starts on a bar, so its bars are always in the same place.
+        const bool wholeBars = windowTicks % ticksPerBar == 0;
+        for (std::int64_t tick = ticksPerBeat; tick < windowTicks; tick += ticksPerBeat)
+            marks.push_back({static_cast<double>(tick) / static_cast<double>(windowTicks),
+                             wholeBars && tick % ticksPerBar == 0});
+    }
+    else
+    {
+        for (int mark = 1; mark < freeRunningMarks; ++mark)
+            marks.push_back({static_cast<double>(mark) / freeRunningMarks, false});
+    }
+    if (marks == marks_)
+        return;
+    marks_ = std::move(marks);
+    repaint();
+}
+
+void ZoomOverview::setStep(ChromeStep step)
+{
+    if (step == step_)
+        return;
+    step_ = step;
+    resized();
+    repaint();
+}
+
+int ZoomOverview::preferredHeight() const noexcept
+{
+    return step_ == ChromeStep::compact ? compactStripHeight : stripHeight;
+}
+
+juce::String ZoomOverview::describe(SweepZoom zoom, const SweepSnapshot& snapshot)
+{
+    // A view that runs past the end of the window ends in the window's start.
+    const auto start = zoom.offset;
+    auto end = zoom.offset + zoom.span;
+    if (end > 1.0 + boundaryTolerance)
+        end -= 1.0;
+
+    juce::String from;
+    juce::String to;
+    const auto ticksPerBar = snapshot.timeSignature.ticksPerBar();
+    const auto ticksPerBeat = snapshot.timeSignature.ticksPerBeat();
+    if (snapshot.musical && snapshot.windowTicks > 0.0 && ticksPerBar > 0 && ticksPerBeat > 0)
+    {
+        const bool sixteenths = zoom.span * snapshot.windowTicks < ticksPerBeat;
+        const auto format = [&](double position)
+        {
+            const auto tick = static_cast<std::int64_t>(
+                std::floor(position * snapshot.windowTicks + boundaryTolerance));
+            auto text = juce::String(tick / ticksPerBar + 1) + "." +
+                        juce::String(tick % ticksPerBar / ticksPerBeat + 1);
+            if (sixteenths)
+                text << "." << juce::String(tick % ticksPerBeat / ticksPerSixteenth + 1);
+            return text;
+        };
+        from = format(start);
+        to = format(end);
+    }
+    else
+    {
+        const auto decimals = zoom.span * freeRunningWindowSeconds >= 0.2 ? 2 : 3;
+        from = juce::String(start * freeRunningWindowSeconds, decimals);
+        to = juce::String(end * freeRunningWindowSeconds, decimals) + " s";
+    }
+    return "ZOOM " + formatFactor(zoom.factor()) + juce::String::fromUTF8(" \xc2\xb7 ") + from +
+           juce::String::fromUTF8("\xe2\x80\x93") + to;
+}
+
+void ZoomOverview::paint(juce::Graphics& g)
+{
+    g.fillAll(palette::chrome);
+    g.setColour(palette::outline);
+    g.fillRect(getLocalBounds().removeFromBottom(1));
+
+    g.setColour(palette::surface);
+    g.fillRoundedRectangle(track_, trackRadius);
+    for (const auto& mark : marks_)
+    {
+        g.setColour(mark.strong ? palette::gridBar : palette::gridBeat);
+        g.fillRect(
+            juce::Rectangle<float>(xOf(mark.position), track_.getY(), 1.0f, track_.getHeight()));
+    }
+
+    const auto region = [&](double from, double to)
+    {
+        const auto left = xOf(from);
+        const auto area = juce::Rectangle<float>(left, track_.getY() - regionOverhang,
+                                                 std::max(xOf(to) - left, regionMinWidth),
+                                                 track_.getHeight() + 2.0f * regionOverhang);
+        g.setColour(palette::level.withAlpha(regionFillAlpha));
+        g.fillRoundedRectangle(area, 2.0f);
+        g.setColour(palette::level.withAlpha(regionEdgeAlpha));
+        g.drawRoundedRectangle(area.reduced(0.5f), 2.0f, 1.0f);
+    };
+    const auto end = zoom_.offset + zoom_.span;
+    if (end <= 1.0)
+    {
+        region(zoom_.offset, end);
+    }
+    else
+    {
+        region(zoom_.offset, 1.0);
+        region(0.0, end - 1.0);
+    }
+
+    if (head_ >= 0.0)
+    {
+        g.setColour(palette::head);
+        g.fillRect(juce::Rectangle<float>(xOf(head_) - headLineWidth / 2.0f,
+                                          track_.getY() - headOverhang, headLineWidth,
+                                          track_.getHeight() + 2.0f * headOverhang));
+    }
+
+    const auto button = resetButton_.toFloat();
+    g.setColour(resetHighlighted_ ? palette::highlight : palette::surface);
+    g.fillRoundedRectangle(button, buttonRadius);
+    const auto cross = button.reduced(button.getWidth() * crossInset);
+    juce::Path path;
+    path.startNewSubPath(cross.getTopLeft());
+    path.lineTo(cross.getBottomRight());
+    path.startNewSubPath(cross.getTopRight());
+    path.lineTo(cross.getBottomLeft());
+    g.setColour(resetHighlighted_ ? palette::text : palette::level);
+    g.strokePath(path, juce::PathStrokeType(crossThickness, juce::PathStrokeType::curved,
+                                            juce::PathStrokeType::rounded));
+}
+
+void ZoomOverview::resized()
+{
+    const auto metrics = ChromeMetrics::forStep(step_);
+    auto area = getLocalBounds().withTrimmedBottom(1).reduced(metrics.padding + 4, 0);
+    const auto buttonSize = std::max(1, area.getHeight() - 6);
+    resetButton_ = area.removeFromRight(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize);
+    area.removeFromRight(metrics.gap);
+    const auto trackHeight = std::round(static_cast<float>(area.getHeight()) * trackHeightRatio);
+    track_ = area.toFloat().withSizeKeepingCentre(static_cast<float>(area.getWidth()), trackHeight);
+}
+
+void ZoomOverview::mouseMove(const juce::MouseEvent& event)
+{
+    setResetHighlighted(resetButton_.contains(event.getPosition()));
+}
+
+void ZoomOverview::mouseExit(const juce::MouseEvent&)
+{
+    setResetHighlighted(false);
+}
+
+void ZoomOverview::mouseDown(const juce::MouseEvent& event)
+{
+    if (resetButton_.contains(event.getPosition()) && onReset)
+        onReset();
+}
+
+void ZoomOverview::mouseDoubleClick(const juce::MouseEvent& event)
+{
+    if (!resetButton_.contains(event.getPosition()) && onReset)
+        onReset();
+}
+
+juce::String ZoomOverview::getTooltip()
+{
+    return resetButton_.contains(getMouseXYRelative())
+               ? "Reset zoom (Esc, or double-click the scope)"
+               : "The part of the window in view";
+}
+
+float ZoomOverview::xOf(double position) const noexcept
+{
+    return track_.getX() + static_cast<float>(position) * track_.getWidth();
+}
+
+juce::Rectangle<int> ZoomOverview::headArea(float x) const noexcept
+{
+    return juce::Rectangle<float>(x - headLineWidth, track_.getY() - headOverhang,
+                                  2.0f * headLineWidth, track_.getHeight() + 2.0f * headOverhang)
+        .getSmallestIntegerContainer()
+        .expanded(1);
+}
+
+void ZoomOverview::setResetHighlighted(bool highlighted)
+{
+    if (highlighted == resetHighlighted_)
+        return;
+    resetHighlighted_ = highlighted;
+    repaint(resetButton_);
+}
+
+} // namespace visona
