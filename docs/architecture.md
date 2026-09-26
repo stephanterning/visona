@@ -94,7 +94,9 @@ MIDI Clock is the only clock source in MVP 1.0 (D-036). The messages are:
 - Start `FA`, Continue `FB`, Stop `FC`
 - SPP `F2`: a 14-bit value in MIDI beats, where one MIDI beat is a sixteenth note, or 6 ticks.
 
-Position is counted in ticks, with `ticksPerBar = 24 × numerator × 4 / denominator`. That is 96 in 4/4, which is the MVP default (D-017).
+Position is counted in ticks, with `ticksPerBar = 24 × numerator × 4 / denominator`. That is 96 in 4/4, which is the MVP default (D-017). The position is the tick the next Clock will mark (D-080).
+
+`MidiClockTransport` implements the table below, and `ClockTimeMapper` maps host time to sample time. Both are in `core/`.
 
 | Event | Effect (D-045, D-059, D-060) |
 |---|---|
@@ -102,9 +104,9 @@ Position is counted in ticks, with `ticksPerBar = 24 × numerator × 4 / denomin
 | Start | Position = 0, `Running`. The first Clock after Start is the downbeat of bar 1. The sweep clears and restarts at x = 0 |
 | Clock in `Running` | Position += 1 tick; the tick's sample time is recorded |
 | Clock in `Stopped`/`Waiting` | Updates the BPM estimate only (some DAWs send clock while stopped) |
-| Stop | `Stopped`. Position is kept; the UI freezes the last frame and shows `STOPPED` |
-| SPP | Position = SPP × 6 ticks. Accepted in `Stopped`; ignored and logged in `Running` |
-| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass |
+| Stop | `Stopped`. Position is kept; the UI freezes the last frame and shows `STOPPED`. Ignored in `Waiting` (D-083) |
+| SPP | Position = SPP × 6 ticks. Accepted whenever no ticks are being counted: in `Waiting`, `Stopped` and `ClockLost`, and in `Running` until the first Clock after Start or Continue. Otherwise ignored and counted (D-081) |
+| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass. Changes nothing while `Running` (D-083) |
 | > 0.5 s without Clock in `Running` | `ClockLost`: freeze and show `MIDI CLOCK LOST` |
 | Clock returns in `ClockLost` | `Running` again, continuing the tick count. Position may be off until the next Start, or SPP + Continue |
 
@@ -112,18 +114,20 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 
 **Position per audio sample.** Between tick *k* at sample *s_k* and tick *k+1* at *s_{k+1}*, position = *k + (s − s_k) / (s_{k+1} − s_k)*.
 - Audio is analyzed only up to the latest known tick. This costs about one tick of visual latency (≈ 21 ms at 120 BPM).
-- On Stop or clock loss, the last interval is extrapolated by at most one tick and then held.
+- On Stop or clock loss, the last interval is extrapolated by at most one tick and then held. Samples then have no position until the first Clock of the next run.
+- The transport works in sample time (D-084). The analysis hands it events in order, calls `advanceTo()` with the latest audio time, and processes audio up to `horizon()`, before which positions are final. `segmentAt()` gives the stretch in which the position grows linearly, so a block of audio needs one lookup per tick, not one per sample.
 
 **BPM.** `BPM = 60 × sampleRate / (24 × tick interval in samples)`.
 - The estimate is a moving average over the last 24 intervals (one beat), reset on Start, and displayed with 0.1 BPM resolution.
+- Only intervals between consecutive Clocks count: not longer than the clock-loss timeout, and not across a Continue (D-082).
 - There is no PLL in the MVP (D-035).
 
 **MIDI time to audio sample time**
 
 - MIDI events carry a host time from JUCE's timestamp. Whether that is the CoreMIDI packet timestamp or the arrival time is verified in PR 7.
 - Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback, in the same time base (D-065).
-- `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime` over the last N blocks. It absorbs callback jitter and drift between the audio clock and the host clock.
-- A MIDI event's sample time is `mapper(t_midi) − latencyOffset`. `latencyOffset` starts as the reported input latency plus an internal calibration constant with no UI. It is measured in PR 8.
+- `ClockTimeMapper` keeps a least-squares line through the `sampleIndex` and host time of the last 1024 blocks (D-085). It absorbs callback jitter and drift between the audio clock and the host clock, skips late callbacks, and starts over when the line moves.
+- A MIDI event's sample time is `mapper(t_midi) − latencyOffset`, with `latencyOffset` a signed number of frames (D-086). Block host times are taken at or after capture, so latency on the audio path makes it negative. It starts at minus the reported input latency, plus an internal calibration constant with no UI. PR 7 verifies the sign, and PR 8 measures the value.
 
 ### 3.4 Sweep data model
 

@@ -251,6 +251,41 @@ A lightweight log of decisions and open questions. The architecture is described
   - It is opaque, so updating it never repaints the scope behind it.
 - **D-071 — The scope is rasterized into image tiles 64 physical pixels wide.** `Active`
   On macOS, JUCE 9 copies the whole `juce::Image` into a new `CFData` every time a changed image is drawn. One window-sized image would copy up to about 58 MB per frame in Retina full screen on a 5K display. With tiles, a frame only changes, and copies, the one or two tiles the write head passed. This implements the incremental rendering of D-054 without OpenGL.
+- **D-080 — The transport's position is the tick the next Clock will mark.** `Active`
+  - Start sets it to 0, so the first Clock after Start is tick 0, the downbeat of bar 1. SPP sets it to SPP × 6, so the first Clock after Continue lands on the SPP position, as MIDI specifies.
+  - Stop keeps it, and Continue and clock recovery count on from it (D-059).
+
+  This is how the architecture's "Position = 0" on Start and "Position += 1 tick" per Clock both hold while the first Clock stays on the downbeat.
+- **D-081 — SPP is accepted whenever no ticks are being counted; otherwise it is ignored and counted.** `Active`
+  - It is accepted in `Waiting`, `Stopped` and `ClockLost`, and in `Running` until the first Clock after Start or Continue.
+  - It is ignored once a Clock has been counted since then, and whenever the value is above 16383. `MidiClockTransport::ignoredSppCount()` counts both, for the log in PR 8.
+
+  The architecture named `Stopped` only. In `Waiting`, accepting SPP makes the first Continue after Visona starts land where Live's playhead is. In `ClockLost` the view is frozen anyway, and a DAW that stops without sending Stop can still relocate. Accepting it right after Continue handles SPP arriving on either side of Continue, which §6 of the architecture lists as unknown for Live. Moving the position while ticks are counted would make the sweep jump, so that stays ignored.
+- **D-082 — The BPM estimate averages the last 24 intervals between consecutive Clocks.** `Active`
+  - Clock updates it in every state. Start resets it, so there is no estimate until the second Clock after Start.
+  - An interval longer than the clock-loss timeout is left out, as is the interval across a Continue, where a DAW may restart its clock phase.
+
+  An average of 24 intervals is the time between two Clocks one beat apart, so MIDI jitter at those two Clocks moves it directly. The tests measure up to ±0.46 BPM at 120 BPM with ±1 ms of jitter, and ±0.92 BPM with ±2 ms. If Live's clock jitters that much, the 0.1 BPM display flickers, and PR 7 or PR 8 can smooth the displayed value.
+- **D-083 — Transport messages that would change nothing are ignored.** `Active`
+  - Stop before the first Start keeps `Waiting`, so the free-running sweep does not freeze.
+  - Continue while `Running` keeps counting, without a break in the positions.
+  - Continue from `Waiting` runs from the song position: 0, or where an SPP put it.
+  - Start in any state starts over from bar 1.
+- **D-084 — The transport works in sample time, and the analysis processes audio up to its horizon.** `Active`
+  - The analysis thread maps every MIDI event to a sample time with `ClockTimeMapper`, hands the events over in order, and calls `advanceTo()` with the latest audio time. The clock-loss timeout is measured in that time, so it follows the audio and the tests are deterministic.
+  - An event earlier than the latest time handled counts as happening at that time. Positions before `horizon()` therefore never change: while `Running` the horizon is the latest tick, and otherwise it is the latest time handled.
+  - A run of ticks ends with Stop, Start or clock loss. Its last interval is then extrapolated by at most one tick, and never past the Stop or Start. Interpolation never crosses the end of a run.
+  - The last 1024 ticks are kept, about 14 s at 174 BPM, which is far more than the analysis lags behind.
+- **D-085 — `ClockTimeMapper` fits a least-squares line through the timings of the last 1024 audio blocks.** `Active`
+  - That is about 5.5 s of 512-frame blocks at 96 kHz. For timestamp jitter σ, the error at the newest block is about 2σ/√1024, whatever the block size, and the slope follows drift. Until the window holds 64 blocks, the slope is the nominal sample rate.
+  - A block more than 20 ms off the line is skipped as a late callback, and four in a row start the line over. A repeated `sampleIndex` is ignored, since the analysis sees a block again when it reads it in parts. A lower `sampleIndex` starts over.
+  - The sums are updated incrementally, relative to a base point that moves once per window, so adding a block costs O(1) and stays exact over hours, even with host times near 2^63.
+
+  With ±100 to ±250 µs of callback jitter and ±80 ppm of drift at 96 kHz, the tests measure a mean absolute error of 0.20 to 0.61 samples and a largest error of 0.63 to 2.43 samples.
+- **D-086 — `latencyOffset` is a signed number of frames kept in `ClockTimeMapper`; it is 0 until the app sets it.** `Active`
+  - A MIDI event's sample time is `mapper(t_midi) − latencyOffset`, as in the architecture. The offset is configuration, so it survives a new stream.
+  - Block host times are taken when a block's first frame is captured or later, never earlier: in the callback with the fallback clock, and at or after the converter with a device timestamp. Delays on the audio path therefore make MIDI events land *later* in the stream, which makes `latencyOffset` negative. That contradicts the architecture's "starts as the reported input latency", so the architecture now says it starts at minus the input latency.
+  - PR 7 checks the sign with a click and sets the starting value; PR 8 measures it.
 
 ---
 
