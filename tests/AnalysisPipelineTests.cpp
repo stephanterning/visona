@@ -4,17 +4,23 @@
 #include <visona/AnalysisPipeline.h>
 #include <visona/AudioInputWriter.h>
 #include <visona/AudioRingBuffer.h>
+#include <visona/MidiClockEvent.h>
 #include <visona/SweepAnalyzer.h>
+#include <visona/SweepWindow.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <random>
 #include <span>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using visona::AnalysisPipeline;
@@ -315,4 +321,457 @@ TEST_CASE("AnalysisPipeline hands consistent snapshots across threads", "[analys
     CHECK(backwards == 0);
     CHECK(analysisAllocations == 0);
     CHECK(snapshots.readBuffer().nextSampleIndex == endOfLastDeliveredBlock);
+}
+
+namespace
+{
+
+using visona::MidiClockEvent;
+using visona::MidiClockQueue;
+using visona::SweepSnapshot;
+using visona::TransportState;
+
+/**
+    A synthetic session: stereo audio blocks stamped from one host clock, MIDI Clock messages
+    stamped from the same clock, and the pipeline polled as the analysis thread would. A MIDI
+    message reaches the queue once the audio block it falls in has been delivered.
+*/
+class MidiSession
+{
+public:
+    static constexpr double hostStartNs = 9.0e12;
+
+    MidiSession(double sampleRate, double blockJitterNs = 20'000.0, std::uint32_t blockFrames = 256)
+        : sampleRate_(sampleRate)
+        , blockFrames_(blockFrames)
+        , ring_(2, static_cast<std::size_t>(sampleRate), 8'192)
+        , writer_(ring_)
+        , queue_(8'192)
+        , pipeline_(2)
+        , block_(blockFrames)
+        , jitter_(-blockJitterNs, blockJitterNs)
+    {
+        writer_.route(0, 0);
+        writer_.route(1, 1);
+        pipeline_.setStream(&ring_, sampleRate);
+        pipeline_.setMidiQueue(&queue_);
+    }
+
+    AnalysisPipeline& pipeline()
+    {
+        return pipeline_;
+    }
+
+    AudioRingBuffer& ring()
+    {
+        return ring_;
+    }
+
+    [[nodiscard]] double framesPerTick(double bpm) const
+    {
+        return 60.0 * sampleRate_ / (bpm * 24.0);
+    }
+
+    [[nodiscard]] std::uint64_t frame() const
+    {
+        return frame_;
+    }
+
+    void midi(MidiClockEvent::Type type, double frame, std::uint16_t spp = 0)
+    {
+        events_.push_back({type, spp, hostTime(frame)});
+    }
+
+    /** Schedules `count` clocks, `interval` frames apart from `first` on. Returns the frame after
+        the last one. */
+    double clocks(double first, int count, double interval)
+    {
+        for (int clock = 0; clock < count; ++clock)
+            midi(MidiClockEvent::Type::Clock, first + clock * interval);
+        return first + count * interval;
+    }
+
+    /** Delivers audio up to `end`, whose samples come from `signal(frame)`, polling every few
+        blocks. */
+    template <typename Signal>
+    void run(std::uint64_t end, Signal signal)
+    {
+        std::array<const float*, 2> channels{block_.data(), block_.data()};
+        while (frame_ < end)
+        {
+            for (std::uint32_t i = 0; i < blockFrames_; ++i)
+                block_[i] = signal(frame_ + i);
+            const auto stamp =
+                static_cast<double>(hostTime(static_cast<double>(frame_))) + jitter_(random_);
+            writer_.write(channels, blockFrames_, static_cast<std::uint64_t>(stamp));
+            frame_ += blockFrames_;
+            while (nextEvent_ < events_.size() &&
+                   events_[nextEvent_].hostTimeNs <= hostTime(static_cast<double>(frame_)))
+                queue_.tryPush(events_[nextEvent_++]);
+            if (++blocks_ % 4 == 0)
+                pipeline_.poll();
+        }
+        pipeline_.poll();
+    }
+
+    void run(std::uint64_t end)
+    {
+        run(end, [](std::uint64_t) { return 0.25f; });
+    }
+
+    const SweepSnapshot& snapshot()
+    {
+        pipeline_.snapshots().fetch();
+        return pipeline_.snapshots().readBuffer();
+    }
+
+private:
+    [[nodiscard]] std::uint64_t hostTime(double frame) const
+    {
+        return static_cast<std::uint64_t>(std::llround(hostStartNs + frame / sampleRate_ * 1.0e9));
+    }
+
+    double sampleRate_;
+    std::uint32_t blockFrames_;
+    AudioRingBuffer ring_;
+    AudioInputWriter writer_;
+    MidiClockQueue queue_;
+    AnalysisPipeline pipeline_;
+    std::vector<float> block_;
+    std::vector<MidiClockEvent> events_;
+    std::size_t nextEvent_ = 0;
+    std::uint64_t frame_ = 0;
+    std::size_t blocks_ = 0;
+    std::mt19937 random_{17};
+    std::uniform_real_distribution<double> jitter_;
+};
+
+} // namespace
+
+TEST_CASE("A click on every beat lands on the grid, end to end", "[analysis][midi]")
+{
+    const auto bpm = GENERATE(120.0, 126.0, 174.0);
+    // Window index, and the bins between beats in that window: a beat per quarter bar.
+    const auto [window, beatSpacing] = GENERATE(std::pair<std::size_t, std::size_t>{0, 4'096},
+                                                std::pair<std::size_t, std::size_t>{1, 2'048},
+                                                std::pair<std::size_t, std::size_t>{2, 1'024},
+                                                std::pair<std::size_t, std::size_t>{3, 512},
+                                                std::pair<std::size_t, std::size_t>{4, 256});
+    CAPTURE(bpm, window);
+
+    MidiSession session(96'000.0);
+    session.pipeline().setWindow(window);
+    const auto interval = session.framesPerTick(bpm);
+    constexpr double firstClock = 50'000.0;
+    const auto bars = visona::sweepWindowBars[window] + 0.5;
+    session.midi(MidiClockEvent::Type::Start, firstClock - 1'000.0);
+    session.clocks(firstClock, static_cast<int>((bars + 1.0) * 96.0), interval);
+
+    // The click of each beat is on the first frame at or after the beat.
+    const auto beatFrames = 24.0 * interval;
+    const auto isBeatFrame = [&](std::uint64_t frame)
+    {
+        const auto beat = std::round((static_cast<double>(frame) - firstClock) / beatFrames);
+        return beat >= 0.0 &&
+               static_cast<double>(frame) == std::ceil(firstClock + beat * beatFrames);
+    };
+    session.run(static_cast<std::uint64_t>(firstClock + bars * 96.0 * interval),
+                [&](std::uint64_t frame) { return isBeatFrame(frame) ? 1.0f : 0.0f; });
+
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::running);
+    CHECK(snapshot.musical);
+    CHECK(std::abs(snapshot.bpm - bpm) < 0.05);
+    CHECK(snapshot.window == window);
+    CHECK(snapshot.windowTicks == visona::sweepWindowBars[window] * 96.0);
+
+    const auto cells = snapshot.sweep.channel(0);
+    std::size_t clickBins = 0;
+    for (std::size_t bin = 0; bin < cells.size(); ++bin)
+    {
+        if (cells[bin].isEmpty() || cells[bin].max < 0.5f)
+            continue;
+        ++clickBins;
+        const auto fromBeat = bin % beatSpacing;
+        CAPTURE(bin);
+        CHECK((fromBeat <= 1 || fromBeat >= beatSpacing - 1));
+    }
+    CHECK(clickBins >= 4096 / beatSpacing);
+}
+
+TEST_CASE("The sweep runs free until the first Start and follows the transport after it",
+          "[analysis][midi]")
+{
+    MidiSession session(48'000.0);
+    session.run(20'000);
+    auto snapshot = session.snapshot();
+    CHECK_FALSE(snapshot.musical);
+    CHECK(snapshot.transportState == TransportState::waiting);
+    CHECK(snapshot.windowFrames == 96'000);
+    const auto freeGeneration = snapshot.sweep.generation();
+
+    const auto interval = session.framesPerTick(120.0);
+    session.midi(MidiClockEvent::Type::Start, 25'000.0);
+    session.clocks(26'000.0, 48, interval);
+    session.run(26'000 + static_cast<std::uint64_t>(40 * interval));
+    snapshot = session.snapshot();
+    CHECK(snapshot.musical);
+    CHECK(snapshot.transportState == TransportState::running);
+    CHECK(snapshot.windowFrames == 0);
+    CHECK(snapshot.sweep.generation() > freeGeneration);
+    CHECK(snapshot.sweep.pass() == 1);
+    // Start, and the 41 clocks up to where the audio has got.
+    CHECK(snapshot.midiEvents == 42);
+}
+
+TEST_CASE("Audio after the latest tick waits in the ring", "[analysis][midi]")
+{
+    MidiSession session(48'000.0);
+    const auto interval = session.framesPerTick(120.0);
+    session.midi(MidiClockEvent::Type::Start, 1'000.0);
+    const auto afterClocks = session.clocks(2'000.0, 24, interval);
+    const auto lastClock = afterClocks - interval;
+    // A tenth of a second without clocks: less than the clock-loss timeout.
+    session.run(static_cast<std::uint64_t>(lastClock + 4'800.0));
+
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::running);
+    CHECK(static_cast<double>(snapshot.nextSampleIndex) <= std::ceil(lastClock));
+    CHECK(session.ring().newestFrameEnd() - snapshot.nextSampleIndex >= 4'000);
+}
+
+TEST_CASE("Stop freezes the sweep while the ring keeps draining", "[analysis][midi]")
+{
+    MidiSession session(96'000.0);
+    const auto interval = session.framesPerTick(120.0);
+    session.midi(MidiClockEvent::Type::Start, 1'000.0);
+    const auto afterClocks = session.clocks(2'000.0, 150, interval);
+    session.midi(MidiClockEvent::Type::Stop, afterClocks - 0.5 * interval);
+    session.run(static_cast<std::uint64_t>(afterClocks + 9'600.0));
+
+    const auto frozen = session.snapshot().sweep;
+    CHECK(session.snapshot().transportState == TransportState::stopped);
+    session.run(static_cast<std::uint64_t>(afterClocks + 96'000.0),
+                [](std::uint64_t) { return -0.75f; });
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.sweep == frozen);
+    CHECK(session.ring().newestFrameEnd() - snapshot.nextSampleIndex < 2'048);
+}
+
+TEST_CASE("Clock loss freezes the sweep, and the returning clock carries on", "[analysis][midi]")
+{
+    MidiSession session(48'000.0);
+    const auto interval = session.framesPerTick(120.0);
+    session.midi(MidiClockEvent::Type::Start, 1'000.0);
+    const auto afterClocks = session.clocks(2'000.0, 60, interval);
+    const auto lastClock = afterClocks - interval;
+
+    session.run(static_cast<std::uint64_t>(lastClock + 0.45 * 48'000.0));
+    CHECK(session.snapshot().transportState == TransportState::running);
+    session.run(static_cast<std::uint64_t>(lastClock + 0.6 * 48'000.0));
+    CHECK(session.snapshot().transportState == TransportState::clockLost);
+    const auto frozen = session.snapshot().sweep;
+    session.run(static_cast<std::uint64_t>(lastClock + 48'000.0));
+    CHECK(session.snapshot().sweep == frozen);
+    CHECK(session.ring().newestFrameEnd() - session.snapshot().nextSampleIndex < 2'048);
+
+    const auto resume = lastClock + 48'000.0 + 1'000.0;
+    session.clocks(resume, 30, interval);
+    session.run(static_cast<std::uint64_t>(resume + 25 * interval));
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::running);
+    CHECK(snapshot.nextTick == 60 + 26); // the 26 clocks up to where the audio has got
+    CHECK(snapshot.sweep.head() > frozen.head());
+    CHECK(snapshot.sweep.generation() == frozen.generation());
+}
+
+TEST_CASE("A new window clears the musical sweep", "[analysis][midi]")
+{
+    MidiSession session(48'000.0);
+    const auto interval = session.framesPerTick(120.0);
+    session.midi(MidiClockEvent::Type::Start, 1'000.0);
+    session.clocks(2'000.0, 200, interval);
+    session.run(static_cast<std::uint64_t>(2'000.0 + 100 * interval));
+    const auto generation = session.snapshot().sweep.generation();
+    CHECK(session.snapshot().windowTicks == 96.0);
+
+    session.pipeline().setWindow(4);
+    session.run(static_cast<std::uint64_t>(2'000.0 + 150 * interval));
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.sweep.generation() == generation + 1);
+    CHECK(snapshot.windowTicks == 384.0);
+    CHECK(snapshot.window == 4);
+}
+
+TEST_CASE("Stop, SPP and Continue relocate the head without clearing", "[analysis][midi]")
+{
+    MidiSession session(48'000.0);
+    session.pipeline().setWindow(4); // 4 bars: bars 17 to 20 are one window
+    const auto interval = session.framesPerTick(120.0);
+    session.midi(MidiClockEvent::Type::Start, 1'000.0);
+    auto time = session.clocks(2'000.0, 144, interval); // a bar and a half
+    session.midi(MidiClockEvent::Type::Stop, time);
+    session.run(static_cast<std::uint64_t>(time + 4'800.0));
+    const auto before = session.snapshot().sweep;
+    REQUIRE(before.pass() == 1);
+
+    // Bar 18: 17 bars of 16 sixteenths.
+    time += 48'000.0;
+    session.midi(MidiClockEvent::Type::SongPositionPointer, time, 17 * 16);
+    session.midi(MidiClockEvent::Type::Continue, time + 100.0);
+    session.clocks(time + 1'000.0, 12, interval);
+    session.run(static_cast<std::uint64_t>(time + 1'000.0 + 10 * interval));
+
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::running);
+    CHECK(snapshot.sweep.generation() == before.generation());
+    CHECK(snapshot.sweep.pass() == 2);
+    CHECK(snapshot.windowStartTick == 16 * 96.0);
+    // A quarter of the way into the window, plus the ten ticks since.
+    CHECK(snapshot.sweep.head() >= 1'024);
+    CHECK(snapshot.sweep.head() <= 1'024 + 10 * 4'096 / 384 + 1);
+    // The first bar and a half of the old pass is still there.
+    CHECK(snapshot.sweep.passes()[500] == 1);
+    CHECK_FALSE(snapshot.sweep.channel(0)[500].isEmpty());
+}
+
+TEST_CASE("AnalysisPipeline does not allocate while following MIDI Clock",
+          "[analysis][midi][realtime]")
+{
+    MidiSession session(96'000.0);
+    const auto interval = session.framesPerTick(126.0);
+    session.midi(MidiClockEvent::Type::Start, 1'000.0);
+    const auto afterClocks = session.clocks(2'000.0, 400, interval);
+    session.midi(MidiClockEvent::Type::Stop, afterClocks);
+    session.run(4'096); // let the first allocations of Catch2 and the session happen
+
+    const AllocationCounter allocations;
+    session.run(static_cast<std::uint64_t>(afterClocks + 96'000.0));
+    const auto allocationCount = allocations.count();
+
+    CHECK(allocationCount == 0);
+    CHECK(session.snapshot().transportState == TransportState::stopped);
+}
+
+TEST_CASE("AnalysisPipeline follows MIDI Clock across threads", "[analysis][midi][stress]")
+{
+    constexpr double sampleRate = 48'000.0;
+    constexpr std::uint32_t blockFrames = 64;
+    constexpr std::uint64_t totalFrames = 1'200'000;
+    constexpr double interval = 1'000.0; // 120 BPM at 48 kHz
+    constexpr double hostStart = 3.0e12;
+    const auto hostTime = [](double frame)
+    { return static_cast<std::uint64_t>(hostStart + frame / sampleRate * 1.0e9); };
+
+    AudioRingBuffer ring(1, 48'000, 2'048);
+    AudioInputWriter writer(ring);
+    writer.route(0, 0);
+    MidiClockQueue queue(1'024);
+    AnalysisPipeline pipeline(1, 512);
+    pipeline.setStream(&ring, sampleRate);
+    pipeline.setMidiQueue(&queue);
+
+    std::atomic<std::uint64_t> audioFrames{0};
+    std::atomic<bool> audioDone{false};
+    std::atomic<bool> started{false};
+    std::thread audio(
+        [&]
+        {
+            // The audio waits for the Start, or it might all be over before the MIDI thread runs.
+            while (!started.load(std::memory_order_acquire))
+                std::this_thread::yield();
+            std::array<float, blockFrames> block{};
+            block.fill(0.5f);
+            const float* const channel = block.data();
+            for (std::uint64_t frame = 0; frame < totalFrames; frame += blockFrames)
+            {
+                writer.write(std::span(&channel, 1), blockFrames,
+                             hostTime(static_cast<double>(frame)));
+                audioFrames.store(frame + blockFrames, std::memory_order_release);
+                std::this_thread::yield();
+            }
+            audioDone.store(true, std::memory_order_release);
+        });
+
+    // Start, then clocks, with a Stop, an SPP and a Continue in the middle.
+    std::atomic<bool> midiDone{false};
+    std::thread midi(
+        [&]
+        {
+            const auto push = [&](MidiClockEvent event)
+            {
+                while (!queue.tryPush(event))
+                    std::this_thread::yield();
+            };
+            double next = 10'000.0;
+            push({MidiClockEvent::Type::Start, 0, hostTime(next - 100.0)});
+            started.store(true, std::memory_order_release);
+            for (int clock = 0; next < static_cast<double>(totalFrames); ++clock, next += interval)
+            {
+                while (static_cast<double>(audioFrames.load(std::memory_order_acquire)) < next)
+                    std::this_thread::yield();
+                if (clock == 400)
+                    push({MidiClockEvent::Type::Stop, 0, hostTime(next)});
+                if (clock == 450)
+                {
+                    push({MidiClockEvent::Type::SongPositionPointer, 64, hostTime(next - 50.0)});
+                    push({MidiClockEvent::Type::Continue, 0, hostTime(next - 10.0)});
+                }
+                if (clock < 400 || clock >= 450)
+                    push({MidiClockEvent::Type::Clock, 0, hostTime(next)});
+            }
+            midiDone.store(true, std::memory_order_release);
+        });
+
+    std::atomic<bool> analysisDone{false};
+    std::size_t analysisAllocations = 0;
+    std::thread analysis(
+        [&]
+        {
+            pipeline.poll(); // the first poll may touch lazily initialized library state
+            const AllocationCounter allocations;
+            while (!audioDone.load(std::memory_order_acquire) ||
+                   !midiDone.load(std::memory_order_acquire))
+            {
+                pipeline.poll();
+                std::this_thread::yield();
+            }
+            pipeline.poll();
+            analysisAllocations = allocations.count();
+            analysisDone.store(true, std::memory_order_release);
+        });
+
+    std::size_t fetches = 0;
+    std::size_t backwards = 0;
+    std::uint64_t generation = 0;
+    std::uint64_t position = 0;
+    auto& snapshots = pipeline.snapshots();
+    while (!analysisDone.load(std::memory_order_acquire))
+    {
+        if (!snapshots.fetch())
+        {
+            std::this_thread::yield();
+            continue;
+        }
+        ++fetches;
+        const auto& sweep = snapshots.readBuffer().sweep;
+        const auto now = sweep.pass() * sweep.numBins() + sweep.head();
+        if (sweep.generation() == generation && now < position)
+            ++backwards;
+        generation = sweep.generation();
+        position = now;
+    }
+    audio.join();
+    midi.join();
+    analysis.join();
+    snapshots.fetch();
+
+    const auto& last = snapshots.readBuffer();
+    CAPTURE(last.midiEvents, static_cast<int>(last.transportState), last.nextSampleIndex,
+            last.sweep.generation(), last.overruns, last.nextTick);
+    CHECK(fetches > 0);
+    CHECK(backwards == 0);
+    CHECK(analysisAllocations == 0);
+    CHECK(snapshots.readBuffer().musical);
+    CHECK(snapshots.readBuffer().transportState == TransportState::running);
 }
