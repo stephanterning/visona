@@ -103,8 +103,8 @@ Position is counted in ticks, with `ticksPerBar = 24 × numerator × 4 / denomin
 | Clock in `Running` | Position += 1 tick; the tick's sample time is recorded |
 | Clock in `Stopped`/`Waiting` | Updates the BPM estimate only (some DAWs send clock while stopped) |
 | Stop | `Stopped`. Position is kept; the UI freezes the last frame and shows `STOPPED` |
-| SPP | Position = SPP × 6 ticks. Accepted in `Stopped`; ignored and logged in `Running` |
-| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass |
+| SPP | Position = SPP × 6 ticks. Accepted whenever not `Running` (D-073); ignored and counted in `Running` |
+| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass. From `Waiting`, the sweep starts over as on Start, but at the SPP position |
 | > 0.5 s without Clock in `Running` | `ClockLost`: freeze and show `MIDI CLOCK LOST` |
 | Clock returns in `ClockLost` | `Running` again, continuing the tick count. Position may be off until the next Start, or SPP + Continue |
 
@@ -112,17 +112,19 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 
 **Position per audio sample.** Between tick *k* at sample *s_k* and tick *k+1* at *s_{k+1}*, position = *k + (s − s_k) / (s_{k+1} − s_k)*.
 - Audio is analyzed only up to the latest known tick. This costs about one tick of visual latency (≈ 21 ms at 120 BPM).
-- On Stop or clock loss, the last interval is extrapolated by at most one tick and then held.
+- On Stop or clock loss, the last interval is extrapolated by at most one tick and then held. On Stop, the extrapolation also ends at the Stop.
+- The transport hands the analysis a timeline of spans, each saying how to treat its stretch of audio: free-running, musical (with the position), frozen, or pending until the next tick (D-075).
+- Time in the transport is audio time: the clock-loss timeout runs on the audio's sample timeline.
 
 **BPM.** `BPM = 60 × sampleRate / (24 × tick interval in samples)`.
-- The estimate is a moving average over the last 24 intervals (one beat), reset on Start, and displayed with 0.1 BPM resolution.
+- The estimate is the least-squares tempo of the last 25 clocks, or 24 intervals (one beat). A gap longer than the clock-loss timeout starts it over, and so does Start. It is displayed with 0.1 BPM resolution (D-074).
 - There is no PLL in the MVP (D-035).
 
 **MIDI time to audio sample time**
 
 - MIDI events carry a host time from JUCE's timestamp. Whether that is the CoreMIDI packet timestamp or the arrival time is verified in PR 7.
 - Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback, in the same time base (D-065).
-- `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime` over the last N blocks. It absorbs callback jitter and drift between the audio clock and the host clock.
+- `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime`: a least-squares line through the blocks of the last 2 s (D-076). It absorbs callback jitter and drift between the audio clock and the host clock.
 - A MIDI event's sample time is `mapper(t_midi) − latencyOffset`. `latencyOffset` starts as the reported input latency plus an internal calibration constant with no UI. It is measured in PR 8.
 
 ### 3.4 Sweep data model

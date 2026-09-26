@@ -251,6 +251,25 @@ A lightweight log of decisions and open questions. The architecture is described
   - It is opaque, so updating it never repaints the scope behind it.
 - **D-071 — The scope is rasterized into image tiles 64 physical pixels wide.** `Active`
   On macOS, JUCE 9 copies the whole `juce::Image` into a new `CFData` every time a changed image is drawn. One window-sized image would copy up to about 58 MB per frame in Retina full screen on a 5K display. With tiles, a frame only changes, and copies, the one or two tiles the write head passed. This implements the incremental rendering of D-054 without OpenGL.
+- **D-072 — MIDI Clock sync (PR 6 and PR 7) comes before frequency coloring (PR 5).** `Active`
+  The maintainer's choice after PR 4. Sync is the core of the product, and it does not depend on the band split. The PR steps keep their numbers.
+- **D-073 — Song Position Pointer is accepted whenever the transport is not `Running`: in `Waiting`, `Stopped` and `ClockLost`.** `Active`
+  The architecture only named `Stopped`. The position is not advancing in the other two either, so a pointer there can only mean a relocation. In `Running` it is still ignored, and counted for the log.
+- **D-074 — The tempo is the least-squares fit of the last 25 clock times (24 intervals, one beat).** `Active`
+  - It uses the same one-beat window as the planned moving average, which only looks at the first and last clock of the window. The fit uses every clock in it, so under the same jitter the estimate varies about half as much.
+  - A gap longer than the clock-loss timeout starts the estimate over, so the time between Stop and Continue, or during a clock loss, is not taken for a clock interval.
+  - It is still reset on Start.
+- **D-075 — The transport describes the audio's sample timeline as spans: free-running, musical, frozen and pending.** `Active`
+  - *Free-running* is before the first Start.
+  - *Musical* lies between two known ticks, or covers the at most one tick extrapolated on Stop or clock loss. The position in ticks runs linearly across it.
+  - *Frozen* is written nowhere: after Stop, after clock loss, and after a Start before its first clock.
+  - *Pending* follows the last tick while running; its audio waits for the next tick.
+  - Each span records how many Starts came before it, so the sweep knows when to start over. A Continue from `Waiting` counts as one, since it leaves the free-running sweep.
+  - The clock-loss timeout runs on the audio's timeline, so it is deterministic in tests.
+  - On Stop, the extrapolation ends at the Stop if that comes first, since audio after it belongs to the stopped song.
+- **D-076 — `ClockTimeMapper` fits a least-squares line through the audio blocks of the last 2 s.** `Active`
+  - With one block, or with a fit more than 1 % off the nominal sample rate, it maps through the newest block at the nominal rate.
+  - With ±100 µs of timestamp jitter at 96 kHz, it maps MIDI times to within 0.7 samples on average and 3 at most, over 300 test seeds.
 
 ---
 

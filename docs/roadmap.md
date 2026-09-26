@@ -6,9 +6,11 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - The MVP plan is approved (D-054).
 - The license (AGPLv3) and `AGENTS.md` are in place.
 - PR 1 (skeleton and CI) is merged ([#4](https://github.com/stephanterning/visona/pull/4)).
-- PR 2 (core primitives) is in review ([#5](https://github.com/stephanterning/visona/pull/5)).
-- PR 3 (audio input and settings) is in review ([#6](https://github.com/stephanterning/visona/pull/6)), stacked on PR 2.
-- PR 4 (free-running sweep scope) is in review ([#7](https://github.com/stephanterning/visona/pull/7)), stacked on PR 3.
+- PR 2 (core primitives) is merged ([#5](https://github.com/stephanterning/visona/pull/5)).
+- PR 3 (audio input and settings) is merged ([#6](https://github.com/stephanterning/visona/pull/6)).
+- PR 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
+- MIDI Clock sync, PR 6 and PR 7, comes before frequency coloring, PR 5 (D-072).
+- PR 6 (MIDI Clock transport in core) is in review ([#8](https://github.com/stephanterning/visona/pull/8)).
 
 ## 1. MVP 1.0
 
@@ -50,7 +52,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 
 ## 2. PR steps
 
-Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048).
+Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048). The steps keep their numbers, but PR 6 and PR 7 are done before PR 5 (D-072).
 
 **PR 1 – Skeleton and CI** (milestone 0)
 - Content: CMake, JUCE, an empty `core/` library, an app that opens an empty Visona window, Catch2 with one test, CI for both jobs, and `.clang-format`.
