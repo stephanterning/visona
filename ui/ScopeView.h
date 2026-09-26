@@ -35,8 +35,10 @@ namespace visona
     Zoom (D-085) shows part of the window, down to 1/32 of it, without changing the window. Drag
     across the scope to zoom to the part selected; a drag under 8 pixels is a click and does
     nothing. The scroll wheel, a trackpad pinch and a two-finger touch pinch zoom around the
-    pointer. A double-click, Esc (handled by the main component) or a new window resets it. The
-    head line shows only while the head is in view.
+    pointer. Scrolling sideways, or Shift with the wheel, moves the view, round past either end of
+    the window (D-089). A double-click, Esc (handled by the main component) or a new window resets
+    it. The head line shows only while the head is in view. Past the end of the window, bar
+    numbers read on into the next one.
 
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
     vertical image tiles. Frames follow the display's vertical blank, capped at 60 per second, and

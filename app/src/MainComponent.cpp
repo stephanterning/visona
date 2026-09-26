@@ -80,6 +80,7 @@ MainComponent::MainComponent(AudioEngine& engine)
             zoomOverview_.setHead(scope_.headPosition());
     };
     zoomOverview_.onReset = [this] { scope_.resetZoom(); };
+    zoomOverview_.onPan = [this](SweepZoom zoom) { scope_.setZoom(zoom); };
     controlBar_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
     controlBar_.onFullScreen = [this] { toggleFullScreen(); };
     controlBar_.onSettings = [this] { showSettings(!settingsPanel_.isVisible()); };

@@ -167,3 +167,58 @@ TEST_CASE("A zoom is normalized", "[zoom]")
     CHECK(zoom.zoomedAround(0.5, 0.0).span == 0.25);
     CHECK(zoom.selected(std::nan(""), 0.5).span == 0.25);
 }
+
+TEST_CASE("Panning moves the view and wraps around the window's ends", "[zoom]")
+{
+    const SweepZoom zoom{0.5, 0.25};
+
+    const auto later = zoom.panned(0.125);
+    CHECK_THAT(later.offset, WithinAbs(0.625, 1.0e-12));
+    CHECK(later.span == zoom.span);
+
+    // Past the end, the view carries on at the window's start: the end of one bar and the start
+    // of the next.
+    const auto acrossEnd = zoom.panned(0.375);
+    CHECK_THAT(acrossEnd.offset, WithinAbs(0.875, 1.0e-12));
+    CHECK_THAT(acrossEnd.windowPositionOf(0.5), WithinAbs(0.0, 1.0e-12));
+    const auto wrapped = acrossEnd.panned(0.25);
+    CHECK_THAT(wrapped.offset, WithinAbs(0.125, 1.0e-12));
+
+    // And the other way round.
+    const auto earlier = zoom.panned(-0.75);
+    CHECK_THAT(earlier.offset, WithinAbs(0.75, 1.0e-12));
+    CHECK(earlier.span == zoom.span);
+
+    // Any distance keeps the offset in the window.
+    for (double distance = -3.0; distance <= 3.0; distance += 0.0371)
+    {
+        const auto moved = zoom.panned(distance);
+        CHECK(moved.offset >= 0.0);
+        CHECK(moved.offset < 1.0);
+        CHECK(moved.span == zoom.span);
+        CHECK_THAT(circularDistance(moved.offset, 0.5 + distance - std::floor(0.5 + distance)),
+                   WithinAbs(0.0, 1.0e-12));
+    }
+}
+
+TEST_CASE("The whole window does not pan", "[zoom]")
+{
+    CHECK(isWholeWindow(SweepZoom{}.panned(0.3)));
+    CHECK(isWholeWindow(SweepZoom{}.centredOn(0.8)));
+    const SweepZoom zoom{0.2, 0.1};
+    CHECK(zoom.panned(std::numeric_limits<double>::quiet_NaN()).offset == zoom.offset);
+    CHECK(zoom.centredOn(std::numeric_limits<double>::infinity()).offset == zoom.offset);
+}
+
+TEST_CASE("Centring puts the view's middle on a position, across the ends too", "[zoom]")
+{
+    const SweepZoom zoom{0.3, 0.2};
+    const auto centred = zoom.centredOn(0.6);
+    CHECK_THAT(centred.offset, WithinAbs(0.5, 1.0e-12));
+    CHECK_THAT(centred.windowPositionOf(0.5), WithinAbs(0.6, 1.0e-12));
+
+    const auto atStart = zoom.centredOn(0.0);
+    CHECK_THAT(atStart.offset, WithinAbs(0.9, 1.0e-12));
+    CHECK_THAT(circularDistance(atStart.windowPositionOf(0.5), 0.0), WithinAbs(0.0, 1.0e-12));
+    CHECK(atStart.span == zoom.span);
+}
