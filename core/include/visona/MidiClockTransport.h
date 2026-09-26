@@ -16,16 +16,16 @@ namespace visona
 /** The state of the MIDI Clock transport (architecture.md 3.3). */
 enum class TransportState : std::uint8_t
 {
-    waiting,  ///< No Start yet: the sweep runs free.
-    running,  ///< Started or continued; clocks advance the position.
-    stopped,  ///< Stop received: the view freezes.
-    clockLost ///< Running, but no clock for more than the timeout: the view freezes.
+    freeRunning, ///< Before the first Start, or chosen after Stop: the sweep runs free (D-090).
+    running,     ///< Started or continued; clocks advance the position.
+    stopped,     ///< Stop received: the view freezes.
+    clockLost    ///< Running, but no clock for more than the timeout: the view freezes.
 };
 
 /**
     What the transport says about a stretch of the audio's sample timeline, [start, end).
 
-    - freeRunning: before the first Start; the sweep uses its fixed free-running window.
+    - freeRunning: before the first Start, or after runFree(); the sweep keeps its own time.
     - musical: between two known clock ticks, or the at most one tick extrapolated after the last
       one on Stop or clock loss. The position in ticks runs linearly from startTick to endTick.
     - frozen: nothing may be written, as when stopped or after a Start before its first clock.
@@ -51,8 +51,8 @@ struct TransportSpan
     double startTick = 0.0;
     double endTick = 0.0;
 
-    /** Starts (and Continues from waiting) before this span. When it changes, the sweep starts
-        over from bar 1. */
+    /** Starts, runFree() calls, and Continues from freeRunning before this span. When it changes,
+        the sweep starts over from bar 1. */
     std::uint64_t startCount = 0;
 
     [[nodiscard]] bool isOpen() const noexcept
@@ -96,12 +96,19 @@ public:
     explicit MidiClockTransport(double sampleRate, TimeSignature timeSignature = {},
                                 std::size_t spanCapacity = 1024);
 
-    /** Back to waiting, with an empty timeline, for a new stream at `sampleRate`. */
+    /** Back to freeRunning, with an empty timeline, for a new stream at `sampleRate`. */
     void reset(double sampleRate) noexcept;
 
     /** Handles one message at stream position `sampleTime`. `sppValue` is for Song Position
         Pointer only. */
     void handle(MidiClockEvent::Type type, std::uint16_t sppValue, double sampleTime) noexcept;
+
+    /**
+        Leaves Stopped or clock loss for the free-running sweep from `sampleTime` on, as before the
+        first Start (D-090). The position is kept, so a Continue resumes where the song stopped,
+        and Start or Continue follow MIDI Clock again. In any other state it does nothing.
+    */
+    void runFree(double sampleTime) noexcept;
 
     /** Tells the transport that audio has reached `sampleTime`, for the clock-loss timeout. */
     void advanceTo(double sampleTime) noexcept;
@@ -166,7 +173,7 @@ private:
     double sampleRate_;
     TimeSignature timeSignature_;
 
-    TransportState state_ = TransportState::waiting;
+    TransportState state_ = TransportState::freeRunning;
     std::int64_t nextTick_ = 0;
     std::uint64_t startCount_ = 0;
     std::uint64_t ignoredSpp_ = 0;

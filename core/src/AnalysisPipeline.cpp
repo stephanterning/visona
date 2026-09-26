@@ -36,7 +36,9 @@ AnalysisPipeline::AnalysisPipeline(std::size_t numChannels, std::size_t numBins)
     , mapper_(0.0)
     , transport_(0.0)
     , requestedWindow_(defaultSweepWindow)
+    , requestedFreeBpm_(defaultFreeBpm)
     , window_(defaultSweepWindow)
+    , freeBpm_(defaultFreeBpm)
     , channels_(numChannels, nullptr)
     , peaks_(numChannels)
 {
@@ -51,7 +53,7 @@ void AnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) noexc
     ++streamId_;
     sampleRate_ = ring_ != nullptr ? sampleRate : 0.0;
     nextSampleIndex_ = 0;
-    analyzer_.start(ring_ != nullptr ? freeRunningWindowFrames(sampleRate) : 0);
+    analyzer_.start(0);
     mapper_.reset(sampleRate_);
     transport_.reset(sampleRate_);
     mappedAnyBlock_ = false;
@@ -70,6 +72,16 @@ void AnalysisPipeline::setWindow(std::size_t windowIndex) noexcept
                            std::memory_order_relaxed);
 }
 
+void AnalysisPipeline::setFreeTempo(double bpm) noexcept
+{
+    requestedFreeBpm_.store(clampFreeBpm(bpm), std::memory_order_relaxed);
+}
+
+void AnalysisPipeline::runFree() noexcept
+{
+    freeRequests_.fetch_add(1, std::memory_order_relaxed);
+}
+
 void AnalysisPipeline::setMidiOffset(double frames) noexcept
 {
     midiOffset_.store(frames, std::memory_order_relaxed);
@@ -77,11 +89,29 @@ void AnalysisPipeline::setMidiOffset(double frames) noexcept
 
 std::size_t AnalysisPipeline::poll() noexcept
 {
+    // A free-running sweep starts over from bar 1 on a new window or tempo; one that follows MIDI
+    // Clock keeps its bar numbers.
+    const bool free = transport_.state() == TransportState::freeRunning;
     if (const auto window = requestedWindow_.load(std::memory_order_relaxed); window != window_)
     {
         window_ = window;
         if (analyzer_.isMusical())
             analyzer_.startMusical(windowTicks());
+        followsStart_ = followsStart_ && !free;
+        changed_ = true;
+    }
+    if (const auto bpm = requestedFreeBpm_.load(std::memory_order_relaxed); bpm != freeBpm_)
+    {
+        freeBpm_ = bpm;
+        followsStart_ = followsStart_ && !free;
+        changed_ = true;
+    }
+    if (const auto requests = freeRequests_.load(std::memory_order_relaxed);
+        requests != handledFreeRequests_)
+    {
+        handledFreeRequests_ = requests;
+        if (ring_ != nullptr)
+            transport_.runFree(static_cast<double>(nextSampleIndex_));
         changed_ = true;
     }
 
@@ -181,14 +211,15 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
     switch (span.kind)
     {
     case TransportSpan::Kind::freeRunning:
-        analyzer_.process(region.sampleIndex(), channels_, numFrames);
+        followStart(span.startCount, region.sampleIndex());
+        analyzeFree(region, numFrames);
         return;
     case TransportSpan::Kind::musical:
-        followStart(span.startCount);
+        followStart(span.startCount, region.sampleIndex());
         analyzer_.processMusical(region.sampleIndex(), channels_, numFrames, span);
         return;
     case TransportSpan::Kind::frozen:
-        followStart(span.startCount);
+        followStart(span.startCount, region.sampleIndex());
         analyzer_.freeze();
         return;
     case TransportSpan::Kind::pending:
@@ -196,15 +227,34 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
     }
 }
 
-void AnalysisPipeline::followStart(std::uint64_t startCount) noexcept
+void AnalysisPipeline::followStart(std::uint64_t startCount, std::uint64_t sampleIndex) noexcept
 {
-    // Every Start, and leaving the free-running sweep, clears the sweep and begins at bar 1.
+    // Every Start, and entering or leaving the free-running sweep, clears the sweep and begins at
+    // bar 1.
     if (followsStart_ && startCount == followedStart_)
         return;
     followsStart_ = true;
     followedStart_ = startCount;
     analyzer_.startMusical(windowTicks());
+    freeOrigin_ = sampleIndex;
+    freeFramesPerTick_ = 60.0 * sampleRate_ / (TimeSignature::ticksPerQuarterNote * freeBpm_);
     changed_ = true;
+}
+
+void AnalysisPipeline::analyzeFree(const AudioRingBuffer::ReadRegion& region,
+                                   std::size_t numFrames) noexcept
+{
+    // One span for the whole free-running sweep, so that every frame's position comes from the
+    // same line and the bins do not depend on how the audio is split into blocks. It is long
+    // enough for years of audio.
+    constexpr double spanFrames = 0x1p42;
+    const auto origin = static_cast<double>(freeOrigin_);
+    TransportSpan free;
+    free.kind = TransportSpan::Kind::musical;
+    free.start = origin;
+    free.end = origin + spanFrames;
+    free.endTick = spanFrames / freeFramesPerTick_;
+    analyzer_.processMusical(region.sampleIndex(), channels_, numFrames, free);
 }
 
 double AnalysisPipeline::windowTicks() const noexcept
@@ -219,13 +269,12 @@ void AnalysisPipeline::publish() noexcept
     snapshot.streamId = streamId_;
     snapshot.hasStream = ring_ != nullptr;
     snapshot.sampleRate = sampleRate_;
-    snapshot.windowFrames = analyzer_.windowFrames();
     snapshot.nextSampleIndex = nextSampleIndex_;
     snapshot.overruns = ring_ != nullptr ? ring_->overrunCount() : 0;
     snapshot.droppedFrames = ring_ != nullptr ? ring_->droppedFrameCount() : 0;
 
     snapshot.transportState = transport_.state();
-    snapshot.bpm = transport_.bpm();
+    snapshot.bpm = transport_.state() == TransportState::freeRunning ? freeBpm_ : transport_.bpm();
     snapshot.nextTick = transport_.nextTick();
     snapshot.timeSignature = transport_.timeSignature();
     snapshot.musical = analyzer_.isMusical();

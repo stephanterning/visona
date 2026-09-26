@@ -41,12 +41,6 @@ SweepCell between(float a, float b) noexcept
 
 } // namespace
 
-std::uint64_t freeRunningWindowFrames(double sampleRate) noexcept
-{
-    const auto frames = std::llround(std::max(sampleRate, 0.0) * freeRunningWindowSeconds);
-    return static_cast<std::uint64_t>(std::max(frames, 1LL));
-}
-
 SweepAnalyzer::SweepAnalyzer(std::size_t numChannels, std::size_t numBins)
     : buffer_(numChannels, numBins)
     , lastSamples_(numChannels, 0.0f)
