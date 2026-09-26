@@ -23,6 +23,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - One stereo source from the reference audio interface, connected at startup (D-033, D-052)
 - MIDI Clock as the only clock source, with Clock, Start, Stop, Continue and SPP (D-036, D-041)
 - Sweep display with windows of ¼, ½, 1, 2 and 4 bars (D-020, D-034)
+- Horizontal zoom in on part of the window, down to 1/32 of it, without changing the window (D-082, D-085)
 - Full-band signed min/max waveform, with frequency coloring as an aid and a mono/precise mode (D-050, D-056)
 - Display gain from 0 to +36 dB (D-024, D-046)
 - Status bar, control bar, a settings panel with persistence, resizing and fullscreen (D-046)
@@ -45,7 +46,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 2. Before the first Start, incoming stereo shows in a free-running sweep.
 3. On Play in Ableton Live, the sweep restarts at bar 1 and the bars stand still on screen.
 4. Kicks on the beat land on the grid lines at 120, 126 and 174 BPM.
-5. The window (¼–4 bars) and gain (0–36 dB) can be changed live.
+5. The window (¼–4 bars), gain (0–36 dB) and zoom can be changed live.
 6. Stop freezes the view and shows `STOPPED`. Moving the playhead to bar 17 and pressing Continue lands correctly (SPP).
 7. Pulling the MIDI cable shows `MIDI CLOCK LOST` within about 0.5 s.
 8. A long studio session runs without dropouts or ring overruns.
@@ -53,7 +54,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 
 ## 2. PR steps
 
-Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048). The steps keep their numbers, but PR 6 and PR 7 are done before PR 5 (D-072).
+Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048). The steps keep their numbers, but PR 6 and PR 7 are done before PR 5 (D-072), and PR 7b, added later, follows PR 7 (D-082).
 
 **PR 1 – Skeleton and CI** (milestone 0)
 - Content: CMake, JUCE, an empty `core/` library, an app that opens an empty Visona window, Catch2 with one test, CI for both jobs, and `.clang-format`.
@@ -116,6 +117,18 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
   - Start puts bar 1 at the left, and Stop freezes.
   - Relocating to bar 17 and pressing Continue lands correctly.
   - Also a tempo change, window switching, and a pulled MIDI cable showing `MIDI CLOCK LOST`.
+
+**PR 7b – Horizontal zoom** (D-082)
+- Content:
+  - B = 131,072 bins, and bins that hold the lines between samples, so the waveform stays one connected line at deep zoom (D-083, D-084).
+  - Zoom in `ScopeView` down to 1/32 of the window: drag to select, scroll wheel, trackpad and touch pinch, and reset with Esc, a double-click or a new window (D-085).
+  - A view that may run past the end of the window, a finer grid and beat labels when zoomed, the overview strip and the zoom in the status bar.
+- Acceptance: zoom tests are green, including brute-force tests of the zoomed bin-to-column mapping, and rendering still holds 60 fps.
+- Hardware check with real music, in Ableton Live and before the first Start:
+  - Zoom in on the third beat of a 1-bar window by dragging, and further with the wheel and a trackpad pinch, down to 32×.
+  - Zoom in around the downbeat and see both sides of it.
+  - Esc, a double-click, the × and choosing a window reset the zoom; Stop and Continue keep it.
+  - The waveform looks connected and sharp on the Retina display at every zoom, and CPU load is noted.
 
 **PR 8 – Proof-of-concept hardening and measurements**
 - Content:

@@ -184,7 +184,7 @@ A lightweight log of decisions and open questions. The architecture is described
 
 ### MVP plan approval
 
-- **D-054 — The MVP plan is approved, including its proposals and technical recommendations.** `Active`
+- **D-054 — The MVP plan is approved, including its proposals and technical recommendations.** `Amended by D-083`
   The plan is now the basis for the PR steps in [roadmap.md](roadmap.md). Approved:
   - the core as plain C++20 without JUCE
   - Catch2 v3
@@ -295,6 +295,29 @@ A lightweight log of decisions and open questions. The architecture is described
   - The ticks' sample times belong to the old stream, so a device restart, for example a new sample rate in Settings, needs a new Start or Continue. That is rare, and simpler than carrying positions across streams.
   - Events that arrive before the first block wait in the queue; without any stream they are dropped.
   - The MIDI input is saved by JUCE identifier and by name. A saved input that is missing stays chosen, and the next start opens it if it is back.
+- **D-082 — Horizontal zoom is part of the MVP, as its own step, PR 7b.** `Active`
+  - The maintainer asked for it after PR 7: zoom in on part of the window, such as the third beat of a 1-bar window, to study how the waveform moves, without choosing another window.
+  - It is presentation only. The window, the analysis and the sweep stay as they are, and WINDOW still shows the chosen window.
+  - PR 7b is stacked on PR 7, and the later steps keep their numbers.
+- **D-083 — B = 131,072 bins per window.** `Active`
+  - At the deepest zoom, 1/32 of the window, 4,096 bins are in view: about one per physical pixel of a 16-inch MacBook Pro's 3,456-pixel-wide Retina display in full screen. Fewer would blur the deepest zoom, and more could not be seen.
+  - A stereo sweep buffer grows from 96 KiB to 3 MiB, and there are four: the analyzer's and three snapshots. Publishing still copies only the bins that changed.
+  - Tests that compare bins with samples choose B = 4096 themselves.
+
+  Amends D-054.
+- **D-084 — Each bin holds the min and max of the signal drawn as straight lines between consecutive samples.** `Active`
+  - A window can now have fewer frames than bins: a ¼-bar window at 120 BPM and 96 kHz has 48,000. Bins between samples would stay empty, and at deep zoom the waveform would fall apart into dots.
+  - Where the line between two consecutive frames crosses a bin boundary, its value there goes into both bins, and a bin no sample falls in holds the piece of line through it. The waveform is one connected line at every zoom, as if the samples were joined by lines.
+  - No line is drawn across a gap (D-067), a freeze or a relocation (D-079).
+  - The bins still do not depend on how the audio is split into blocks.
+- **D-085 — Zoom.** `Active`
+  - Stepless, from the whole window down to 1/32 of it. A zoom within a zoom narrows the view further. There is no panning: zoom out and in again.
+  - Mouse: dragging across the scope zooms to the part selected, freely, without snapping; a drag under 8 pixels is a click and does nothing. The scroll wheel zooms around the pointer, up to zoom in. A trackpad pinch, and a two-finger pinch on a touchscreen, zoom around the point between the fingers.
+  - Reset: Esc once the settings panel is closed, a double-click or double-tap on the scope, or the × of the overview strip. Choosing a window, and a switch between free-running and musical time, such as the first Start, reset it too. There are no zoom keys.
+  - A view may run past the end of the window and carry on at its start, as the head does, so the downbeat can be seen from both sides. Zooming out near an edge gets there. Zooming out also turns the view back towards the whole window, which it reaches exactly at 1×.
+  - While zoomed, an overview strip above the scope shows the whole window, the part in view and the head. The status bar shows the zoom, such as `ZOOM 4.0× · 1.3–1.4`: the magnification, then where the view starts and ends within the window, as bar.beat, bar.beat.sixteenth when less than a beat is in view, or seconds while the sweep runs free. The positions count from the window's start, so they stay the same from one window to the next.
+  - The head line shows only while the head is in view. The grid adds thirty-seconds with a quarter of a bar in view and sixty-fourths with an eighth. With a bar or less in view, beats are labelled bar.beat, and the left edge always names the beat the view starts in.
+  - The zoom works while stopped and in the free-running sweep, lasts through Stop, Continue and every Start after the first, and is not saved across restarts.
 
 ---
 
