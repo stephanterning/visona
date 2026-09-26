@@ -18,6 +18,7 @@ add_executable(visona_core_tests
     SpscQueueTests.cpp
     SweepAnalyzerTests.cpp
     SweepBufferTests.cpp
+    SweepZoomTests.cpp
     TripleBufferTests.cpp
     VersionTests.cpp
     support/AllocationCounter.cpp

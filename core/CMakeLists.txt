@@ -17,6 +17,7 @@ add_library(visona_core STATIC
     include/visona/SweepBuffer.h
     include/visona/SweepSnapshot.h
     include/visona/SweepWindow.h
+    include/visona/SweepZoom.h
     include/visona/TimeSignature.h
     include/visona/TripleBuffer.h
     include/visona/Version.h
@@ -30,6 +31,7 @@ add_library(visona_core STATIC
     src/SourceLayout.cpp
     src/SweepAnalyzer.cpp
     src/SweepBuffer.cpp
+    src/SweepZoom.cpp
     src/Version.cpp)
 add_library(visona::core ALIAS visona_core)
 
