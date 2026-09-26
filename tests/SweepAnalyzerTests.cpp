@@ -51,22 +51,48 @@ std::size_t binOf(std::uint64_t position, std::uint64_t windowFrames, std::size_
     return static_cast<std::size_t>(position % windowFrames * numBins / windowFrames);
 }
 
-/** The min and max of every bin of the latest pass of `samples`, computed frame by frame. */
-std::vector<SweepCell> referenceCells(const std::vector<float>& samples, std::uint64_t windowFrames,
-                                      std::size_t numBins)
+/**
+    The min and max of every bin of one window of `samples`, computed frame by frame: the samples
+    in the bin, and where the straight line between consecutive samples crosses the bin's edges.
+*/
+std::vector<SweepCell> referenceCells(const std::vector<float>& samples, std::size_t numBins)
 {
+    const auto windowFrames = samples.size();
     std::vector<SweepCell> cells(numBins);
-    const auto lastPass = (samples.size() - 1) / windowFrames;
     for (std::size_t frame = 0; frame < samples.size(); ++frame)
+        cells[binOf(frame, windowFrames, numBins)].merge({samples[frame], samples[frame]});
+
+    // The line at a fractional frame position, if there are frames on both sides of it.
+    const auto lineAt = [&](double position, float& value)
     {
-        const auto pass = frame / windowFrames;
-        const auto bin = binOf(frame, windowFrames, numBins);
-        const auto lastBin = binOf(samples.size() - 1, windowFrames, numBins);
-        // The latest pass behind the head, and the pass before it ahead of the head.
-        if (pass == lastPass || (pass + 1 == lastPass && bin > lastBin))
-            cells[bin].merge({samples[frame], samples[frame]});
+        const auto frame = static_cast<std::size_t>(position);
+        const auto fraction = position - static_cast<double>(frame);
+        if (fraction == 0.0 && frame < samples.size())
+            value = samples[frame];
+        else if (frame + 1 < samples.size())
+            value = samples[frame] +
+                    (samples[frame + 1] - samples[frame]) * static_cast<float>(fraction);
+        else
+            return false;
+        return true;
+    };
+    for (std::size_t bin = 1; bin < numBins; ++bin)
+    {
+        float value = 0.0f;
+        const auto edge = static_cast<double>(bin) * static_cast<double>(windowFrames) /
+                          static_cast<double>(numBins);
+        if (lineAt(edge, value))
+        {
+            cells[bin - 1].merge({value, value});
+            cells[bin].merge({value, value});
+        }
     }
     return cells;
+}
+
+bool nearlyEqual(const SweepCell& a, const SweepCell& b)
+{
+    return std::abs(a.min - b.min) <= 1.0e-6f && std::abs(a.max - b.max) <= 1.0e-6f;
 }
 
 } // namespace
@@ -87,29 +113,31 @@ TEST_CASE("A 1 kHz sine at 96 kHz gives a deterministic sweep", "[sweep]")
     const std::vector<std::vector<float>> input{
         sine(1'000.0, sampleRate96k, static_cast<float>(amplitude), window96k)};
 
-    SweepAnalyzer analyzer(1);
+    // 4 096 bins, as in the original plan, so that each bin spans 46.875 frames.
+    constexpr std::size_t numBins = 4'096;
+    SweepAnalyzer analyzer(1, numBins);
     analyzer.start(window96k);
     feed(analyzer, input, 512);
     const auto& sweep = analyzer.buffer();
 
-    SECTION("every bin holds exactly the min and max of its frames")
+    SECTION("every bin holds the min and max of its frames and of the line at its edges")
     {
-        const auto expected = referenceCells(input[0], window96k, SweepBuffer::defaultBinCount);
+        const auto expected = referenceCells(input[0], numBins);
         const auto cells = sweep.channel(0);
         for (std::size_t bin = 0; bin < cells.size(); ++bin)
         {
             CAPTURE(bin);
-            REQUIRE(cells[bin] == expected[bin]);
+            REQUIRE(nearlyEqual(cells[bin], expected[bin]));
         }
     }
 
     SECTION("the window is one complete pass")
     {
         CHECK(sweep.pass() == 1);
-        CHECK(sweep.head() == SweepBuffer::defaultBinCount - 1);
+        CHECK(sweep.head() == numBins - 1);
         for (const auto pass : sweep.passes())
             CHECK(pass == 1);
-        CHECK(analyzer.binStartFrame(SweepBuffer::defaultBinCount) == window96k);
+        CHECK(analyzer.binStartFrame(numBins) == window96k);
     }
 
     SECTION("the waveform reaches -A and +A across every three neighbouring bins")
@@ -136,7 +164,7 @@ TEST_CASE("A sine with at least one cycle per bin fills every bin from -A to +A"
     const std::vector<std::vector<float>> input{
         sine(4'000.0, sampleRate96k, static_cast<float>(amplitude), window96k)};
 
-    SweepAnalyzer analyzer(1);
+    SweepAnalyzer analyzer(1, 4'096);
     analyzer.start(window96k);
     feed(analyzer, input, 480);
 
@@ -162,14 +190,25 @@ TEST_CASE("A click every quarter window lands in the bin at that quarter", "[swe
     analyzer.start(windowFrames);
     feed(analyzer, input, 256);
 
+    // With more bins than frames, the line up to and down from each click crosses a few bins;
+    // the peak is in the click's bin, or in the bin before when the click is on its edge.
     const auto cells = analyzer.buffer().channel(0);
     constexpr auto quarterBins = SweepBuffer::defaultBinCount / 4;
     for (std::size_t bin = 0; bin < cells.size(); ++bin)
     {
         CAPTURE(bin);
-        const bool clickBin = bin % quarterBins == 0;
-        REQUIRE(cells[bin].max == (clickBin ? 1.0f : 0.0f));
-        REQUIRE(cells[bin].min == 0.0f);
+        const auto fromQuarter = bin % quarterBins;
+        const bool nearClick = fromQuarter <= 2 || fromQuarter >= quarterBins - 3;
+        if (!nearClick)
+            REQUIRE(cells[bin].max == 0.0f);
+        // A bin on the slope from a click to the next frame lies wholly above 0.
+        REQUIRE((nearClick ? cells[bin].min >= 0.0f : cells[bin].min == 0.0f));
+    }
+    for (std::size_t quarter = 0; quarter < 4; ++quarter)
+    {
+        const auto bin = quarter * quarterBins;
+        CAPTURE(quarter);
+        CHECK(std::max(cells[bin].max, cells[(bin + cells.size() - 1) % cells.size()].max) == 1.0f);
     }
 }
 
@@ -259,6 +298,8 @@ TEST_CASE("Frames missing from the stream leave their bins empty", "[sweep]")
                 CHECK(cells[bin].isEmpty());
             else if (bin <= 70)
                 CHECK(cells[bin] == SweepCell{-0.75f, -0.75f});
+            else if (bin == 99) // the line from the last frame of pass 1 to the first of pass 2
+                CHECK(cells[bin] == SweepCell{-0.25f, 0.5f});
             else
                 CHECK(cells[bin] == SweepCell{0.5f, 0.5f});
             CHECK(sweep.passes()[bin] == (bin <= 70 ? 2u : 1u));
@@ -295,25 +336,60 @@ TEST_CASE("Frames missing from the stream leave their bins empty", "[sweep]")
     }
 }
 
-TEST_CASE("A window shorter than the bin count leaves the bins between frames empty", "[sweep]")
+TEST_CASE("With more bins than frames, the line between frames fills the bins", "[sweep]")
 {
+    // 3.2 bins per frame. Each frame's value is its stream position, so the line through the
+    // frames puts every bin at the positions its edges cover.
     constexpr std::uint64_t windowFrames = 10;
     constexpr std::size_t numBins = 32;
-    const std::vector<std::vector<float>> input{std::vector<float>(25, 1.0f)};
+    std::vector<std::vector<float>> input{std::vector<float>(25)};
+    for (std::size_t frame = 0; frame < input[0].size(); ++frame)
+        input[0][frame] = static_cast<float>(frame);
 
+    const auto blockSize = GENERATE(std::size_t{1}, std::size_t{3}, std::size_t{25});
+    CAPTURE(blockSize);
     SweepAnalyzer analyzer(1, numBins);
     analyzer.start(windowFrames);
-    feed(analyzer, input, 3);
+    feed(analyzer, input, blockSize);
 
     const auto& sweep = analyzer.buffer();
-    for (std::size_t bin = 0; bin < numBins; ++bin)
-    {
-        const bool hasFrame = analyzer.binStartFrame(bin) < analyzer.binStartFrame(bin + 1);
-        CAPTURE(bin);
-        CHECK(sweep.channel(0)[bin].isEmpty() == !hasFrame);
-    }
     CHECK(sweep.pass() == 3);
     CHECK(sweep.head() == binOf(24, windowFrames, numBins));
+    for (std::size_t bin = 0; bin < numBins; ++bin)
+    {
+        CAPTURE(bin);
+        const auto& cell = sweep.channel(0)[bin];
+        REQUIRE_FALSE(cell.isEmpty());
+        // Behind the head, the third window (frames 20 to 24); ahead of it, the second.
+        const auto windowStart = bin <= sweep.head() ? 20.0 : 10.0;
+        const auto low = windowStart + static_cast<double>(bin) * 10.0 / 32.0;
+        const auto high = windowStart + static_cast<double>(bin + 1) * 10.0 / 32.0;
+        CHECK(static_cast<double>(cell.min) >= low - 1.0e-5);
+        CHECK(static_cast<double>(cell.max) <= high + 1.0e-5);
+    }
+}
+
+TEST_CASE("At deep resolution the waveform is one connected line", "[sweep]")
+{
+    // A quarter bar at 174 BPM and 44.1 kHz has 15 207 frames: fewer than the bins.
+    constexpr std::uint64_t windowFrames = 15'207;
+    const std::vector<std::vector<float>> input{sine(1'000.0, 44'100.0, 0.9f, 20'000)};
+    SweepAnalyzer analyzer(1);
+    analyzer.start(windowFrames);
+    feed(analyzer, input, 512);
+
+    const auto& sweep = analyzer.buffer();
+    const auto cells = sweep.channel(0);
+    for (std::size_t bin = 0; bin + 1 < cells.size(); ++bin)
+    {
+        CAPTURE(bin);
+        REQUIRE_FALSE(cells[bin].isEmpty());
+        REQUIRE(cells[bin].min >= -0.9f);
+        REQUIRE(cells[bin].max <= 0.9f);
+        // Neighbouring bins touch, except across the head, where the passes meet.
+        if (bin != sweep.head())
+            REQUIRE((cells[bin].max >= cells[bin + 1].min && cells[bin].min <= cells[bin + 1].max));
+    }
 }
 
 TEST_CASE("Each channel's sweep is the same whatever the channel count", "[sweep]")
@@ -458,7 +534,7 @@ TEST_CASE("The musical sweep puts every beat at its quarter of a one-bar window"
     const auto interval = 60.0 * sampleRate96k / (bpm * 24.0);
     const auto ticks = evenTicks(10'000.0, 97, interval);
 
-    SweepAnalyzer analyzer(1);
+    SweepAnalyzer analyzer(1, 4'096);
     analyzer.startMusical(96.0);
     CHECK(analyzer.isMusical());
     feedMusical(analyzer, musicalSpans(ticks), 512,
@@ -474,12 +550,14 @@ TEST_CASE("The musical sweep puts every beat at its quarter of a one-bar window"
     for (std::size_t bin = 0; bin < cells.size(); ++bin)
     {
         CAPTURE(bin);
-        const bool beatBin = bin % 1'024 <= 1;
+        const auto fromBeat = bin % 1'024;
+        const bool beatBin = fromBeat <= 1 || fromBeat == 1'023;
         if (!beatBin)
             REQUIRE(cells[bin].max == 0.0f);
     }
     for (std::size_t beat = 0; beat < 4; ++beat)
-        CHECK(std::max(cells[beat * 1'024].max, cells[beat * 1'024 + 1].max) == 1.0f);
+        CHECK(std::max({cells[beat * 1'024].max, cells[beat * 1'024 + 1].max,
+                        cells[(beat * 1'024 + 4'095) % 4'096].max}) == 1.0f);
     CHECK(analyzer.buffer().pass() == 1);
 }
 
@@ -536,8 +614,9 @@ TEST_CASE("A tempo ramp leaves no holes and no bin written twice", "[sweep]")
         const auto& cell = sweep.channel(0)[bin];
         REQUIRE_FALSE(cell.isEmpty());
         const auto window = bin <= head ? currentWindow : currentWindow - 1.0;
-        const auto low = (window + static_cast<double>(bin) / 4'096.0) * 96.0;
-        const auto high = (window + static_cast<double>(bin + 1) / 4'096.0) * 96.0;
+        const auto bins = static_cast<double>(sweep.numBins());
+        const auto low = (window + static_cast<double>(bin) / bins) * 96.0;
+        const auto high = (window + static_cast<double>(bin + 1) / bins) * 96.0;
         REQUIRE(static_cast<double>(cell.min) >= low - 1.0e-3);
         REQUIRE(static_cast<double>(cell.max) <= high + 1.0e-3);
     }
@@ -547,7 +626,7 @@ TEST_CASE("A tempo ramp leaves no holes and no bin written twice", "[sweep]")
 TEST_CASE("A relocation after a freeze jumps the head without emptying anything", "[sweep]")
 {
     constexpr double interval = 2'000.0;
-    SweepAnalyzer analyzer(1);
+    SweepAnalyzer analyzer(1, 4'096);
     analyzer.startMusical(96.0);
     feedMusical(analyzer, musicalSpans(evenTicks(0.0, 161, interval)), 512,
                 [](std::uint64_t) { return 0.5f; });
@@ -586,7 +665,7 @@ TEST_CASE("Frames missing without a freeze leave their bins empty in musical tim
 {
     constexpr double interval = 2'000.0;
     const auto spans = musicalSpans(evenTicks(0.0, 41, interval));
-    SweepAnalyzer analyzer(1);
+    SweepAnalyzer analyzer(1, 4'096);
     analyzer.startMusical(96.0);
     // Ticks 0 to 20, then the frames of ticks 20 to 30 are dropped, then ticks 30 to 40.
     feedMusical(analyzer, {spans.begin(), spans.begin() + 20}, 512,

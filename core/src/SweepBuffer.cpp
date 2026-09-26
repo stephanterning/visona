@@ -92,6 +92,12 @@ void SweepBuffer::addToHead(std::size_t channel, const SweepCell& span) noexcept
     cells_[channel * numBins_ + head_].merge(span);
 }
 
+void SweepBuffer::addToBin(std::size_t channel, std::size_t bin, const SweepCell& span) noexcept
+{
+    assert(channel < numChannels_ && bin < numBins_);
+    cells_[channel * numBins_ + bin].merge(span);
+}
+
 void SweepBuffer::copyFrom(const SweepBuffer& source) noexcept
 {
     assert(source.numChannels_ == numChannels_ && source.numBins_ == numBins_);

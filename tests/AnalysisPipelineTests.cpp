@@ -300,9 +300,11 @@ TEST_CASE("AnalysisPipeline hands consistent snapshots across threads", "[analys
             const auto expectedPass = bin <= sweep.head() ? sweep.pass() : sweep.pass() - 1;
             if (passes[bin] != expectedPass)
                 ++inconsistentPasses;
+            // A cell also reaches where the line to its neighbours crosses its edges, but always
+            // holds its own frames' value.
             const auto expected =
                 static_cast<float>((passes[bin] % stressPassCodes) * stressBins + bin + 1);
-            if (!cells[bin].isEmpty() && (cells[bin].min != expected || cells[bin].max != expected))
+            if (!cells[bin].isEmpty() && (cells[bin].min > expected || cells[bin].max < expected))
                 ++inconsistentCells;
         }
     };
@@ -347,7 +349,7 @@ public:
         , ring_(2, static_cast<std::size_t>(sampleRate), 8'192)
         , writer_(ring_)
         , queue_(8'192)
-        , pipeline_(2)
+        , pipeline_(2, 4'096)
         , block_(blockFrames)
         , jitter_(-blockJitterNs, blockJitterNs)
     {

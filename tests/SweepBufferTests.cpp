@@ -57,7 +57,7 @@ TEST_CASE("SweepBuffer starts empty, with every bin in pass 0", "[sweep]")
     for (const auto pass : buffer.passes())
         CHECK(pass == 0);
 
-    CHECK(SweepBuffer::defaultBinCount == 4096);
+    CHECK(SweepBuffer::defaultBinCount == 131'072);
     CHECK_THROWS_AS(SweepBuffer(2, 0), std::invalid_argument);
 }
 

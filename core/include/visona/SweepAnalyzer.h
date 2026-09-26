@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 namespace visona
 {
@@ -32,10 +33,15 @@ inline constexpr double freeRunningWindowSeconds = 2.0;
     where the sweep stopped is a relocation: the head jumps there and starts a new pass without
     emptying anything, so the old content becomes the previous pass.
 
+    Each bin holds the min and max of the signal drawn as straight lines between consecutive
+    samples (D-084). A bin therefore also reaches the values where the line crosses its edges, and
+    a bin no sample falls in, when there are more bins than frames, holds the piece of line that
+    passes through it. At deep zoom the waveform is one connected line.
+
     In both modes the result never depends on how the audio is split into blocks. A jump forward
     in sampleIndex, such as a block the audio ring dropped (D-062), empties the bins of the missing
-    frames, so a gap shows as a gap and not as the previous pass (D-067). A free-running jump
-    backwards clears the buffer.
+    frames, so a gap shows as a gap and not as the previous pass (D-067); no line is drawn across
+    a gap, a freeze or a relocation. A free-running jump backwards clears the buffer.
 
     All storage is allocated in the constructor; nothing else allocates.
 */
@@ -102,10 +108,28 @@ public:
 private:
     void moveMusicalHead(double tick, double windowIndex, std::size_t bin) noexcept;
 
+    /**
+        Enters the bin of the frame at channels[·][offset], whose position in bins since the
+        start of the sweep is `position`. `moveHead` moves the head there. When that frame follows
+        the last one written, the line between them fills the bins it crosses.
+    */
+    template <typename MoveHead>
+    void enterBin(std::span<const float* const> channels, std::size_t offset, double position,
+                  bool consecutive, MoveHead moveHead) noexcept;
+
+    void rememberFrame(std::span<const float* const> channels, std::size_t offset,
+                       std::uint64_t frame, double position) noexcept;
+
     SweepBuffer buffer_;
     std::uint64_t windowFrames_ = 0;
     std::uint64_t nextSampleIndex_ = 0;
     bool hasProcessed_ = false;
+
+    // The last frame written: its stream position, its position in bins, and its samples.
+    bool hasLastFrame_ = false;
+    std::uint64_t lastFrame_ = 0;
+    double lastPosition_ = 0.0;
+    std::vector<float> lastSamples_;
 
     // Musical mode, while windowTicks_ is positive.
     double windowTicks_ = 0.0;
