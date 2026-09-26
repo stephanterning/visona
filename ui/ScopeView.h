@@ -3,13 +3,16 @@
 #include <visona/ColumnReduction.h>
 #include <visona/SourceLayout.h>
 #include <visona/SweepSnapshot.h>
+#include <visona/SweepZoom.h>
 #include <visona/TripleBuffer.h>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace visona
@@ -23,16 +26,23 @@ namespace visona
       of it is drawn like the new one (D-068).
     - Faint lines mark the centre and where 0 dBFS and -6 dBFS land after display gain. Display
       overshoot is cut at the lane edge with a neutral marker.
-    - While the sweep follows MIDI Clock, a neutral grey grid marks bars, beats and, in windows
-      of a half bar or less, sixteenths, with small bar numbers at the bottom edge.
+    - While the sweep follows MIDI Clock, a neutral grey grid marks bars, beats and, when half a
+      bar or less is in view, sixteenths, with small bar numbers at the bottom edge. Zoomed in to
+      a quarter or an eighth of a bar, thirty-seconds and sixty-fourths are added.
     - STOPPED dims the frozen view slightly and shows a pause mark.
-    - Display gain is applied only here (D-024).
+    - Display gain and zoom are applied only here (D-024, D-085).
+
+    Zoom (D-085) shows part of the window, down to 1/32 of it, without changing the window. Drag
+    across the scope to zoom to the part selected; a drag under 8 pixels is a click and does
+    nothing. The scroll wheel, a trackpad pinch and a two-finger touch pinch zoom around the
+    pointer. A double-click, Esc (handled by the main component) or a new window resets it. The
+    head line shows only while the head is in view.
 
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
     vertical image tiles. Frames follow the display's vertical blank, capped at 60 per second, and
     only when there is a new snapshot. A frame redraws only the columns the head passed since the
-    previous frame, so only the tiles holding them change; a new stream, size or gain redraws
-    everything. The component is opaque and never repaints what did not change.
+    previous frame, so only the tiles holding them change; a new stream, size, gain or zoom
+    redraws everything. The component is opaque and never repaints what did not change.
 */
 class ScopeView final : public juce::Component
 {
@@ -54,8 +64,30 @@ public:
         return snapshots_.readBuffer();
     }
 
+    void setZoom(SweepZoom zoom);
+
+    void resetZoom()
+    {
+        setZoom({});
+    }
+
+    [[nodiscard]] SweepZoom zoom() const noexcept
+    {
+        return zoom_;
+    }
+
+    /** Where the head is, as a fraction of the window, or a negative number before the first
+        pass. */
+    [[nodiscard]] double headPosition() const noexcept;
+
     /** Called when the transport state, the sweep's mode or the window changes. */
     std::function<void()> onTransportChange;
+
+    /** Called when the zoom changes. */
+    std::function<void()> onZoomChange;
+
+    /** Called after each frame drawn from a new snapshot. */
+    std::function<void()> onFrame;
 
     /** Rendering statistics over the most recent whole second. */
     struct Stats
@@ -80,6 +112,13 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
+    void mouseWheelMove(const juce::MouseEvent& event,
+                        const juce::MouseWheelDetails& wheel) override;
+    void mouseMagnify(const juce::MouseEvent& event, float scaleFactor) override;
 
 private:
     struct Lane
@@ -91,9 +130,17 @@ private:
     enum class GridLine : std::uint8_t
     {
         none,
+        fine, ///< Thirty-seconds and sixty-fourths.
         sixteenth,
         beat,
         bar
+    };
+
+    /** A finger on the screen, for pinching. */
+    struct Touch
+    {
+        int source = -1;
+        float x = 0.0f;
     };
 
     /** What the grid depends on. Musical windows are whole numbers of ticks. */
@@ -130,17 +177,23 @@ private:
     bool ensureTiles(float scale);
     void layoutLanes(std::size_t numLanes);
 
-    /** Brings the tiles up to date with the current snapshot. Returns the area to repaint. */
-    juce::Rectangle<int> renderChanges();
+    /** Brings the tiles up to date with the current snapshot and repaints what changed. */
+    void renderChanges();
     void renderAll();
     void renderColumns(int first, int last);
     void drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, int first, int last);
 
     /** The first column of the head line and the last column of the erase gap after it, or -1
-        for both if nothing has been written. */
+        for both if nothing has been written or the head is out of view. */
     [[nodiscard]] std::pair<int, int> headColumns(const SweepBuffer& sweep) const noexcept;
     [[nodiscard]] juce::Rectangle<int> logicalColumns(int first, int last) const noexcept;
     void drawLabels(juce::Graphics& g) const;
+
+    /** The part of the scope a drag has selected, or nothing while it is too short. */
+    [[nodiscard]] juce::Rectangle<int> selectionArea() const noexcept;
+    void drawSelection(juce::Graphics& g) const;
+    void zoomAround(float x, double factor);
+    [[nodiscard]] bool updatePinch();
 
     TripleBuffer<SweepSnapshot>& snapshots_;
     const SourceLayout& layout_;
@@ -153,7 +206,9 @@ private:
     int height_ = 0;
     std::vector<juce::Image> tiles_;
     std::vector<Lane> lanes_;
+    SweepZoom zoom_;
     ColumnMapping mapping_{1, 1};
+    bool mappingIsStale_ = true;
     std::vector<ColumnSpan> spans_;
     std::vector<GridLine> grid_;
     GridKey gridKey_;
@@ -175,6 +230,16 @@ private:
     bool shownMusical_ = false;
     std::size_t shownWindow_ = 0;
     double shownWindowStart_ = 0.0;
+
+    // A drag that selects what to zoom to, in logical pixels, and the fingers of a pinch.
+    std::optional<int> dragSource_;
+    float dragStart_ = 0.0f;
+    float dragEnd_ = 0.0f;
+    std::array<Touch, 2> touches_;
+    bool pinching_ = false;
+    float pinchStartDistance_ = 0.0f;
+    double pinchAnchor_ = 0.0;
+    SweepZoom pinchStartZoom_;
 
     double nextFrameSeconds_ = 0.0;
     double firstFrameSeconds_ = 0.0;

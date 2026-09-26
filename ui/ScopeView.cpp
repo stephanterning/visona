@@ -33,9 +33,22 @@ constexpr float labelMargin = 6.0f;
 constexpr float labelFontHeight = 11.0f;
 constexpr float gridLineWidth = 1.0f;
 constexpr float stoppedDimming = 0.3f;
+constexpr float pinnedLabelClearance = 48.0f;
 
-/** Sixteenths are one MIDI beat of 6 ticks. */
-constexpr int ticksPerSixteenth = 6;
+// Zoom input (D-085). A drag shorter than minSelectionWidth logical pixels is a click. A scroll of
+// one unit of MouseWheelDetails zooms by 2^wheelZoomRate: a notch of a mouse wheel on macOS is
+// about 1.25 times. A pinch starts measuring once the fingers are minPinchDistance apart.
+constexpr float minSelectionWidth = 8.0f;
+constexpr double wheelZoomRate = 8.0;
+constexpr float minPinchDistance = 24.0f;
+constexpr float selectionFillAlpha = 0.14f;
+constexpr float selectionEdgeAlpha = 0.6f;
+
+/** Sixteenths are one MIDI beat of 6 ticks. The grid counts half ticks, so that sixty-fourths,
+    1.5 ticks, are whole numbers of them. */
+constexpr int halfTicksPerSixteenth = 12;
+constexpr int halfTicksPerThirtySecond = 6;
+constexpr int halfTicksPerSixtyFourth = 3;
 
 /** The amplitude reference lines: 0 dBFS and -6 dBFS, with their labels in UTF-8. */
 struct Reference
@@ -92,6 +105,7 @@ struct Colours
     juce::PixelARGB gridBar = palette::gridBar.getPixelARGB();
     juce::PixelARGB gridBeat = palette::gridBeat.getPixelARGB();
     juce::PixelARGB gridSixteenth = palette::gridSixteenth.getPixelARGB();
+    juce::PixelARGB gridFine = palette::gridFine.getPixelARGB();
 };
 
 const Colours& colours()
@@ -120,7 +134,7 @@ ScopeView::ScopeView(TripleBuffer<SweepSnapshot>& snapshots, const SourceLayout&
     , vblank_(this, [this](double timestampSeconds) { onVBlank(timestampSeconds); })
 {
     setOpaque(true);
-    setInterceptsMouseClicks(false, false);
+    setInterceptsMouseClicks(true, false);
 }
 
 void ScopeView::setGainDb(int gainDb)
@@ -157,6 +171,7 @@ void ScopeView::paint(juce::Graphics& g)
     drawLabels(g);
     drawBarNumbers(g);
     drawStopped(g);
+    drawSelection(g);
 
     paintTiming_.add(nowMs() - start);
 }
@@ -184,14 +199,14 @@ void ScopeView::onVBlank(double timestampSeconds)
     nextFrameSeconds_ = (stalled ? timestampSeconds : nextFrameSeconds_) + frameInterval;
 
     const auto start = nowMs();
-    const auto dirty = renderChanges();
+    renderChanges();
     renderTiming_.add(nowMs() - start);
     noticeTransport();
     if (renderTiming_.count == 1)
         firstFrameSeconds_ = timestampSeconds;
     lastFrameSeconds_ = timestampSeconds;
-    if (!dirty.isEmpty())
-        repaint(dirty);
+    if (onFrame)
+        onFrame();
 }
 
 void ScopeView::noticeTransport()
@@ -209,6 +224,9 @@ void ScopeView::noticeTransport()
     shownMusical_ = snapshot.musical;
     shownWindow_ = snapshot.window;
     shownWindowStart_ = snapshot.windowStartTick;
+    // A zoom is a part of one window; in another it would show something else.
+    if (modeChanged)
+        resetZoom();
     if ((stateChanged || modeChanged) && onTransportChange)
         onTransportChange();
 }
@@ -288,43 +306,57 @@ void ScopeView::layoutLanes(std::size_t numLanes)
     }
 }
 
-juce::Rectangle<int> ScopeView::renderChanges()
+void ScopeView::renderChanges()
 {
     const auto& snapshot = snapshots_.readBuffer();
     const auto& sweep = snapshot.sweep;
     const bool sameSweep = rendered_ && !needsFullRender_ && snapshot.streamId == renderedStream_ &&
                            sweep.generation() == renderedGeneration_;
     if (sameSweep && sweep.pass() == 0)
-        return {};
+        return;
 
-    // Within a window, the head only changes the columns it passes. Both passes look the same,
-    // so the start of a new pass changes only the columns across the end of the window.
+    // Within a window, the head only changes the bins it passes. Both passes look the same, so
+    // the start of a new pass changes only the bins across the end of the window.
     const bool samePass = sweep.pass() == renderedPass_ && sweep.head() >= renderedHead_;
     const bool nextPass = sweep.pass() == renderedPass_ + 1 && sweep.head() < renderedHead_;
     if (!sameSweep || renderedPass_ == 0 || !(samePass || nextPass))
     {
         renderAll();
-        return getLocalBounds();
+        repaint();
+        return;
     }
 
-    // The columns from where the head was to the end of the erase gap after where it is now.
-    const auto first =
-        std::min(static_cast<int>(mapping_.firstColumn(renderedHead_)), renderedHeadStart_);
+    // The columns of the bins from where the head was to where it is now, which a zoomed view
+    // may show in two places or not at all, and the head line and erase gap, before and after.
+    std::array<ColumnMapping::ColumnRange, 4> dirty;
+    std::array<ColumnMapping::ColumnRange, 2> passed;
+    std::size_t count = 0;
+    const auto passedCount = mapping_.columnsOf(renderedHead_, sweep.head(), passed);
+    for (std::size_t range = 0; range < passedCount; ++range)
+        dirty[count++] = passed[range];
     const auto [headStart, gapEnd] = headColumns(sweep);
-    const auto last = std::max(gapEnd, static_cast<int>(mapping_.lastColumn(sweep.head())));
+    if (renderedHeadStart_ >= 0)
+        dirty[count++] = {static_cast<std::size_t>(renderedHeadStart_),
+                          static_cast<std::size_t>(std::min(
+                              renderedHeadStart_ + headWidth_ + gapWidth_ - 1, width_ - 1))};
+    if (headStart >= 0)
+        dirty[count++] = {static_cast<std::size_t>(headStart), static_cast<std::size_t>(gapEnd)};
     renderedPass_ = sweep.pass();
     renderedHead_ = sweep.head();
     renderedHeadStart_ = headStart;
 
-    if (samePass)
+    std::sort(dirty.begin(), dirty.begin() + static_cast<std::ptrdiff_t>(count),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (std::size_t index = 0; index < count;)
     {
+        auto range = dirty[index++];
+        while (index < count && dirty[index].first <= range.last + 1)
+            range.last = std::max(range.last, dirty[index++].last);
+        const auto first = static_cast<int>(range.first);
+        const auto last = static_cast<int>(range.last);
         renderColumns(first, last);
-        return logicalColumns(first, last);
+        repaint(logicalColumns(first, last));
     }
-    renderColumns(first, width_ - 1);
-    renderColumns(0, last);
-    repaint(logicalColumns(first, width_ - 1));
-    return logicalColumns(0, last);
 }
 
 void ScopeView::renderAll()
@@ -350,9 +382,14 @@ void ScopeView::renderColumns(int first, int last)
     const auto& sweep = snapshots_.readBuffer().sweep;
     if (lanes_.size() != std::max<std::size_t>(sweep.numChannels(), 1))
         layoutLanes(sweep.numChannels());
-    if (sweep.numBins() > 0 && (mapping_.numBins() != sweep.numBins() ||
+    if (sweep.numBins() > 0 && (mappingIsStale_ || mapping_.numBins() != sweep.numBins() ||
                                 mapping_.numColumns() != static_cast<std::size_t>(width_)))
-        mapping_ = ColumnMapping(sweep.numBins(), static_cast<std::size_t>(width_));
+    {
+        mapping_ = ColumnMapping(sweep.numBins(), static_cast<std::size_t>(width_), zoom_.offset,
+                                 zoom_.span);
+        mappingIsStale_ = false;
+        grid_.clear();
+    }
     updateGrid();
 
     first = std::max(first, 0);
@@ -391,6 +428,9 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
             switch (grid_[static_cast<std::size_t>(column)])
             {
             case GridLine::none:
+                break;
+            case GridLine::fine:
+                canvas.fill(column, column, lane.top, laneBottom, colour.gridFine);
                 break;
             case GridLine::sixteenth:
                 canvas.fill(column, column, lane.top, laneBottom, colour.gridSixteenth);
@@ -476,20 +516,34 @@ void ScopeView::updateGrid()
         return;
 
     // The lines of the window the head is in; a column the head has not reached yet keeps the
-    // lines it was drawn with.
-    const bool sixteenths = 2 * key.windowTicks <= key.ticksPerBar;
+    // lines it was drawn with. The less of the window is in view, the finer the lines.
+    const auto windowHalfTicks = 2 * key.windowTicks;
+    const auto barHalfTicks = 2 * key.ticksPerBar;
+    const auto beatHalfTicks = 2 * key.ticksPerBeat;
+    const auto visibleHalfTicks = static_cast<double>(windowHalfTicks) * mapping_.span();
+    const auto finest = 8.0 * visibleHalfTicks <= barHalfTicks   ? halfTicksPerSixtyFourth
+                        : 4.0 * visibleHalfTicks <= barHalfTicks ? halfTicksPerThirtySecond
+                        : 2.0 * visibleHalfTicks <= barHalfTicks ? halfTicksPerSixteenth
+                                                                 : 0;
     const auto lineWidth = toPhysical(gridLineWidth, scale_);
-    for (std::int64_t tick = 0; tick < key.windowTicks; tick += ticksPerSixteenth)
+    for (std::int64_t half = 0; half < windowHalfTicks; ++half)
     {
-        const auto absolute = key.windowStartTick + tick;
-        const auto line = absolute % key.ticksPerBar == 0    ? GridLine::bar
-                          : absolute % key.ticksPerBeat == 0 ? GridLine::beat
-                          : sixteenths                       ? GridLine::sixteenth
-                                                             : GridLine::none;
+        const auto absolute = 2 * key.windowStartTick + half;
+        const auto line = absolute % barHalfTicks == 0            ? GridLine::bar
+                          : absolute % beatHalfTicks == 0         ? GridLine::beat
+                          : finest == 0                           ? GridLine::none
+                          : absolute % halfTicksPerSixteenth == 0 ? GridLine::sixteenth
+                          : absolute % finest == 0                ? GridLine::fine
+                                                                  : GridLine::none;
         if (line == GridLine::none)
             continue;
-        const auto column = static_cast<int>(tick * width_ / key.windowTicks);
-        for (int x = column; x < std::min(column + lineWidth, width_); ++x)
+        const auto position = static_cast<double>(half) / static_cast<double>(windowHalfTicks);
+        const auto column = mapping_.columnOf(position);
+        if (column < 0.0)
+            continue;
+        // A line on a column boundary belongs to the column after it despite rounding.
+        const auto first = static_cast<int>(std::floor(column + 1.0e-9));
+        for (int x = first; x < std::min(first + lineWidth, width_); ++x)
             grid_[static_cast<std::size_t>(x)] = std::max(grid_[static_cast<std::size_t>(x)], line);
     }
 }
@@ -513,24 +567,46 @@ void ScopeView::drawBarNumbers(juce::Graphics& g) const
     g.setFont(juce::FontOptions(labelFontHeight).withFeatureEnabled("tnum"));
     g.setColour(palette::laneLabel);
     const auto startTick = static_cast<std::int64_t>(std::llround(snapshot.windowStartTick));
-    const auto label = [&](std::int64_t tick, const juce::String& text)
+    const auto barBeat = [&](std::int64_t absolute)
     {
-        const auto x = static_cast<float>(static_cast<double>(tick) / snapshot.windowTicks *
-                                          static_cast<double>(getWidth()));
+        return juce::String(absolute / ticksPerBar + 1) + "." +
+               juce::String(absolute % ticksPerBar / ticksPerBeat + 1);
+    };
+    const auto label = [&](float x, const juce::String& text)
+    {
         g.drawText(text,
                    juce::Rectangle<float>(x + 4.0f, static_cast<float>(area.getY()), 60.0f,
                                           static_cast<float>(area.getHeight())),
                    juce::Justification::centredLeft, false);
     };
 
-    // A window that starts between bars shows where it starts as bar.beat.
-    if (startTick % ticksPerBar != 0)
-        label(0, juce::String(startTick / ticksPerBar + 1) + "." +
-                     juce::String(startTick % ticksPerBar / ticksPerBeat + 1));
-    const auto firstBar = (startTick + ticksPerBar - 1) / ticksPerBar * ticksPerBar;
-    for (auto bar = firstBar; static_cast<double>(bar - startTick) < snapshot.windowTicks;
-         bar += ticksPerBar)
-        label(bar - startTick, juce::String(bar / ticksPerBar + 1));
+    // Bars show their number. A window that starts between bars shows where it starts as
+    // bar.beat, and so does every beat while a bar or less is in view.
+    const bool beats = mapping_.isZoomed() && snapshot.windowTicks * mapping_.span() <= ticksPerBar;
+    const auto firstBeat = (ticksPerBeat - startTick % ticksPerBeat) % ticksPerBeat;
+    auto firstX = static_cast<float>(getWidth());
+    for (auto tick = firstBeat; static_cast<double>(tick) < snapshot.windowTicks;
+         tick += ticksPerBeat)
+    {
+        const auto absolute = startTick + tick;
+        const bool bar = absolute % ticksPerBar == 0;
+        if (!bar && tick != 0 && !beats)
+            continue;
+        const auto column = mapping_.columnOf(static_cast<double>(tick) / snapshot.windowTicks);
+        if (column < 0.0)
+            continue;
+        const auto x = static_cast<float>(column) / scale_;
+        label(x, bar ? juce::String(absolute / ticksPerBar + 1) : barBeat(absolute));
+        firstX = std::min(firstX, x);
+    }
+
+    // Zoomed in, the left edge always says which beat the view starts in.
+    if (mapping_.isZoomed() && firstX > pinnedLabelClearance)
+    {
+        const auto viewStart = mapping_.offset() * snapshot.windowTicks;
+        const auto beat = static_cast<std::int64_t>(std::floor(viewStart / ticksPerBeat));
+        label(0.0f, barBeat(startTick + beat * ticksPerBeat));
+    }
 }
 
 void ScopeView::drawStopped(juce::Graphics& g) const
@@ -552,10 +628,182 @@ std::pair<int, int> ScopeView::headColumns(const SweepBuffer& sweep) const noexc
     if (sweep.pass() == 0 || sweep.numBins() == 0 || width_ <= 0 ||
         mapping_.numBins() != sweep.numBins())
         return {-1, -1};
-    // Just after the newest column, but always on screen.
-    const auto afterHead = static_cast<int>(mapping_.lastColumn(sweep.head())) + 1;
+
+    // Just after the newest column, but always on screen. A zoomed view shows the line only while
+    // the head is in view, or just before it.
+    std::array<ColumnMapping::ColumnRange, 2> columns;
+    int afterHead = 0;
+    if (mapping_.columnsOf(sweep.head(), sweep.head(), columns) > 0)
+        afterHead = static_cast<int>(columns[0].last) + 1;
+    else if ((sweep.head() + 1) % sweep.numBins() != mapping_.firstBin(0) % sweep.numBins())
+        return {-1, -1};
     const auto start = std::max(0, std::min(afterHead, width_ - headWidth_));
     return {start, std::min(start + headWidth_ + gapWidth_ - 1, width_ - 1)};
+}
+
+double ScopeView::headPosition() const noexcept
+{
+    const auto& sweep = snapshots_.readBuffer().sweep;
+    if (sweep.pass() == 0 || sweep.numBins() == 0)
+        return -1.0;
+    return static_cast<double>((sweep.head() + 1) % sweep.numBins()) /
+           static_cast<double>(sweep.numBins());
+}
+
+void ScopeView::setZoom(SweepZoom zoom)
+{
+    zoom = SweepZoom::normalized(zoom);
+    if (juce::exactlyEqual(zoom.offset, zoom_.offset) && juce::exactlyEqual(zoom.span, zoom_.span))
+        return;
+    zoom_ = zoom;
+    mappingIsStale_ = true;
+    needsFullRender_ = true;
+    repaint();
+    if (onZoomChange)
+        onZoomChange();
+}
+
+void ScopeView::mouseDown(const juce::MouseEvent& event)
+{
+    if (event.source.isTouch())
+    {
+        const auto free = std::find_if(touches_.begin(), touches_.end(),
+                                       [](const Touch& touch) { return touch.source < 0; });
+        if (free == touches_.end())
+            return;
+        *free = {event.source.getIndex(), event.position.x};
+        if (touches_[0].source >= 0 && touches_[1].source >= 0)
+        {
+            // A second finger turns the drag into a pinch around the point between the fingers.
+            repaint(selectionArea());
+            dragSource_.reset();
+            pinching_ = false;
+            pinchStartZoom_ = zoom_;
+            pinchAnchor_ = static_cast<double>((touches_[0].x + touches_[1].x) / 2.0f) /
+                           std::max(1, getWidth());
+            return;
+        }
+    }
+    if (event.mods.isPopupMenu() || pinching_)
+        return;
+    dragSource_ = event.source.getIndex();
+    dragStart_ = event.position.x;
+    dragEnd_ = event.position.x;
+}
+
+void ScopeView::mouseDrag(const juce::MouseEvent& event)
+{
+    if (event.source.isTouch())
+    {
+        for (auto& touch : touches_)
+            if (touch.source == event.source.getIndex())
+                touch.x = event.position.x;
+        if (updatePinch())
+            return;
+    }
+    if (dragSource_ != event.source.getIndex())
+        return;
+    const auto before = selectionArea();
+    dragEnd_ = event.position.x;
+    const auto after = selectionArea();
+    if (before != after)
+        repaint(before.getUnion(after));
+}
+
+void ScopeView::mouseUp(const juce::MouseEvent& event)
+{
+    if (event.source.isTouch())
+    {
+        const bool wasPinch = touches_[0].source >= 0 && touches_[1].source >= 0;
+        for (auto& touch : touches_)
+            if (touch.source == event.source.getIndex())
+                touch = {};
+        if (wasPinch)
+        {
+            pinching_ = false;
+            return;
+        }
+    }
+    if (dragSource_ != event.source.getIndex())
+        return;
+    const auto shown = selectionArea();
+    dragEnd_ = event.position.x;
+    const auto area = selectionArea();
+    dragSource_.reset();
+    repaint(shown.getUnion(area));
+    if (area.isEmpty())
+        return;
+    const auto width = static_cast<double>(std::max(1, getWidth()));
+    setZoom(zoom_.selected(static_cast<double>(std::min(dragStart_, dragEnd_)) / width,
+                           static_cast<double>(std::max(dragStart_, dragEnd_)) / width));
+}
+
+void ScopeView::mouseDoubleClick(const juce::MouseEvent&)
+{
+    resetZoom();
+}
+
+void ScopeView::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+{
+    // Up zooms in, whichever way the system scrolls content.
+    const auto delta = static_cast<double>(wheel.isReversed ? -wheel.deltaY : wheel.deltaY);
+    if (juce::exactlyEqual(delta, 0.0))
+        return;
+    zoomAround(event.position.x, std::exp2(delta * wheelZoomRate));
+}
+
+void ScopeView::mouseMagnify(const juce::MouseEvent& event, float scaleFactor)
+{
+    zoomAround(event.position.x, static_cast<double>(scaleFactor));
+}
+
+void ScopeView::zoomAround(float x, double factor)
+{
+    const auto anchor = static_cast<double>(x) / static_cast<double>(std::max(1, getWidth()));
+    setZoom(zoom_.zoomedAround(anchor, factor));
+}
+
+bool ScopeView::updatePinch()
+{
+    if (touches_[0].source < 0 || touches_[1].source < 0)
+        return false;
+    const auto distance = std::abs(touches_[1].x - touches_[0].x);
+    if (!pinching_)
+    {
+        // Fingers that land close together measure nothing useful until they spread.
+        if (distance < minPinchDistance)
+            return true;
+        pinching_ = true;
+        pinchStartDistance_ = distance;
+        pinchStartZoom_ = zoom_;
+        return true;
+    }
+    setZoom(pinchStartZoom_.zoomedAround(
+        pinchAnchor_, static_cast<double>(std::max(distance, 1.0f) / pinchStartDistance_)));
+    return true;
+}
+
+juce::Rectangle<int> ScopeView::selectionArea() const noexcept
+{
+    if (!dragSource_.has_value() || std::abs(dragEnd_ - dragStart_) < minSelectionWidth)
+        return {};
+    const auto width = static_cast<float>(getWidth());
+    const auto left = std::clamp(std::min(dragStart_, dragEnd_), 0.0f, width);
+    const auto right = std::clamp(std::max(dragStart_, dragEnd_), 0.0f, width);
+    return juce::Rectangle<float>(left, 0.0f, right - left, static_cast<float>(getHeight()))
+        .getSmallestIntegerContainer();
+}
+
+void ScopeView::drawSelection(juce::Graphics& g) const
+{
+    const auto area = selectionArea();
+    if (area.isEmpty() || !g.clipRegionIntersects(area))
+        return;
+    g.setColour(palette::level.withAlpha(selectionFillAlpha));
+    g.fillRect(area);
+    g.setColour(palette::level.withAlpha(selectionEdgeAlpha));
+    g.fillRect(area.withWidth(1));
+    g.fillRect(area.withTrimmedLeft(area.getWidth() - 1));
 }
 
 juce::Rectangle<int> ScopeView::logicalColumns(int first, int last) const noexcept
