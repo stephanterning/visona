@@ -10,6 +10,7 @@ add_executable(visona_core_tests
     AnalysisPipelineTests.cpp
     AudioInputWriterTests.cpp
     AudioRingBufferTests.cpp
+    BandSplitterTests.cpp
     ClockTimeMapperTests.cpp
     ColumnReductionTests.cpp
     LaneMappingTests.cpp
@@ -21,6 +22,7 @@ add_executable(visona_core_tests
     SweepZoomTests.cpp
     TripleBufferTests.cpp
     VersionTests.cpp
+    WaveformStyleTests.cpp
     support/AllocationCounter.cpp
     support/AllocationCounter.h
     support/Signals.h)

@@ -235,6 +235,45 @@ TEST_CASE("SweepBuffer copies stay equal to their source through every kind of c
     }
 }
 
+TEST_CASE("SweepBuffer keeps each bin's start and band levels until the head enters it again",
+          "[sweep]")
+{
+    SweepBuffer buffer(2, 8);
+    CHECK(buffer.starts(0)[3] == SweepBuffer::unknownStart);
+    CHECK(buffer.bands(1)[3] == visona::BandLevels{});
+
+    buffer.advanceHead(1, 3);
+    buffer.markHeadStart(0, 0.25f);
+    buffer.markHeadStart(0, 0.75f); // the first value into the bin counts
+    buffer.addBandsToHead(1, {0.5f, 0.1f, 0.0f});
+    buffer.addBandsToHead(1, {0.2f, 0.3f, 0.05f});
+    CHECK(buffer.starts(0)[3] == 0.25f);
+    CHECK(buffer.starts(1)[3] == SweepBuffer::unknownStart);
+    CHECK(buffer.bands(1)[3] == visona::BandLevels{0.5f, 0.3f, 0.05f});
+    CHECK(buffer.bands(0)[3].isEmpty());
+
+    buffer.advanceHead(1, 5);
+    buffer.markBinStart(0, 4, -0.5f);
+    buffer.addBandsToBin(0, 4, {0.0f, 0.0f, 0.4f});
+    CHECK(buffer.starts(0)[4] == -0.5f);
+    CHECK(buffer.bands(0)[4] == visona::BandLevels{0.0f, 0.0f, 0.4f});
+
+    SweepBuffer copy(2, 8);
+    copy.copyFrom(buffer);
+    CHECK(copy == buffer);
+
+    // The next pass empties the bins again.
+    buffer.advanceHead(2, 4);
+    CHECK(buffer.starts(0)[3] == SweepBuffer::unknownStart);
+    CHECK(buffer.bands(1)[3].isEmpty());
+    CHECK(buffer.starts(0)[4] == SweepBuffer::unknownStart);
+    copy.copyFrom(buffer);
+    CHECK(copy == buffer);
+
+    buffer.clear();
+    CHECK(buffer.starts(0)[4] == SweepBuffer::unknownStart);
+}
+
 TEST_CASE("SweepBuffer writing and copying do not allocate", "[sweep][snapshot][realtime]")
 {
     SweepBuffer source(2, 4'096);

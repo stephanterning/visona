@@ -29,8 +29,8 @@ namespace visona
 
     setStream(), setMidiQueue() and poll() are the analysis side. They must not run concurrently;
     the app calls them under one lock, which only the analysis thread and stream changes take. The
-    UI thread is the only consumer of snapshots(). setWindow(), setMidiOffset() and takePeak() may
-    be called from any thread.
+    UI thread is the only consumer of snapshots(). setWindow(), setBandSplitting(),
+    setMidiOffset() and takePeak() may be called from any thread.
 
     All storage, including the three snapshots, is allocated in the constructor. Nothing else
     allocates.
@@ -65,6 +65,9 @@ public:
     /** Any thread. Selects the musical window, an index into sweepWindowBars. A new window clears
         the musical sweep. */
     void setWindow(std::size_t windowIndex) noexcept;
+
+    /** Any thread. Turns the band splitting for DJ colouring on or off (D-092). */
+    void setBandSplitting(bool enabled) noexcept;
 
     /** Any thread. Frames added to every MIDI event's mapped position, for the latency between the
         audio and MIDI timestamps (D-078). */
@@ -111,6 +114,7 @@ private:
 
     std::atomic<std::size_t> requestedWindow_;
     std::atomic<double> midiOffset_{0.0};
+    std::atomic<bool> bandSplitting_{false};
     std::size_t window_;
 
     // The block last added to the mapper, and the Start the musical sweep belongs to.

@@ -136,4 +136,28 @@ struct ColumnSpan
 void reduceColumns(const SweepBuffer& sweep, std::size_t channel, const ColumnMapping& mapping,
                    std::size_t firstColumn, std::span<ColumnSpan> out) noexcept;
 
+/**
+    The band levels of the columns [firstColumn, firstColumn + out.size()) of `channel`, for DJ
+    colouring (D-092): the peak of each band over the column's bins, from the head's pass where
+    the column has any, like reduceColumns().
+
+    Each band is read `shift` bins later, low, mid and high, to make up for the band's delay
+    behind the full band, but only from bins of the same pass, so that a column at the head never
+    takes the previous pass's colour.
+*/
+void reduceColumnBands(const SweepBuffer& sweep, std::size_t channel, const ColumnMapping& mapping,
+                       std::size_t firstColumn, const std::array<std::size_t, 3>& shift,
+                       std::span<BandLevels> out) noexcept;
+
+/**
+    The signal of `channel` at the column edges [firstColumn, firstColumn + out.size()), where edge
+    x is the left edge of column x, for drawing the waveform as a line (D-091). Between the starts
+    of two neighbouring bins of the same pass the value is interpolated, which is exact at deep
+    zoom, where the bins hold the lines between samples (D-084). With many bins per column it
+    samples the signal once per column, which is cheap but may miss peaks. NaN where the bin is
+    empty.
+*/
+void sampleColumnEdges(const SweepBuffer& sweep, std::size_t channel, const ColumnMapping& mapping,
+                       std::size_t firstColumn, std::span<float> out) noexcept;
+
 } // namespace visona

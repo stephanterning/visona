@@ -4,6 +4,8 @@ add_library(visona_core STATIC
     include/visona/AnalysisPipeline.h
     include/visona/AudioInputWriter.h
     include/visona/AudioRingBuffer.h
+    include/visona/Band.h
+    include/visona/BandSplitter.h
     include/visona/BlockTiming.h
     include/visona/CacheLine.h
     include/visona/ClockTimeMapper.h
@@ -21,9 +23,11 @@ add_library(visona_core STATIC
     include/visona/TimeSignature.h
     include/visona/TripleBuffer.h
     include/visona/Version.h
+    include/visona/WaveformStyle.h
     src/AnalysisPipeline.cpp
     src/AudioInputWriter.cpp
     src/AudioRingBuffer.cpp
+    src/BandSplitter.cpp
     src/ClockTimeMapper.cpp
     src/ColumnReduction.cpp
     src/LaneMapping.cpp
@@ -32,7 +36,8 @@ add_library(visona_core STATIC
     src/SweepAnalyzer.cpp
     src/SweepBuffer.cpp
     src/SweepZoom.cpp
-    src/Version.cpp)
+    src/Version.cpp
+    src/WaveformStyle.cpp)
 add_library(visona::core ALIAS visona_core)
 
 target_include_directories(visona_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

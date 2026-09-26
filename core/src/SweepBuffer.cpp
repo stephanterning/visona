@@ -24,6 +24,8 @@ SweepBuffer::SweepBuffer(std::size_t numChannels, std::size_t numBins)
     : numChannels_(numChannels)
     , numBins_(numBins)
     , cells_(checkedCellCount(numChannels, numBins))
+    , starts_(cells_.size(), unknownStart)
+    , bands_(cells_.size())
     , passes_(numBins, 0)
 {
 }
@@ -34,9 +36,23 @@ std::span<const SweepCell> SweepBuffer::channel(std::size_t channel) const noexc
     return {cells_.data() + channel * numBins_, numBins_};
 }
 
+std::span<const float> SweepBuffer::starts(std::size_t channel) const noexcept
+{
+    assert(channel < numChannels_);
+    return {starts_.data() + channel * numBins_, numBins_};
+}
+
+std::span<const BandLevels> SweepBuffer::bands(std::size_t channel) const noexcept
+{
+    assert(channel < numChannels_);
+    return {bands_.data() + channel * numBins_, numBins_};
+}
+
 void SweepBuffer::clear() noexcept
 {
     std::fill(cells_.begin(), cells_.end(), SweepCell{});
+    std::fill(starts_.begin(), starts_.end(), unknownStart);
+    std::fill(bands_.begin(), bands_.end(), BandLevels{});
     std::fill(passes_.begin(), passes_.end(), std::uint64_t{0});
     pass_ = 0;
     head_ = 0;
@@ -98,6 +114,33 @@ void SweepBuffer::addToBin(std::size_t channel, std::size_t bin, const SweepCell
     cells_[channel * numBins_ + bin].merge(span);
 }
 
+void SweepBuffer::markHeadStart(std::size_t channel, float value) noexcept
+{
+    assert(pass_ > 0);
+    markBinStart(channel, head_, value);
+}
+
+void SweepBuffer::markBinStart(std::size_t channel, std::size_t bin, float value) noexcept
+{
+    assert(channel < numChannels_ && bin < numBins_);
+    auto& start = starts_[channel * numBins_ + bin];
+    if (start == unknownStart)
+        start = value;
+}
+
+void SweepBuffer::addBandsToHead(std::size_t channel, const BandLevels& levels) noexcept
+{
+    assert(pass_ > 0);
+    addBandsToBin(channel, head_, levels);
+}
+
+void SweepBuffer::addBandsToBin(std::size_t channel, std::size_t bin,
+                                const BandLevels& levels) noexcept
+{
+    assert(channel < numChannels_ && bin < numBins_);
+    bands_[channel * numBins_ + bin].merge(levels);
+}
+
 void SweepBuffer::copyFrom(const SweepBuffer& source) noexcept
 {
     assert(source.numChannels_ == numChannels_ && source.numBins_ == numBins_);
@@ -128,7 +171,12 @@ void SweepBuffer::resetBin(std::size_t bin, std::uint64_t pass) noexcept
 {
     passes_[bin] = pass;
     for (std::size_t channel = 0; channel < numChannels_; ++channel)
-        cells_[channel * numBins_ + bin] = SweepCell{};
+    {
+        const auto index = channel * numBins_ + bin;
+        cells_[index] = SweepCell{};
+        starts_[index] = unknownStart;
+        bands_[index] = BandLevels{};
+    }
 }
 
 void SweepBuffer::copyBins(const SweepBuffer& source, std::size_t first, std::size_t end) noexcept
@@ -139,6 +187,8 @@ void SweepBuffer::copyBins(const SweepBuffer& source, std::size_t first, std::si
     {
         const auto channelOffset = static_cast<std::ptrdiff_t>(channel * numBins_) + offset;
         std::copy_n(source.cells_.begin() + channelOffset, count, cells_.begin() + channelOffset);
+        std::copy_n(source.starts_.begin() + channelOffset, count, starts_.begin() + channelOffset);
+        std::copy_n(source.bands_.begin() + channelOffset, count, bands_.begin() + channelOffset);
     }
     std::copy_n(source.passes_.begin() + offset, count, passes_.begin() + offset);
 }

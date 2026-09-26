@@ -705,3 +705,97 @@ TEST_CASE("Starting a musical sweep clears the buffer", "[sweep]")
     analyzer.start(1'000);
     CHECK_FALSE(analyzer.isMusical());
 }
+
+TEST_CASE("Each bin starts with its first sample, or where the line crosses into it", "[sweep]")
+{
+    // Fewer bins than frames: 16 frames per bin, and a bin starts with its first frame.
+    {
+        const auto input = sine(440.0, 48'000.0, 0.8f, 4'096);
+        SweepAnalyzer analyzer(1, 256);
+        analyzer.start(4'096);
+        feed(analyzer, {input}, 100);
+        const auto starts = analyzer.buffer().starts(0);
+        for (std::size_t bin = 0; bin < 256; ++bin)
+        {
+            CAPTURE(bin);
+            CHECK_THAT(static_cast<double>(starts[bin]),
+                       WithinAbs(static_cast<double>(input[bin * 16]), 1.0e-6));
+        }
+    }
+
+    // More bins than frames: 4 bins per frame, and the bins between frames start on the line.
+    {
+        const auto input = sine(440.0, 48'000.0, 0.8f, 1'000);
+        SweepAnalyzer analyzer(1, 4'000);
+        analyzer.start(1'000);
+        feed(analyzer, {input}, 64);
+        const auto starts = analyzer.buffer().starts(0);
+        for (std::size_t bin = 0; bin + 4 < 4'000; ++bin)
+        {
+            CAPTURE(bin);
+            const auto frame = bin / 4;
+            const auto fraction = static_cast<float>(bin % 4) / 4.0f;
+            const auto expected = input[frame] + (input[frame + 1] - input[frame]) * fraction;
+            CHECK_THAT(static_cast<double>(starts[bin]),
+                       WithinAbs(static_cast<double>(expected), 1.0e-6));
+        }
+    }
+}
+
+TEST_CASE("Band levels show which band a tone is in, only while band splitting is on", "[sweep]")
+{
+    constexpr double rate = 48'000.0;
+    constexpr std::uint64_t window = 48'000;
+    const auto levelsOf = [&](double frequency, bool splitting)
+    {
+        SweepAnalyzer analyzer(1, 480);
+        analyzer.setBandSplitting(splitting, rate);
+        analyzer.start(window);
+        feed(analyzer, {sine(frequency, rate, 0.5f, window)}, 512);
+        // The second half, after the filters have settled.
+        visona::BandLevels peak;
+        const auto bands = analyzer.buffer().bands(0);
+        for (std::size_t bin = 240; bin < 480; ++bin)
+            peak.merge(bands[bin]);
+        return peak;
+    };
+
+    const auto low = levelsOf(50.0, true);
+    CHECK(low.low > 0.45f);
+    CHECK(low.mid < 0.2f * low.low);
+    CHECK(low.high < 0.01f);
+
+    const auto mid = levelsOf(1'000.0, true);
+    CHECK(mid.mid > 0.45f);
+    CHECK(mid.low < 0.2f * mid.mid);
+    CHECK(mid.high < 0.2f * mid.mid);
+
+    const auto high = levelsOf(8'000.0, true);
+    CHECK(high.high > 0.45f);
+    CHECK(high.mid < 0.2f * high.high);
+    CHECK(high.low < 0.01f);
+
+    CHECK(levelsOf(1'000.0, false).isEmpty());
+
+    SweepAnalyzer analyzer(1);
+    CHECK(analyzer.bandDelayFrames() == std::array<double, 3>{});
+    analyzer.setBandSplitting(true, rate);
+    const auto delays = analyzer.bandDelayFrames();
+    CHECK_THAT(delays[0] / rate * 1'000.0, WithinAbs(2.63, 0.01));
+    CHECK(delays[1] < delays[0]);
+    CHECK(delays[2] < delays[1]);
+}
+
+TEST_CASE("Band splitting does not change the waveform's shape", "[sweep]")
+{
+    const auto input = sine(300.0, 48'000.0, 0.7f, 24'000);
+    SweepAnalyzer plain(1, 1'024);
+    SweepAnalyzer split(1, 1'024);
+    split.setBandSplitting(true, 48'000.0);
+    plain.start(24'000);
+    split.start(24'000);
+    feed(plain, {input}, 333);
+    feed(split, {input}, 333);
+    CHECK(std::ranges::equal(plain.buffer().channel(0), split.buffer().channel(0)));
+    CHECK(std::ranges::equal(plain.buffer().starts(0), split.buffer().starts(0)));
+}

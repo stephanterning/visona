@@ -52,6 +52,7 @@ void AnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) noexc
     sampleRate_ = ring_ != nullptr ? sampleRate : 0.0;
     nextSampleIndex_ = 0;
     analyzer_.start(ring_ != nullptr ? freeRunningWindowFrames(sampleRate) : 0);
+    analyzer_.setBandSplitting(false, 0.0);
     mapper_.reset(sampleRate_);
     transport_.reset(sampleRate_);
     mappedAnyBlock_ = false;
@@ -70,6 +71,11 @@ void AnalysisPipeline::setWindow(std::size_t windowIndex) noexcept
                            std::memory_order_relaxed);
 }
 
+void AnalysisPipeline::setBandSplitting(bool enabled) noexcept
+{
+    bandSplitting_.store(enabled, std::memory_order_relaxed);
+}
+
 void AnalysisPipeline::setMidiOffset(double frames) noexcept
 {
     midiOffset_.store(frames, std::memory_order_relaxed);
@@ -82,6 +88,13 @@ std::size_t AnalysisPipeline::poll() noexcept
         window_ = window;
         if (analyzer_.isMusical())
             analyzer_.startMusical(windowTicks());
+        changed_ = true;
+    }
+
+    if (const auto splitting = bandSplitting_.load(std::memory_order_relaxed) && ring_ != nullptr;
+        splitting != analyzer_.splitsBands())
+    {
+        analyzer_.setBandSplitting(splitting, sampleRate_);
         changed_ = true;
     }
 
@@ -232,6 +245,7 @@ void AnalysisPipeline::publish() noexcept
     snapshot.window = window_;
     snapshot.windowTicks = analyzer_.isMusical() ? analyzer_.windowTicks() : windowTicks();
     snapshot.windowStartTick = analyzer_.windowStartTick();
+    snapshot.bandDelayFrames = analyzer_.bandDelayFrames();
     snapshot.midiEvents = midiEvents_;
     snapshot.ignoredSpp = transport_.ignoredSppCount();
     snapshots_.publish();

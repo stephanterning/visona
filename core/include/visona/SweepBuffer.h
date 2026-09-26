@@ -35,9 +35,38 @@ struct SweepCell
 };
 
 /**
+    The peak level of each split band in one bin, what DJ colouring is mixed from (D-092). All 0
+    where the bands were not analyzed, since band splitting only runs while DJ colouring is shown.
+*/
+struct BandLevels
+{
+    float low = 0.0f;
+    float mid = 0.0f;
+    float high = 0.0f;
+
+    [[nodiscard]] bool isEmpty() const noexcept
+    {
+        return !(low > 0.0f || mid > 0.0f || high > 0.0f);
+    }
+
+    /** Raises each level to `other`'s where that is higher. */
+    void merge(const BandLevels& other) noexcept
+    {
+        low = std::max(low, other.low);
+        mid = std::max(mid, other.mid);
+        high = std::max(high, other.high);
+    }
+
+    friend bool operator==(const BandLevels&, const BandLevels&) = default;
+};
+
+/**
     The data behind the sweep display: for every channel, a fixed number of bins across the window,
     each holding the full-band signed min/max of its samples (D-050, D-054). The renderer reduces
     bins to pixel columns, so the number of bins never depends on the screen.
+
+    Each bin also holds the signal's value where the bin starts, for drawing the waveform as a line
+    (D-091), and the peak level of each split band, for DJ colouring (D-092).
 
     Every bin is stamped with the pass that last wrote it. Passes are numbered from 1; pass 0 marks
    a bin that has not been written since the buffer was cleared. The write head is the bin written
@@ -72,6 +101,17 @@ public:
 
     /** The cells of one channel, numBins() long. */
     [[nodiscard]] std::span<const SweepCell> channel(std::size_t channel) const noexcept;
+
+    /** A start that is not known: the bin is empty. */
+    static constexpr float unknownStart = std::numeric_limits<float>::infinity();
+
+    /** Where the signal of one channel enters each bin, numBins() long: the first sample in it,
+        or where the line from the sample before crosses into it (D-084). unknownStart where no
+        sample has reached the bin. */
+    [[nodiscard]] std::span<const float> starts(std::size_t channel) const noexcept;
+
+    /** The band levels of one channel, numBins() long. */
+    [[nodiscard]] std::span<const BandLevels> bands(std::size_t channel) const noexcept;
 
     /** The pass that last wrote each bin, numBins() long. */
     [[nodiscard]] std::span<const std::uint64_t> passes() const noexcept
@@ -121,6 +161,20 @@ public:
         entered, so that copies stay correct. */
     void addToBin(std::size_t channel, std::size_t bin, const SweepCell& span) noexcept;
 
+    /** Records where the signal of `channel` enters the head bin, unless that is known already. */
+    void markHeadStart(std::size_t channel, float value) noexcept;
+
+    /** Records where the signal of `channel` enters bin `bin`, which must be one the head has just
+        entered, unless that is known already. */
+    void markBinStart(std::size_t channel, std::size_t bin, float value) noexcept;
+
+    /** Raises the band levels of `channel` in the head bin to `levels`. */
+    void addBandsToHead(std::size_t channel, const BandLevels& levels) noexcept;
+
+    /** Raises the band levels of `channel` in bin `bin`, which must be one the head has just
+        entered, to `levels`. */
+    void addBandsToBin(std::size_t channel, std::size_t bin, const BandLevels& levels) noexcept;
+
     /**
         Makes this buffer a copy of `source`, which must have the same number of channels and bins.
 
@@ -141,6 +195,8 @@ private:
 
     // Channel-major: channel c occupies [c * numBins_, (c + 1) * numBins_).
     std::vector<SweepCell> cells_;
+    std::vector<float> starts_;
+    std::vector<BandLevels> bands_;
     std::vector<std::uint64_t> passes_;
 
     std::uint64_t pass_ = 0;

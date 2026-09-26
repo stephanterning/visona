@@ -1,8 +1,10 @@
 #pragma once
 
+#include <visona/BandSplitter.h>
 #include <visona/MidiClockTransport.h>
 #include <visona/SweepBuffer.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -43,6 +45,10 @@ inline constexpr double freeRunningWindowSeconds = 2.0;
     frames, so a gap shows as a gap and not as the previous pass (D-067); no line is drawn across
     a gap, a freeze or a relocation. A free-running jump backwards clears the buffer.
 
+    Each bin also gets the signal's value where it starts, and, while band splitting is on, the
+    peak level of each band from a BandSplitter per channel (D-091, D-092). The splitters only run
+    while it is on, which is only while DJ colouring is shown.
+
     All storage is allocated in the constructor; nothing else allocates.
 */
 class SweepAnalyzer
@@ -77,6 +83,19 @@ public:
     /** Notes frames that are not written, while the transport is frozen. The next musical frames
         may be a relocation. */
     void freeze() noexcept;
+
+    /** Turns band splitting on, for audio at `sampleRate`, or off. Turning it on starts the
+        splitters from silence; bins written while it is off have no band levels. */
+    void setBandSplitting(bool enabled, double sampleRate) noexcept;
+
+    [[nodiscard]] bool splitsBands() const noexcept
+    {
+        return splitsBands_;
+    }
+
+    /** How many frames each band lags the full band, low, mid and high, while band splitting is
+        on; 0 otherwise. */
+    [[nodiscard]] std::array<double, 3> bandDelayFrames() const noexcept;
 
     [[nodiscard]] bool isMusical() const noexcept
     {
@@ -120,6 +139,10 @@ private:
     void rememberFrame(std::span<const float* const> channels, std::size_t offset,
                        std::uint64_t frame, double position) noexcept;
 
+    /** Adds `run` frames from channels[·][offset] on to the head bin. */
+    void addRun(std::span<const float* const> channels, std::size_t offset,
+                std::size_t run) noexcept;
+
     SweepBuffer buffer_;
     std::uint64_t windowFrames_ = 0;
     std::uint64_t nextSampleIndex_ = 0;
@@ -130,6 +153,11 @@ private:
     std::uint64_t lastFrame_ = 0;
     double lastPosition_ = 0.0;
     std::vector<float> lastSamples_;
+
+    // Band splitting, with one splitter per channel and the band levels of the last frame split.
+    bool splitsBands_ = false;
+    std::vector<BandSplitter> splitters_;
+    std::vector<BandLevels> lastBands_;
 
     // Musical mode, while windowTicks_ is positive.
     double windowTicks_ = 0.0;

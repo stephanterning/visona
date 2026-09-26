@@ -184,6 +184,44 @@ TEST_CASE("AnalysisPipeline starts a new, cleared sweep for every stream", "[ana
     CHECK(snapshots.readBuffer().windowFrames == 0);
 }
 
+TEST_CASE("AnalysisPipeline splits bands only while asked to", "[analysis]")
+{
+    constexpr double sampleRate = 48'000.0;
+    AudioRingBuffer ring(2, 48'000, 1'024);
+    AudioInputWriter writer(ring);
+    writer.route(0, 0);
+    writer.route(1, 1);
+    AnalysisPipeline pipeline(2, 1'024);
+    pipeline.setStream(&ring, sampleRate);
+    auto& snapshots = pipeline.snapshots();
+
+    pushAll(writer, stereoTestSignal(sampleRate, 4'800), 480);
+    pipeline.poll();
+    REQUIRE(snapshots.fetch());
+    CHECK(snapshots.readBuffer().bandDelayFrames == std::array<double, 3>{});
+    const auto head = snapshots.readBuffer().sweep.head();
+    CHECK(snapshots.readBuffer().sweep.bands(0)[head].isEmpty());
+
+    pipeline.setBandSplitting(true);
+    pushAll(writer, stereoTestSignal(sampleRate, 4'800), 480);
+    pipeline.poll();
+    REQUIRE(snapshots.fetch());
+    const auto& snapshot = snapshots.readBuffer();
+    CHECK(snapshot.bandDelayFrames[0] > 100.0);
+    // 220 Hz on the left is mostly mid, 3 kHz on the right mostly high.
+    const auto left = snapshot.sweep.bands(0)[snapshot.sweep.head()];
+    const auto right = snapshot.sweep.bands(1)[snapshot.sweep.head()];
+    CHECK(left.mid > left.high);
+    CHECK(right.high > right.low);
+
+    pipeline.setBandSplitting(false);
+    pushAll(writer, stereoTestSignal(sampleRate, 4'800), 480);
+    pipeline.poll();
+    REQUIRE(snapshots.fetch());
+    CHECK(snapshots.readBuffer().bandDelayFrames == std::array<double, 3>{});
+    CHECK(snapshots.readBuffer().sweep.bands(0)[snapshots.readBuffer().sweep.head()].isEmpty());
+}
+
 TEST_CASE("AnalysisPipeline does not allocate while it runs", "[analysis][realtime]")
 {
     AudioRingBuffer ring(2, 96'000, 1'024);
