@@ -16,6 +16,10 @@ namespace visona
     each source channel. Any input channel can feed any source channel. In small windows it also
     holds the view controls that no longer fit in the control bar. The panel is opaque, so it never
     makes the view behind it repaint.
+
+    A temporary debug section (D-076) sets the free-running window, whether the band colouring
+    makes up for the bands' group delay, and a debug grid. PR 7 replaces it with the WINDOW control
+    and the real grid.
 */
 class SettingsPanel final : public juce::Component, private juce::ChangeListener
 {
@@ -37,6 +41,21 @@ public:
     void setViewControlsVisible(bool visible);
     void setViewToggles(bool diagnostics, bool fullScreen);
 
+    /** The debug settings (D-076), each as an index into its choices. */
+    struct DebugValues
+    {
+        int window = 0;
+        bool compensateBandDelay = true;
+        int grid = 0;
+    };
+
+    /** The window lengths offered, in seconds, shortest first. */
+    [[nodiscard]] static const std::vector<double>& debugWindows();
+
+    /** Called when the user changes a debug setting. */
+    std::function<void(const DebugValues&)> onDebugChange;
+    void setDebugValues(const DebugValues& values);
+
     /** The height that fits every row. */
     [[nodiscard]] int preferredHeight() const;
 
@@ -57,6 +76,7 @@ private:
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
 
     void addRow(Row& row, const juce::String& labelText);
+    void notifyDebugChange();
     void showResult(const juce::String& error);
     void notifyPreferredHeight();
 
@@ -78,6 +98,10 @@ private:
     juce::Label viewLabel_;
     juce::TextButton diagnosticsButton_;
     juce::TextButton fullScreenButton_;
+    juce::Label debugHeading_;
+    Row windowRow_;
+    Row bandDelayRow_;
+    Row gridRow_;
     juce::Label errorLabel_;
 
     juce::StringArray deviceTypes_;

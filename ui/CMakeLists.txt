@@ -19,6 +19,8 @@ target_sources(Visona PRIVATE
     Palette.h
     ScopeView.cpp
     ScopeView.h
+    SegmentedControl.cpp
+    SegmentedControl.h
     SettingsPanel.cpp
     SettingsPanel.h
     StatusBar.cpp

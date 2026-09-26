@@ -28,6 +28,7 @@ constexpr double frameTolerance = 0.001;
 // In logical pixels.
 constexpr float headLineWidth = 1.5f;
 constexpr float eraseGapWidth = 6.0f;
+constexpr float gridLineWidthLogical = 1.0f;
 constexpr float clipMarkerHeight = 3.0f;
 constexpr float labelMargin = 6.0f;
 constexpr float labelFontHeight = 11.0f;
@@ -75,6 +76,31 @@ private:
     int originX_;
 };
 
+float srgbToLinear(float value)
+{
+    return value <= 0.04045f ? value / 12.92f : std::pow((value + 0.055f) / 1.055f, 2.4f);
+}
+
+float linearToSrgb(float value)
+{
+    return value <= 0.0031308f ? value * 12.92f : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
+}
+
+/** A colour in linear light, for mixing. */
+struct LinearColour
+{
+    float red = 0.0f;
+    float green = 0.0f;
+    float blue = 0.0f;
+
+    explicit LinearColour(juce::Colour colour)
+        : red(srgbToLinear(colour.getFloatRed()))
+        , green(srgbToLinear(colour.getFloatGreen()))
+        , blue(srgbToLinear(colour.getFloatBlue()))
+    {
+    }
+};
+
 struct Colours
 {
     juce::PixelARGB laneBackground = palette::laneBackground.getPixelARGB();
@@ -84,12 +110,61 @@ struct Colours
     juce::PixelARGB waveform = palette::waveform.getPixelARGB();
     juce::PixelARGB clipMarker = palette::clipMarker.getPixelARGB();
     juce::PixelARGB head = palette::head.getPixelARGB();
+    juce::PixelARGB gridBar = palette::gridBar.getPixelARGB();
+    juce::PixelARGB gridBeat = palette::gridBeat.getPixelARGB();
+    juce::PixelARGB gridSixteenth = palette::gridSixteenth.getPixelARGB();
+    std::array<juce::PixelARGB, splitBands.size()> bands{palette::bandLow.getPixelARGB(),
+                                                         palette::bandMid.getPixelARGB(),
+                                                         palette::bandHigh.getPixelARGB()};
+    std::array<LinearColour, splitBands.size()> linearBands{LinearColour(palette::bandLow),
+                                                            LinearColour(palette::bandMid),
+                                                            LinearColour(palette::bandHigh)};
 };
 
 const Colours& colours()
 {
     static const Colours instance;
     return instance;
+}
+
+/** The band colours mixed in linear light by `weights`, which sum to 1. */
+juce::PixelARGB blendColour(const std::array<float, splitBands.size()>& weights)
+{
+    const auto& bands = colours().linearBands;
+    float red = 0.0f;
+    float green = 0.0f;
+    float blue = 0.0f;
+    for (std::size_t band = 0; band < bands.size(); ++band)
+    {
+        red += weights[band] * bands[band].red;
+        green += weights[band] * bands[band].green;
+        blue += weights[band] * bands[band].blue;
+    }
+    const auto toByte = [](float linear)
+    {
+        return static_cast<juce::uint8>(
+            juce::jlimit(0, 255, juce::roundToInt(255.0f * linearToSrgb(linear))));
+    };
+    return juce::PixelARGB(255, toByte(red), toByte(green), toByte(blue));
+}
+
+juce::PixelARGB inkColour(Ink ink, const ColumnPaint& paint)
+{
+    const auto& colour = colours();
+    switch (ink)
+    {
+    case Ink::low:
+        return colour.bands[splitIndex(Band::low)];
+    case Ink::mid:
+        return colour.bands[splitIndex(Band::mid)];
+    case Ink::high:
+        return colour.bands[splitIndex(Band::high)];
+    case Ink::blend:
+        return blendColour(paint.blend);
+    case Ink::neutral:
+        break;
+    }
+    return colour.waveform;
 }
 
 int toPhysical(float logical, float scale)
@@ -121,6 +196,36 @@ void ScopeView::setGainDb(int gainDb)
     if (gainDb == gainDb_)
         return;
     gainDb_ = gainDb;
+    redrawAll();
+}
+
+void ScopeView::setColoring(WaveformColoring coloring)
+{
+    if (coloring == coloring_)
+        return;
+    coloring_ = coloring;
+    redrawAll();
+}
+
+void ScopeView::setBandDelayCompensation(bool compensate)
+{
+    if (compensate == compensateBandDelay_)
+        return;
+    compensateBandDelay_ = compensate;
+    redrawAll();
+}
+
+void ScopeView::setDebugGrid(DebugGrid grid)
+{
+    if (grid == grid_)
+        return;
+    grid_ = grid;
+    layoutGrid();
+    redrawAll();
+}
+
+void ScopeView::redrawAll()
+{
     needsFullRender_ = true;
     repaint();
 }
@@ -153,8 +258,7 @@ void ScopeView::paint(juce::Graphics& g)
 
 void ScopeView::resized()
 {
-    needsFullRender_ = true;
-    repaint();
+    redrawAll();
 }
 
 void ScopeView::onVBlank(double timestampSeconds)
@@ -235,13 +339,32 @@ bool ScopeView::ensureTiles(float scale)
     for (int x = 0; x < width_; x += tileWidth)
         tiles_.emplace_back(juce::Image::ARGB, std::min(tileWidth, width_ - x), height_, false);
     spans_.assign(static_cast<std::size_t>(tileWidth), {});
+    levels_.assign(static_cast<std::size_t>(tileWidth), {});
     lanes_.clear();
 
     headWidth_ = toPhysical(headLineWidth, scale_);
     gapWidth_ = toPhysical(eraseGapWidth, scale_);
     markerHeight_ = toPhysical(clipMarkerHeight, scale_);
+    gridLineWidth_ = toPhysical(gridLineWidthLogical, scale_);
+    layoutGrid();
     needsFullRender_ = true;
     return true;
+}
+
+void ScopeView::layoutGrid()
+{
+    gridLines_.clear();
+    if (grid_ == DebugGrid::off || width_ <= 0)
+        return;
+    const auto& colour = colours();
+    for (int sixteenth = 0; sixteenth < 16; ++sixteenth)
+    {
+        const auto column = std::min(width_ * sixteenth / 16, width_ - gridLineWidth_);
+        const auto lineColour = sixteenth == 0       ? colour.gridBar
+                                : sixteenth % 4 == 0 ? colour.gridBeat
+                                                     : colour.gridSixteenth;
+        gridLines_.push_back({std::max(column, 0), lineColour});
+    }
 }
 
 void ScopeView::layoutLanes(std::size_t numLanes)
@@ -267,25 +390,40 @@ juce::Rectangle<int> ScopeView::renderChanges()
     if (sameSweep && sweep.pass() == 0)
         return {};
 
-    // Within a window, the head only changes the columns it passes. Both passes look the same,
-    // so the start of a new pass changes only the columns across the end of the window.
+    // Within a window, the head only changes the columns it passes, and the band levels of the
+    // columns up to settlingBins() behind where it was. Both passes look the same, so the start of
+    // a new pass changes only the columns across the end of the window.
     const bool samePass = sweep.pass() == renderedPass_ && sweep.head() >= renderedHead_;
     const bool nextPass = sweep.pass() == renderedPass_ + 1 && sweep.head() < renderedHead_;
-    if (!sameSweep || renderedPass_ == 0 || !(samePass || nextPass))
+    const auto settling = settlingBins(snapshot);
+    // Settling columns before the start of the window lie at its end, in the previous pass.
+    const bool settlingWraps = settling > renderedHead_;
+    if (!sameSweep || renderedPass_ == 0 || !(samePass || nextPass) ||
+        settling >= sweep.numBins() || (settlingWraps && nextPass))
     {
         renderAll();
         return getLocalBounds();
     }
 
-    // The columns from where the head was to the end of the erase gap after where it is now.
+    // The columns from where the head was, less the settling ones, to the end of the erase gap
+    // after where it is now.
+    const auto settledBin = settlingWraps ? 0 : renderedHead_ - settling;
     const auto first =
-        std::min(static_cast<int>(mapping_.firstColumn(renderedHead_)), renderedHeadStart_);
+        std::min(static_cast<int>(mapping_.firstColumn(settledBin)), renderedHeadStart_);
     const auto [headStart, gapEnd] = headColumns(sweep);
     const auto last = std::max(gapEnd, static_cast<int>(mapping_.lastColumn(sweep.head())));
+    const auto previousHead = renderedHead_;
     renderedPass_ = sweep.pass();
     renderedHead_ = sweep.head();
     renderedHeadStart_ = headStart;
 
+    if (settlingWraps)
+    {
+        const auto tail =
+            static_cast<int>(mapping_.firstColumn(sweep.numBins() - (settling - previousHead)));
+        renderColumns(tail, width_ - 1);
+        repaint(logicalColumns(tail, width_ - 1));
+    }
     if (samePass)
     {
         renderColumns(first, last);
@@ -295,6 +433,21 @@ juce::Rectangle<int> ScopeView::renderChanges()
     renderColumns(0, last);
     repaint(logicalColumns(first, width_ - 1));
     return logicalColumns(0, last);
+}
+
+bool ScopeView::readsBands(const SweepSnapshot& snapshot) const noexcept
+{
+    return coloring_ != WaveformColoring::precise && snapshot.hasStream &&
+           snapshot.sampleRate > 0.0 && snapshot.windowFrames > 0;
+}
+
+std::size_t ScopeView::settlingBins(const SweepSnapshot& snapshot) const noexcept
+{
+    if (!readsBands(snapshot))
+        return 0;
+    const auto reading =
+        bandReadingFor(snapshot.sampleRate, snapshot.bandDelayFrames, compensateBandDelay_);
+    return bandReachBins(reading, snapshot.sweep.numBins(), snapshot.windowFrames);
 }
 
 void ScopeView::renderAll()
@@ -340,13 +493,29 @@ void ScopeView::renderColumns(int first, int last)
 
 void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, int first, int last)
 {
-    const auto& sweep = snapshots_.readBuffer().sweep;
+    const auto& snapshot = snapshots_.readBuffer();
+    const auto& sweep = snapshot.sweep;
     const auto& colour = colours();
     const TileCanvas canvas(pixels, tileStart);
     const auto gain = DisplayGain::toLinear(gainDb_);
     const auto [headStart, gapEnd] = headColumns(sweep);
     const auto count = static_cast<std::size_t>(last - first + 1);
     const std::span spans(spans_.data(), count);
+    const std::span levels(levels_.data(), count);
+    const bool bands = readsBands(snapshot);
+    const auto reading =
+        bandReadingFor(snapshot.sampleRate, snapshot.bandDelayFrames, compensateBandDelay_);
+
+    const auto drawGrid = [&](int top, int bottom)
+    {
+        for (const auto& line : gridLines_)
+        {
+            const auto lineFirst = std::max(line.column, first);
+            const auto lineLast = std::min(line.column + gridLineWidth_ - 1, last);
+            if (lineFirst <= lineLast)
+                canvas.fill(lineFirst, lineLast, top, bottom, line.colour);
+        }
+    };
 
     for (std::size_t index = 0; index < lanes_.size(); ++index)
     {
@@ -367,13 +536,22 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
         }
         const auto centre = mapping.rowOf(0.0f);
         canvas.fill(first, last, centre, centre, colour.centreLine);
+        if (grid_ == DebugGrid::behind)
+            drawGrid(lane.top, laneBottom);
 
         if (index >= sweep.numChannels() || sweep.numBins() == 0)
             continue;
         reduceColumns(sweep, index, mapping_, static_cast<std::size_t>(first), spans);
+        if (bands)
+            reduceBandLevels(sweep, index, mapping_, snapshot.windowFrames, reading,
+                             static_cast<std::size_t>(first), levels);
+        else
+            std::fill(levels.begin(), levels.end(), BandLevels{-1.0f, -1.0f, -1.0f});
+
         for (int column = first; column <= last; ++column)
         {
-            const auto& span = spans[static_cast<std::size_t>(column - first)];
+            const auto offset = static_cast<std::size_t>(column - first);
+            const auto& span = spans[offset];
             if (span.pass == ColumnSpan::Pass::none || (column >= headStart && column <= gapEnd))
                 continue;
 
@@ -393,9 +571,17 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
                 canvas.fill(column, column, laneBottom - markerHeight_ + 1, laneBottom, marker);
                 bottom = std::min(bottom, laneBottom - markerHeight_ - markerGap);
             }
-            if (top <= bottom)
-                canvas.fill(column, column, top, bottom, colour.waveform);
+
+            // Every colouring fills exactly [top, bottom]: the shape never depends on it (D-056).
+            const auto paint = paintColumn(coloring_, top, bottom, levels[offset], mapping);
+            for (std::size_t run = 0; run < paint.count; ++run)
+            {
+                const auto& fill = paint.runs[run];
+                canvas.fill(column, column, fill.top, fill.bottom, inkColour(fill.ink, paint));
+            }
         }
+        if (grid_ == DebugGrid::over)
+            drawGrid(lane.top, laneBottom);
     }
 
     for (std::size_t index = 0; index + 1 < lanes_.size(); ++index)

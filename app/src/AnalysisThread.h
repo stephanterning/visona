@@ -38,6 +38,12 @@ public:
     */
     void setStream(AudioRingBuffer* ring, double sampleRate);
 
+    /** Any thread. The length of the free-running window (AnalysisPipeline::setWindowSeconds()). */
+    void setWindowSeconds(double seconds) noexcept
+    {
+        pipeline_.setWindowSeconds(seconds);
+    }
+
     /** The UI thread's end of the snapshots. Only one thread may fetch from it. */
     [[nodiscard]] TripleBuffer<SweepSnapshot>& snapshots() noexcept
     {

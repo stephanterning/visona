@@ -1,5 +1,7 @@
 #pragma once
 
+#include <visona/WaveformColoring.h>
+
 #include <juce_data_structures/juce_data_structures.h>
 
 #include <cstddef>
@@ -32,6 +34,10 @@ public:
     */
     [[nodiscard]] std::vector<int> inputChannels(std::size_t count) const;
     void setInputChannels(std::span<const int> channels);
+
+    /** How the waveform is coloured; bands inside the outline unless chosen otherwise. */
+    [[nodiscard]] WaveformColoring waveformColoring() const;
+    void setWaveformColoring(WaveformColoring coloring);
 
     [[nodiscard]] juce::File file() const;
 

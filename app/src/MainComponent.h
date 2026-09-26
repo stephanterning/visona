@@ -17,6 +17,7 @@ namespace visona
 {
 
 class AudioEngine;
+class Settings;
 
 /**
     Root content component of the main window: the status bar at the top, the scope in the middle
@@ -24,14 +25,18 @@ class AudioEngine;
     panel over the scope (architecture.md 3.6).
 
     Shortcuts: + and - (or the up and down arrows) change the gain, F toggles full screen, D the
-    diagnostics overlay, Cmd+, the settings panel, and Esc closes the settings panel.
+    diagnostics overlay, Cmd+, the settings panel, and Esc closes the settings panel. M toggles
+    mono/precise, and C switches between the two colouring methods.
+
+    Temporary debug shortcuts (D-076): [ and ] (or , and .) step the free-running window, B
+    toggles the band delay compensation, and G cycles the debug grid.
 */
 class MainComponent final : public juce::Component,
                             private juce::ChangeListener,
                             private juce::Timer
 {
 public:
-    explicit MainComponent(AudioEngine& engine);
+    MainComponent(AudioEngine& engine, Settings& settings);
     ~MainComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -43,6 +48,8 @@ private:
     void timerCallback() override;
 
     void setGainDb(int gainDb);
+    void setColoring(WaveformColoring coloring);
+    void setDebugValues(const SettingsPanel::DebugValues& values);
     void showSettings(bool shouldShow);
     void showDiagnostics(bool shouldShow);
     void toggleFullScreen();
@@ -53,6 +60,7 @@ private:
     void updateDiagnostics();
 
     AudioEngine& engine_;
+    Settings& settings_;
     juce::LookAndFeel_V4 lookAndFeel_;
 
     StatusBar statusBar_;
@@ -64,6 +72,10 @@ private:
     juce::TooltipWindow tooltips_{this};
 
     int gainDb_ = 0;
+    WaveformColoring coloring_ = WaveformColoring::layered;
+    // The method M returns to from mono/precise.
+    WaveformColoring colouredMethod_ = WaveformColoring::layered;
+    SettingsPanel::DebugValues debug_;
 
     // Cached on device changes, because reading them from the device queries the driver.
     juce::String deviceName_;

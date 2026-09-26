@@ -5,7 +5,21 @@
 namespace visona
 {
 
+namespace
+{
+
+// In the order of WaveformColoring.
+std::vector<SegmentedControl::Segment> coloringSegments()
+{
+    return {{"Precise", "Mono/precise: the full band in one neutral colour (M)"},
+            {"Blend", "One colour per column, blended from the bands (C)"},
+            {"Bands", "The bands drawn inside the full-band outline (C)"}};
+}
+
+} // namespace
+
 ControlBar::ControlBar()
+    : coloring_("COLOR", coloringSegments())
 {
     setOpaque(true);
 
@@ -13,6 +27,11 @@ ControlBar::ControlBar()
     fullScreen_.setTooltip("Full screen (F)");
     settings_.setTooltip("Settings (Cmd+,)");
 
+    coloring_.onSelect = [this](int index)
+    {
+        if (onColoring)
+            onColoring(static_cast<WaveformColoring>(index));
+    };
     diagnostics_.onClick = [this]
     {
         if (onDiagnostics)
@@ -30,10 +49,16 @@ ControlBar::ControlBar()
     };
 
     addAndMakeVisible(gain_);
+    addAndMakeVisible(coloring_);
     addAndMakeVisible(diagnostics_);
     addAndMakeVisible(fullScreen_);
     addAndMakeVisible(settings_);
     setStep(ChromeStep::wide);
+}
+
+void ControlBar::setColoring(WaveformColoring coloring)
+{
+    coloring_.setSelected(static_cast<int>(coloring));
 }
 
 void ControlBar::setToggles(bool diagnostics, bool fullScreen, bool settings)
@@ -51,6 +76,8 @@ void ControlBar::setStep(ChromeStep step)
 
     gain_.setShowsLabel(step != ChromeStep::compact);
     gain_.setFontHeight(metrics.fontHeight);
+    coloring_.setShowsLabel(wide);
+    coloring_.setFontHeight(metrics.fontHeight);
     for (auto* button : {&diagnostics_, &fullScreen_, &settings_})
     {
         button->setShowsLabel(wide);
@@ -91,7 +118,11 @@ void ControlBar::resized()
         rightRow = area.removeFromTop(height);
     }
 
-    gain_.setBounds(leftRow.removeFromLeft(std::min(leftWidth(), leftRow.getWidth())));
+    gain_.setBounds(
+        leftRow.removeFromLeft(std::min(gain_.preferredWidth(height), leftRow.getWidth())));
+    leftRow.removeFromLeft(metrics.gap * 2);
+    coloring_.setBounds(leftRow.removeFromLeft(
+        std::min(coloring_.preferredWidth(height), std::max(leftRow.getWidth(), 0))));
 
     for (auto* button : {&settings_, &fullScreen_, &diagnostics_})
     {
@@ -104,7 +135,9 @@ void ControlBar::resized()
 
 int ControlBar::leftWidth() const
 {
-    return gain_.preferredWidth(ChromeMetrics::forStep(step_).controlHeight);
+    const auto metrics = ChromeMetrics::forStep(step_);
+    return gain_.preferredWidth(metrics.controlHeight) + metrics.gap * 2 +
+           coloring_.preferredWidth(metrics.controlHeight);
 }
 
 int ControlBar::rightWidth() const

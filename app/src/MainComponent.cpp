@@ -3,6 +3,7 @@
 #include "AudioEngine.h"
 #include "ProcessCpu.h"
 #include "RealtimeAllocationCheck.h"
+#include "Settings.h"
 #include "ui/ChannelNames.h"
 #include "ui/ChromeLayout.h"
 #include "ui/GainControl.h"
@@ -39,10 +40,25 @@ juce::String formatSampleRate(double sampleRate)
     return juce::String(kilohertz, whole ? 0 : 1) + " kHz";
 }
 
+juce::String formatSeconds(double seconds)
+{
+    return (seconds >= 1.0 ? juce::String(juce::roundToInt(seconds))
+                           : juce::String(seconds, 3).trimCharactersAtEnd("0")) +
+           " s";
+}
+
+int defaultWindowIndex()
+{
+    const auto& windows = SettingsPanel::debugWindows();
+    const auto found = std::find(windows.begin(), windows.end(), freeRunningWindowSeconds);
+    return static_cast<int>(std::distance(windows.begin(), found));
+}
+
 } // namespace
 
-MainComponent::MainComponent(AudioEngine& engine)
+MainComponent::MainComponent(AudioEngine& engine, Settings& settings)
     : engine_(engine)
+    , settings_(settings)
     , scope_(engine.snapshots(), engine.layout())
     , settingsPanel_(engine)
     , peaks_(engine.layout().totalChannelCount(), 0.0f)
@@ -63,6 +79,7 @@ MainComponent::MainComponent(AudioEngine& engine)
     addChildComponent(settingsPanel_);
 
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
+    controlBar_.onColoring = [this](WaveformColoring coloring) { setColoring(coloring); };
     controlBar_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
     controlBar_.onFullScreen = [this] { toggleFullScreen(); };
     controlBar_.onSettings = [this] { showSettings(!settingsPanel_.isVisible()); };
@@ -71,6 +88,16 @@ MainComponent::MainComponent(AudioEngine& engine)
     settingsPanel_.onPreferredHeightChanged = [this] { resized(); };
     settingsPanel_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
     settingsPanel_.onFullScreen = [this] { toggleFullScreen(); };
+    settingsPanel_.onDebugChange = [this](const SettingsPanel::DebugValues& values)
+    { setDebugValues(values); };
+
+    coloring_ = settings_.waveformColoring();
+    colouredMethod_ =
+        coloring_ == WaveformColoring::precise ? WaveformColoring::layered : coloring_;
+    scope_.setColoring(coloring_);
+    controlBar_.setColoring(coloring_);
+    debug_.window = defaultWindowIndex();
+    settingsPanel_.setDebugValues(debug_);
 
     setWantsKeyboardFocus(true);
     setSize(1280, 720);
@@ -163,7 +190,34 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         showDiagnostics(!diagnostics_.isVisible());
         return true;
     }
-    return false;
+    if (character == 'm')
+    {
+        setColoring(coloring_ == WaveformColoring::precise ? colouredMethod_
+                                                           : WaveformColoring::precise);
+        return true;
+    }
+    if (character == 'c')
+    {
+        setColoring(coloring_ == WaveformColoring::blended ? WaveformColoring::layered
+                                                           : WaveformColoring::blended);
+        return true;
+    }
+
+    auto debug = debug_;
+    const auto numWindows = static_cast<int>(SettingsPanel::debugWindows().size());
+    // , and . also work on layouts where [ and ] need Option, which the check above turns away.
+    if (character == '[' || character == ']' || character == ',' || character == '.')
+        debug.window = std::clamp(debug.window + (character == ']' || character == '.' ? 1 : -1), 0,
+                                  numWindows - 1);
+    else if (character == 'b')
+        debug.compensateBandDelay = !debug.compensateBandDelay;
+    else if (character == 'g')
+        debug.grid = (debug.grid + 1) % 3;
+    else
+        return false;
+    setDebugValues(debug);
+    settingsPanel_.setDebugValues(debug_);
+    return true;
 }
 
 void MainComponent::changeListenerCallback(juce::ChangeBroadcaster*)
@@ -185,6 +239,27 @@ void MainComponent::setGainDb(int gainDb)
     gainDb_ = gainDb;
     scope_.setGainDb(gainDb_);
     controlBar_.gain().setGainDb(gainDb_);
+    updateStatus();
+}
+
+void MainComponent::setColoring(WaveformColoring coloring)
+{
+    coloring_ = coloring;
+    if (coloring != WaveformColoring::precise)
+        colouredMethod_ = coloring;
+    scope_.setColoring(coloring);
+    controlBar_.setColoring(coloring);
+    settings_.setWaveformColoring(coloring);
+}
+
+void MainComponent::setDebugValues(const SettingsPanel::DebugValues& values)
+{
+    const auto& windows = SettingsPanel::debugWindows();
+    debug_ = values;
+    debug_.window = std::clamp(values.window, 0, static_cast<int>(windows.size()) - 1);
+    engine_.setWindowSeconds(windows[static_cast<std::size_t>(debug_.window)]);
+    scope_.setBandDelayCompensation(debug_.compensateBandDelay);
+    scope_.setDebugGrid(static_cast<ScopeView::DebugGrid>(std::clamp(debug_.grid, 0, 2)));
     updateStatus();
 }
 
@@ -246,7 +321,8 @@ void MainComponent::updateStatus()
     values.stateIsError = !inputRunning_;
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
-    values.window = juce::String(juce::roundToInt(freeRunningWindowSeconds)) + " s";
+    values.window = formatSeconds(
+        SettingsPanel::debugWindows()[static_cast<std::size_t>(std::max(debug_.window, 0))]);
     values.gain = GainControl::format(gainDb_);
     statusBar_.setValues(values);
 }

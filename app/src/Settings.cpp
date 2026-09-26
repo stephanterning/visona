@@ -8,6 +8,14 @@ namespace
 
 constexpr auto audioDeviceStateKey = "audioDeviceState";
 constexpr auto inputChannelsKey = "inputChannels";
+constexpr auto waveformColoringKey = "waveformColoring";
+
+// Saved by name, in the order of WaveformColoring.
+const juce::StringArray& coloringNames()
+{
+    static const juce::StringArray names{"precise", "blended", "layered"};
+    return names;
+}
 
 juce::PropertiesFile::Options fileOptions()
 {
@@ -71,6 +79,17 @@ void Settings::setInputChannels(std::span<const int> channels)
     for (const auto channel : channels)
         tokens.add(juce::String(channel));
     properties_.setValue(inputChannelsKey, tokens.joinIntoString(","));
+}
+
+WaveformColoring Settings::waveformColoring() const
+{
+    const auto index = coloringNames().indexOf(properties_.getValue(waveformColoringKey));
+    return index >= 0 ? static_cast<WaveformColoring>(index) : WaveformColoring::layered;
+}
+
+void Settings::setWaveformColoring(WaveformColoring coloring)
+{
+    properties_.setValue(waveformColoringKey, coloringNames()[static_cast<int>(coloring)]);
 }
 
 juce::File Settings::file() const

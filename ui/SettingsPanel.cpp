@@ -16,7 +16,25 @@ constexpr int titleHeight = 40;
 constexpr int rowHeight = 44;
 constexpr int rowGap = 8;
 constexpr int labelWidth = 130;
+constexpr int headingHeight = 28;
 constexpr int errorHeight = 48;
+
+juce::String windowText(double seconds)
+{
+    auto text = (seconds >= 1.0 ? juce::String(juce::roundToInt(seconds))
+                                : juce::String(seconds, 3).trimCharactersAtEnd("0")) +
+                " s";
+    // The MVP's windows at 120 BPM, where a bar is 2 s.
+    if (seconds >= 0.5)
+    {
+        const auto bars = seconds / 2.0;
+        const auto barText =
+            bars >= 1.0 ? juce::String(juce::roundToInt(bars)) + (bars > 1.0 ? " bars" : " bar")
+                        : "1/" + juce::String(juce::roundToInt(1.0 / bars)) + " bar";
+        text << "  (" << barText << " at 120 BPM)";
+    }
+    return text;
+}
 
 juce::String sampleRateText(double sampleRate)
 {
@@ -110,6 +128,29 @@ SettingsPanel::SettingsPanel(AudioSettings& settings)
     addChildComponent(diagnosticsButton_);
     addChildComponent(fullScreenButton_);
 
+    debugHeading_.setText("DEBUG (UNTIL PR 7)", juce::dontSendNotification);
+    debugHeading_.setColour(juce::Label::textColourId, palette::textDim);
+    debugHeading_.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    debugHeading_.setJustificationType(juce::Justification::bottomLeft);
+    addAndMakeVisible(debugHeading_);
+    addRow(windowRow_, "Window");
+    addRow(bandDelayRow_, "Band delay");
+    addRow(gridRow_, "Grid");
+    for (std::size_t index = 0; index < debugWindows().size(); ++index)
+        windowRow_.choices.addItem(windowText(debugWindows()[index]), static_cast<int>(index) + 1);
+    windowRow_.choices.setTooltip("The free-running window. [ and ] (or , and .) step it.");
+    bandDelayRow_.choices.addItem("Compensated", 1);
+    bandDelayRow_.choices.addItem("Not compensated", 2);
+    bandDelayRow_.choices.setTooltip(
+        "Whether the colouring reads each band later by its group delay, so it lines up with the "
+        "waveform. B toggles it.");
+    gridRow_.choices.addItem("Off", 1);
+    gridRow_.choices.addItem("Behind the waveform", 2);
+    gridRow_.choices.addItem("Over the waveform", 3);
+    gridRow_.choices.setTooltip("A grid that treats the window as one 4/4 bar. G cycles it.");
+    for (auto* row : {&windowRow_, &bandDelayRow_, &gridRow_})
+        row->choices.onChange = [this] { notifyDebugChange(); };
+
     errorLabel_.setColour(juce::Label::textColourId, palette::error);
     errorLabel_.setJustificationType(juce::Justification::topLeft);
     errorLabel_.setMinimumHorizontalScale(1.0f);
@@ -140,13 +181,36 @@ void SettingsPanel::setViewToggles(bool diagnostics, bool fullScreen)
     fullScreenButton_.setToggleState(fullScreen, juce::dontSendNotification);
 }
 
+const std::vector<double>& SettingsPanel::debugWindows()
+{
+    static const std::vector<double> windows{0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0};
+    return windows;
+}
+
+void SettingsPanel::setDebugValues(const DebugValues& values)
+{
+    windowRow_.choices.setSelectedItemIndex(values.window, juce::dontSendNotification);
+    bandDelayRow_.choices.setSelectedItemIndex(values.compensateBandDelay ? 0 : 1,
+                                               juce::dontSendNotification);
+    gridRow_.choices.setSelectedItemIndex(values.grid, juce::dontSendNotification);
+}
+
+void SettingsPanel::notifyDebugChange()
+{
+    if (!onDebugChange)
+        return;
+    onDebugChange({std::max(windowRow_.choices.getSelectedItemIndex(), 0),
+                   bandDelayRow_.choices.getSelectedItemIndex() != 1,
+                   std::max(gridRow_.choices.getSelectedItemIndex(), 0)});
+}
+
 int SettingsPanel::preferredHeight() const
 {
-    auto rows = static_cast<int>(inputRows_.size()) + (viewLabel_.isVisible() ? 1 : 0);
+    auto rows = static_cast<int>(inputRows_.size()) + (viewLabel_.isVisible() ? 1 : 0) + 3;
     for (const auto* row : {&deviceTypeRow_, &deviceRow_, &sampleRateRow_, &bufferSizeRow_})
         if (row->choices.isVisible())
             ++rows;
-    return padding + titleHeight + rowGap + rows * (rowHeight + rowGap) +
+    return padding + titleHeight + rowGap + rows * (rowHeight + rowGap) + headingHeight +
            (errorLabel_.isVisible() ? errorHeight : 0) + padding;
 }
 
@@ -204,7 +268,11 @@ void SettingsPanel::resized()
         area.removeFromTop(rowGap);
     }
 
-    errorLabel_.setBounds(area.removeFromTop(errorHeight));
+    errorLabel_.setBounds(area.removeFromTop(errorLabel_.isVisible() ? errorHeight : 0));
+
+    debugHeading_.setBounds(area.removeFromTop(headingHeight));
+    for (auto* row : {&windowRow_, &bandDelayRow_, &gridRow_})
+        placeRow(*row);
 }
 
 void SettingsPanel::visibilityChanged()

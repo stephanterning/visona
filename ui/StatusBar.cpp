@@ -68,7 +68,7 @@ void StatusBar::paint(juce::Graphics& g)
     const std::array<Item, 4> items{{
         {values_.state, "", true, values_.stateIsError ? palette::error : palette::text},
         {values_.sampleRate, "192 kHz", false, palette::level},
-        {values_.window, "2 s", false, palette::level},
+        {values_.window, "0.125 s", false, palette::level},
         {values_.gain, "+36 dB", false, palette::level},
     }};
 

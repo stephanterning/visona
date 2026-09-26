@@ -3,6 +3,9 @@
 #include "ChromeButton.h"
 #include "ChromeLayout.h"
 #include "GainControl.h"
+#include "SegmentedControl.h"
+
+#include <visona/WaveformColoring.h>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -12,8 +15,8 @@ namespace visona
 {
 
 /**
-    The control bar at the bottom (D-046): display gain on the left; diagnostics, full screen and
-    settings on the right. No knobs, and touch-sized targets (D-025).
+    The control bar at the bottom (D-046): display gain and the waveform colouring on the left;
+    diagnostics, full screen and settings on the right. No knobs, and touch-sized targets (D-025).
 
     It reflows in steps (ChromeStep): labels shorten when narrow, the groups wrap onto two rows if
     they do not fit on one, and in the compact step the secondary buttons move into the settings
@@ -29,10 +32,12 @@ public:
         return gain_;
     }
 
+    std::function<void(WaveformColoring)> onColoring;
     std::function<void()> onDiagnostics;
     std::function<void()> onFullScreen;
     std::function<void()> onSettings;
 
+    void setColoring(WaveformColoring coloring);
     void setToggles(bool diagnostics, bool fullScreen, bool settings);
     void setStep(ChromeStep step);
 
@@ -54,6 +59,7 @@ private:
     [[nodiscard]] int rowsFor(int width) const;
 
     GainControl gain_;
+    SegmentedControl coloring_;
     ChromeButton diagnostics_{"Diagnostics", ChromeButton::Icon::diagnostics};
     ChromeButton fullScreen_{"Full screen", ChromeButton::Icon::fullScreen};
     ChromeButton settings_{"Settings", ChromeButton::Icon::settings};

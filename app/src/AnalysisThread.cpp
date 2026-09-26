@@ -1,5 +1,7 @@
 #include "AnalysisThread.h"
 
+#include <juce_audio_basics/juce_audio_basics.h>
+
 #include <chrono>
 
 namespace visona
@@ -34,6 +36,10 @@ void AnalysisThread::setStream(AudioRingBuffer* ring, double sampleRate)
 
 void AnalysisThread::run()
 {
+    // The band splitters' filter state decays towards denormals in silence, which are slow on
+    // some CPUs (D-077).
+    const juce::ScopedNoDenormals noDenormals;
+
     using Clock = std::chrono::steady_clock;
     while (!threadShouldExit())
     {

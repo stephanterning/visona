@@ -150,6 +150,11 @@ TripleBuffer<SweepSnapshot>& AudioEngine::snapshots() noexcept
     return analysis_.snapshots();
 }
 
+void AudioEngine::setWindowSeconds(double seconds) noexcept
+{
+    analysis_.setWindowSeconds(seconds);
+}
+
 std::uint64_t AudioEngine::analysisBusyNanoseconds() const noexcept
 {
     return analysis_.busyNanoseconds();
