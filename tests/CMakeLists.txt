@@ -19,6 +19,7 @@ add_executable(visona_core_tests
     SweepBufferTests.cpp
     TripleBufferTests.cpp
     VersionTests.cpp
+    WaveformColoringTests.cpp
     support/AllocationCounter.cpp
     support/AllocationCounter.h
     support/Signals.h)

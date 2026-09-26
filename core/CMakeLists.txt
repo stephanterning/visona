@@ -18,6 +18,7 @@ add_library(visona_core STATIC
     include/visona/SweepSnapshot.h
     include/visona/TripleBuffer.h
     include/visona/Version.h
+    include/visona/WaveformColoring.h
     src/AnalysisPipeline.cpp
     src/AudioInputWriter.cpp
     src/AudioRingBuffer.cpp
@@ -27,7 +28,8 @@ add_library(visona_core STATIC
     src/SourceLayout.cpp
     src/SweepAnalyzer.cpp
     src/SweepBuffer.cpp
-    src/Version.cpp)
+    src/Version.cpp
+    src/WaveformColoring.cpp)
 add_library(visona::core ALIAS visona_core)
 
 target_include_directories(visona_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

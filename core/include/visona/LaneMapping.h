@@ -63,6 +63,12 @@ public:
     /** The rows between `min` and `max`, at least one row. */
     [[nodiscard]] LaneRows rowsOf(float min, float max) const noexcept;
 
+    /** How many rows a value of 1 spans after gain: half the lane's height times the gain. */
+    [[nodiscard]] float rowsPerUnit() const noexcept
+    {
+        return static_cast<float>(height_) * 0.5f * gain_;
+    }
+
 private:
     int top_;
     int height_;
