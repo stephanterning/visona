@@ -87,6 +87,15 @@ public:
     /** Any thread. Selects the musical window, an index into sweepWindowBars. */
     void setWindow(std::size_t windowIndex) noexcept;
 
+    /** The tempo of the free-running sweep (D-090), as saved. */
+    [[nodiscard]] double freeTempo() const;
+
+    /** Sets and saves the tempo of the free-running sweep, clamped by clampFreeBpm(). */
+    void setFreeTempo(double bpm);
+
+    /** Any thread. Leaves STOPPED or MIDI CLOCK LOST for the free-running sweep. */
+    void runFree() noexcept;
+
     /** Frames added to MIDI event positions for the current device (D-078). */
     [[nodiscard]] double midiOffsetFrames() const noexcept
     {

@@ -38,8 +38,7 @@ public:
     [[nodiscard]] int preferredHeight() const noexcept;
 
     /** The status bar's zoom text, such as "ZOOM 4.0× · 1.3–1.4": the magnification, then where
-        the view starts and ends in the window, as bar.beat, bar.beat.sixteenth, or seconds while
-        the sweep runs free. */
+        the view starts and ends in the window, as bar.beat or bar.beat.sixteenth. */
     [[nodiscard]] static juce::String describe(SweepZoom zoom, const SweepSnapshot& snapshot);
 
     /** Called when the reset button is pressed or the strip is double-clicked. */

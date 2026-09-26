@@ -9,7 +9,6 @@
 #include "ui/Palette.h"
 
 #include <visona/LaneMapping.h>
-#include <visona/SweepAnalyzer.h>
 #include <visona/SweepWindow.h>
 
 #include <algorithm>
@@ -66,7 +65,9 @@ MainComponent::MainComponent(AudioEngine& engine)
     addChildComponent(settingsPanel_);
 
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
+    controlBar_.tempo().onTempoChange = [this](double bpm) { setFreeTempo(bpm); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
+    statusBar_.onStateClick = [this] { runFree(); };
     scope_.onTransportChange = [this]
     {
         zoomOverview_.setTimeline(scope_.snapshot());
@@ -229,6 +230,22 @@ void MainComponent::setWindow(std::size_t window)
     updateStatus();
 }
 
+void MainComponent::setFreeTempo(double bpm)
+{
+    engine_.setFreeTempo(bpm);
+    updateStatus();
+}
+
+void MainComponent::runFree()
+{
+    // At the tempo MIDI Clock last had, if it is known.
+    const auto& snapshot = scope_.snapshot();
+    if (snapshot.transportState != TransportState::freeRunning && snapshot.bpm > 0.0)
+        engine_.setFreeTempo(snapshot.bpm);
+    engine_.runFree();
+    updateStatus();
+}
+
 void MainComponent::showSettings(bool shouldShow)
 {
     settingsPanel_.setVisible(shouldShow);
@@ -284,7 +301,7 @@ void MainComponent::updateBanner()
     else if (scope_.snapshot().transportState == TransportState::clockLost)
         banner_.setText("MIDI CLOCK LOST",
                         "No MIDI Clock for over half a second. The view is frozen until it "
-                        "returns.");
+                        "returns, or click MIDI CLOCK LOST above to run free.");
     banner_.setVisible(!inputRunning_ ||
                        scope_.snapshot().transportState == TransportState::clockLost);
 }
@@ -292,9 +309,15 @@ void MainComponent::updateBanner()
 void MainComponent::updateStatus()
 {
     const auto& snapshot = scope_.snapshot();
+    const bool free = snapshot.transportState == TransportState::freeRunning;
+    // While running free, the tempo just set, before the analysis has taken it.
+    const auto bpm = free ? engine_.freeTempo() : snapshot.bpm;
+    controlBar_.tempo().setEditable(free);
+    controlBar_.tempo().setBpm(bpm);
+
     StatusBar::Values values;
-    if (snapshot.bpm > 0.0)
-        values.bpm = juce::String(snapshot.bpm, 1) + " BPM";
+    if (bpm > 0.0)
+        values.bpm = juce::String(bpm, 1) + " BPM";
     if (!inputRunning_)
     {
         values.state = "NO INPUT";
@@ -304,8 +327,8 @@ void MainComponent::updateStatus()
     {
         switch (snapshot.transportState)
         {
-        case TransportState::waiting:
-            values.state = "WAITING";
+        case TransportState::freeRunning:
+            values.state = "FREE";
             break;
         case TransportState::running:
             values.state = "MIDI RUN";
@@ -318,13 +341,19 @@ void MainComponent::updateStatus()
             values.stateIsError = true;
             break;
         }
+        // Stopped or without a clock, a click runs the sweep free (D-090).
+        values.stateIsAction = snapshot.transportState == TransportState::stopped ||
+                               snapshot.transportState == TransportState::clockLost;
+        if (values.stateIsAction)
+            values.stateTooltip =
+                "Run free at " +
+                juce::String(snapshot.bpm > 0.0 ? clampFreeBpm(snapshot.bpm) : engine_.freeTempo(),
+                             1) +
+                " BPM until MIDI Clock starts again";
     }
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
-    // Before the first Start the sweep runs free, whatever window is chosen.
-    values.window = snapshot.musical
-                        ? WindowControl::describe(window_)
-                        : juce::String(juce::roundToInt(freeRunningWindowSeconds)) + " s";
+    values.window = WindowControl::describe(window_);
     values.gain = GainControl::format(gainDb_);
     if (scope_.zoom().isZoomed())
         values.zoom = ZoomOverview::describe(scope_.zoom(), snapshot);
