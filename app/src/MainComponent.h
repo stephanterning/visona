@@ -18,6 +18,7 @@ namespace visona
 {
 
 class AudioEngine;
+class Settings;
 
 /**
     Root content component of the main window: the status bar at the top, the zoom's overview strip
@@ -33,7 +34,7 @@ class MainComponent final : public juce::Component,
                             private juce::Timer
 {
 public:
-    explicit MainComponent(AudioEngine& engine);
+    MainComponent(AudioEngine& engine, Settings& settings);
     ~MainComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -46,6 +47,8 @@ private:
 
     void setGainDb(int gainDb);
     void setWindow(std::size_t window);
+    void setWaveformMode(WaveformMode mode);
+    void setWaveformColour(std::size_t index);
     void showSettings(bool shouldShow);
     void showDiagnostics(bool shouldShow);
     void toggleFullScreen();
@@ -58,6 +61,7 @@ private:
     void updateDiagnostics();
 
     AudioEngine& engine_;
+    Settings& settings_;
     juce::LookAndFeel_V4 lookAndFeel_;
 
     StatusBar statusBar_;

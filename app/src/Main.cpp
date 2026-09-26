@@ -15,11 +15,11 @@ namespace visona
 class MainWindow final : public juce::DocumentWindow
 {
 public:
-    MainWindow(const juce::String& name, AudioEngine& engine)
+    MainWindow(const juce::String& name, AudioEngine& engine, Settings& settings)
         : DocumentWindow(name, palette::background, DocumentWindow::allButtons)
     {
         setUsingNativeTitleBar(true);
-        setContentOwned(new MainComponent(engine), true);
+        setContentOwned(new MainComponent(engine, settings), true);
 
         // On macOS, a resizable window with a maximise button gets native fullscreen
         // from the green title bar button.
@@ -67,7 +67,7 @@ public:
     {
         settings = std::make_unique<Settings>();
         audioEngine = std::make_unique<AudioEngine>(*settings);
-        mainWindow = std::make_unique<MainWindow>(getApplicationName(), *audioEngine);
+        mainWindow = std::make_unique<MainWindow>(getApplicationName(), *audioEngine, *settings);
 
         // Opened after the window is up, so the system's microphone prompt appears over it.
         audioEngine->openSavedDevice();

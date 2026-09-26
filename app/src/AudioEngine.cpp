@@ -163,6 +163,11 @@ void AudioEngine::setWindow(std::size_t windowIndex) noexcept
     analysis_.setWindow(windowIndex);
 }
 
+void AudioEngine::setBandSplitting(bool enabled) noexcept
+{
+    analysis_.setBandSplitting(enabled);
+}
+
 juce::String AudioEngine::midiInput() const
 {
     return midi_.identifier();

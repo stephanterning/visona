@@ -2,12 +2,15 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <array>
+#include <cstddef>
+
 /**
     Every colour Visona draws with. Keeping them here makes themes cheap later, without a theme UI.
 
-    Rules (architecture.md, 3.5 and 3.6): red is reserved for errors; the grid is neutral grey,
-    never blue; the write head's accent is outside the band palette, so never white, blue, orange
-    or red; colour in the chrome shows state only.
+    Rules (architecture.md, 3.5 and 3.6): red is reserved for errors in the chrome; the grid is
+    neutral grey, never blue; the write head's accent is outside the waveform colours; colour in
+    the chrome shows state only.
 */
 namespace visona::palette
 {
@@ -29,8 +32,30 @@ inline const juce::Colour centreLine{0xff2b2f37};
 inline const juce::Colour referenceLine{0xff1d2026};
 inline const juce::Colour laneLabel{0xff6e727c};
 
-// Waveform. Mono/precise mode draws the full band in one neutral colour.
-inline const juce::Colour waveform{0xffd3d7de};
+/** A waveform colour to choose from in the settings. */
+struct WaveformColour
+{
+    const char* name;
+    juce::Colour colour;
+};
+
+/**
+    The waveform colours of the standard and precise modes (D-093): calm but clear on black. There
+    is no green, the head's colour. DJ colouring mixes its own colours from the bands (D-092).
+*/
+inline const std::array<WaveformColour, 8> waveformColours{{
+    {"Teal", juce::Colour{0xff22b8a0}},
+    {"Cyan", juce::Colour{0xff4fcdeb}},
+    {"Blue", juce::Colour{0xff5f8dff}},
+    {"Violet", juce::Colour{0xffa68cff}},
+    {"Pink", juce::Colour{0xffff7cc2}},
+    {"Amber", juce::Colour{0xffffb24a}},
+    {"Yellow", juce::Colour{0xffe9d95c}},
+    {"Grey", juce::Colour{0xffd3d7de}},
+}};
+
+/** Teal, like Oszillos Mega Scope's default. */
+inline constexpr std::size_t defaultWaveformColour = 0;
 
 /** Marks display overshoot at a lane edge. Neutral, so it is not mistaken for audio clipping. */
 inline const juce::Colour clipMarker{0xff8e939d};
@@ -44,11 +69,6 @@ inline const juce::Colour gridBeat{0xff363a42};
 inline const juce::Colour gridSixteenth{0xff23262c};
 /** Thirty-seconds and sixty-fourths, shown only when zoomed in. */
 inline const juce::Colour gridFine{0xff191b20};
-
-// Frequency bands, for colouring only (D-051, D-056)
-inline const juce::Colour bandLow{0xff3a7bff};
-inline const juce::Colour bandMid{0xffff9a2e};
-inline const juce::Colour bandHigh{0xfff4f4f4};
 
 // State
 inline const juce::Colour error{0xffc93b35};

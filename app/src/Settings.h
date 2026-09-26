@@ -1,5 +1,7 @@
 #pragma once
 
+#include <visona/WaveformStyle.h>
+
 #include <juce_data_structures/juce_data_structures.h>
 
 #include <cstddef>
@@ -43,6 +45,15 @@ public:
     /** The chosen MIDI input; an empty identifier is none. */
     [[nodiscard]] MidiInputChoice midiInput() const;
     void setMidiInput(const MidiInputChoice& choice);
+
+    /** How the waveform is drawn (D-091); precise if nothing is saved. */
+    [[nodiscard]] WaveformMode waveformMode() const;
+    void setWaveformMode(WaveformMode mode);
+
+    /** The waveform colour, an index into palette::waveformColours (D-093); `fallback` if nothing
+        valid is saved. */
+    [[nodiscard]] std::size_t waveformColour(std::size_t count, std::size_t fallback) const;
+    void setWaveformColour(std::size_t index);
 
     [[nodiscard]] juce::File file() const;
 

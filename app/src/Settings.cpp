@@ -10,6 +10,8 @@ constexpr auto audioDeviceStateKey = "audioDeviceState";
 constexpr auto inputChannelsKey = "inputChannels";
 constexpr auto midiInputKey = "midiInput";
 constexpr auto midiInputNameKey = "midiInputName";
+constexpr auto waveformModeKey = "waveformMode";
+constexpr auto waveformColourKey = "waveformColour";
 
 juce::PropertiesFile::Options fileOptions()
 {
@@ -84,6 +86,35 @@ void Settings::setMidiInput(const MidiInputChoice& choice)
 {
     properties_.setValue(midiInputKey, choice.identifier);
     properties_.setValue(midiInputNameKey, choice.name);
+}
+
+WaveformMode Settings::waveformMode() const
+{
+    const auto value = properties_.getValue(waveformModeKey);
+    if (value == "standard")
+        return WaveformMode::standard;
+    if (value == "dj")
+        return WaveformMode::dj;
+    return WaveformMode::precise;
+}
+
+void Settings::setWaveformMode(WaveformMode mode)
+{
+    properties_.setValue(waveformModeKey, mode == WaveformMode::standard ? "standard"
+                                          : mode == WaveformMode::dj     ? "dj"
+                                                                         : "precise");
+}
+
+std::size_t Settings::waveformColour(std::size_t count, std::size_t fallback) const
+{
+    const auto index = properties_.getIntValue(waveformColourKey, static_cast<int>(fallback));
+    return index >= 0 && static_cast<std::size_t>(index) < count ? static_cast<std::size_t>(index)
+                                                                 : fallback;
+}
+
+void Settings::setWaveformColour(std::size_t index)
+{
+    properties_.setValue(waveformColourKey, static_cast<int>(index));
 }
 
 juce::File Settings::file() const

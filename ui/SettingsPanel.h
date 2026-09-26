@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioSettings.h"
+#include "ColourSwatches.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -13,9 +14,9 @@ namespace visona
 
 /**
     The settings overlay: audio device, sample rate, buffer size, the device input channel for each
-    source channel, and the MIDI input for MIDI Clock. Any input channel can feed any source
-    channel. In small windows it also holds the view controls that no longer fit in the control
-    bar. The panel is opaque, so it never makes the view behind it repaint.
+    source channel, the MIDI input for MIDI Clock, and the waveform colour (D-093). Any input
+   channel can feed any source channel. In small windows it also holds the view controls that no
+   longer fit in the control bar. The panel is opaque, so it never makes the view behind it repaint.
 */
 class SettingsPanel final : public juce::Component, private juce::ChangeListener
 {
@@ -28,6 +29,11 @@ public:
 
     /** Called when preferredHeight() may have changed, because rows or an error appeared. */
     std::function<void()> onPreferredHeightChanged;
+
+    /** Called with the waveform colour the user picks, an index into palette::waveformColours. */
+    std::function<void(std::size_t index)> onWaveformColourChange;
+
+    void setWaveformColour(std::size_t index);
 
     /** Called when the user toggles the view controls. */
     std::function<void()> onDiagnostics;
@@ -77,6 +83,8 @@ private:
     Row bufferSizeRow_;
     std::vector<std::unique_ptr<Row>> inputRows_;
     Row midiRow_;
+    juce::Label colourLabel_;
+    ColourSwatches colourSwatches_;
     juce::Label viewLabel_;
     juce::TextButton diagnosticsButton_;
     juce::TextButton fullScreenButton_;

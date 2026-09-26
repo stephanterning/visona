@@ -99,6 +99,17 @@ SettingsPanel::SettingsPanel(AudioSettings& settings)
             showResult(settings_.selectBufferSize(bufferSizes_[index]));
     };
 
+    colourLabel_.setText("Waveform colour", juce::dontSendNotification);
+    colourLabel_.setColour(juce::Label::textColourId, palette::textDim);
+    colourLabel_.setFont(juce::FontOptions(15.0f));
+    colourSwatches_.onColourChange = [this](std::size_t index)
+    {
+        if (onWaveformColourChange)
+            onWaveformColourChange(index);
+    };
+    addAndMakeVisible(colourLabel_);
+    addAndMakeVisible(colourSwatches_);
+
     viewLabel_.setText("View", juce::dontSendNotification);
     viewLabel_.setColour(juce::Label::textColourId, palette::textDim);
     viewLabel_.setFont(juce::FontOptions(15.0f));
@@ -142,6 +153,11 @@ void SettingsPanel::setViewControlsVisible(bool visible)
     notifyPreferredHeight();
 }
 
+void SettingsPanel::setWaveformColour(std::size_t index)
+{
+    colourSwatches_.setColour(index);
+}
+
 void SettingsPanel::setViewToggles(bool diagnostics, bool fullScreen)
 {
     diagnosticsButton_.setToggleState(diagnostics, juce::dontSendNotification);
@@ -150,7 +166,8 @@ void SettingsPanel::setViewToggles(bool diagnostics, bool fullScreen)
 
 int SettingsPanel::preferredHeight() const
 {
-    auto rows = static_cast<int>(inputRows_.size()) + 1 + (viewLabel_.isVisible() ? 1 : 0);
+    // The input rows, MIDI, the waveform colour and the view controls.
+    auto rows = static_cast<int>(inputRows_.size()) + 2 + (viewLabel_.isVisible() ? 1 : 0);
     for (const auto* row : {&deviceTypeRow_, &deviceRow_, &sampleRateRow_, &bufferSizeRow_})
         if (row->choices.isVisible())
             ++rows;
@@ -203,6 +220,11 @@ void SettingsPanel::resized()
     for (auto& row : inputRows_)
         placeRow(*row);
     placeRow(midiRow_);
+
+    auto colourRow = area.removeFromTop(rowHeight);
+    colourLabel_.setBounds(colourRow.removeFromLeft(labelWidth));
+    colourSwatches_.setBounds(colourRow);
+    area.removeFromTop(rowGap);
 
     if (viewLabel_.isVisible())
     {
