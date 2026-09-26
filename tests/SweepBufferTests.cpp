@@ -140,6 +140,27 @@ TEST_CASE("SweepBuffer empties and stamps every bin the head enters", "[sweep]")
     }
 }
 
+TEST_CASE("SweepBuffer jumps to a later pass without emptying the bins in between", "[sweep]")
+{
+    SweepBuffer buffer(1, 8);
+    for (std::size_t bin = 0; bin < 6; ++bin)
+    {
+        buffer.advanceHead(1, bin);
+        buffer.addToHead(0, {0.5f, 0.5f});
+    }
+    buffer.jumpHead(2, 2);
+    CHECK(buffer.pass() == 2);
+    CHECK(buffer.head() == 2);
+    CHECK(buffer.channel(0)[2].isEmpty());
+    CHECK(buffer.passes()[2] == 2);
+    for (const std::size_t bin : {0u, 1u, 3u, 4u, 5u})
+    {
+        CAPTURE(bin);
+        CHECK(buffer.channel(0)[bin] == SweepCell{0.5f, 0.5f});
+        CHECK(buffer.passes()[bin] == 1);
+    }
+}
+
 TEST_CASE("SweepBuffer clear empties every bin and starts a new generation", "[sweep]")
 {
     SweepBuffer buffer(1, 4);
@@ -189,6 +210,14 @@ TEST_CASE("SweepBuffer copies stay equal to their source through every kind of c
         if (kind < 2)
         {
             source.clear();
+        }
+        else if (kind < 4 && source.pass() > 0)
+        {
+            // A relocation: the next pass, anywhere in the window.
+            const auto pass = source.pass() + 1;
+            const auto bin = static_cast<std::size_t>(random() % source.numBins());
+            position = (pass - 1) * source.numBins() + bin;
+            source.jumpHead(pass, bin);
         }
         else if (kind < 6)
         {

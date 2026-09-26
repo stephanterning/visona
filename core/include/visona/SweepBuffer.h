@@ -106,6 +106,13 @@ public:
     */
     void advanceHead(std::uint64_t pass, std::size_t bin) noexcept;
 
+    /**
+        Moves the head to bin `bin` of pass `pass`, which must be a later pass, without emptying the
+        bins in between: after a relocation, the old content becomes the previous pass. Only `bin`
+        itself is emptied and stamped.
+    */
+    void jumpHead(std::uint64_t pass, std::size_t bin) noexcept;
+
     /** Widens the head bin of `channel` to include `span`. */
     void addToHead(std::size_t channel, const SweepCell& span) noexcept;
 

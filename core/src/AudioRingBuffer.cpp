@@ -62,6 +62,7 @@ bool AudioRingBuffer::push(std::span<const float* const> channels,
     const std::size_t numFrames = timing.numFrames;
     if (numFrames == 0)
         return true;
+    newestFrameEnd_.store(timing.sampleIndex + numFrames, std::memory_order_relaxed);
 
     const auto unreadFrames = writeFrame_ - readFrame_.load(std::memory_order_acquire);
     if (numFrames > capacityFrames_ - unreadFrames)
