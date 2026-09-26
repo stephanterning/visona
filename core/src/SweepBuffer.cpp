@@ -76,11 +76,26 @@ void SweepBuffer::advanceHead(std::uint64_t pass, std::size_t bin) noexcept
     head_ = bin;
 }
 
+void SweepBuffer::jumpHead(std::uint64_t pass, std::size_t bin) noexcept
+{
+    assert(bin < numBins_);
+    assert(pass > pass_ && "a jump starts a later pass");
+    resetBin(bin, pass);
+    pass_ = pass;
+    head_ = bin;
+}
+
 void SweepBuffer::addToHead(std::size_t channel, const SweepCell& span) noexcept
 {
     assert(channel < numChannels_);
     assert(pass_ > 0);
     cells_[channel * numBins_ + head_].merge(span);
+}
+
+void SweepBuffer::addToBin(std::size_t channel, std::size_t bin, const SweepCell& span) noexcept
+{
+    assert(channel < numChannels_ && bin < numBins_);
+    cells_[channel * numBins_ + bin].merge(span);
 }
 
 void SweepBuffer::copyFrom(const SweepBuffer& source) noexcept

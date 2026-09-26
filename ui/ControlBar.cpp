@@ -29,6 +29,7 @@ ControlBar::ControlBar()
             onSettings();
     };
 
+    addAndMakeVisible(window_);
     addAndMakeVisible(gain_);
     addAndMakeVisible(diagnostics_);
     addAndMakeVisible(fullScreen_);
@@ -49,6 +50,8 @@ void ControlBar::setStep(ChromeStep step)
     const auto metrics = ChromeMetrics::forStep(step);
     const bool wide = step == ChromeStep::wide;
 
+    window_.setShowsLabel(step != ChromeStep::compact);
+    window_.setFontHeight(metrics.fontHeight);
     gain_.setShowsLabel(step != ChromeStep::compact);
     gain_.setFontHeight(metrics.fontHeight);
     for (auto* button : {&diagnostics_, &fullScreen_, &settings_})
@@ -65,7 +68,7 @@ void ControlBar::setStep(ChromeStep step)
 int ControlBar::preferredHeight(int width) const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
-    const auto rows = rowsFor(width);
+    const auto rows = place(width).numRows;
     return rows * metrics.controlHeight + (rows - 1) * metrics.gap + 2 * metrics.padding + 1;
 }
 
@@ -79,49 +82,64 @@ void ControlBar::paint(juce::Graphics& g)
 void ControlBar::resized()
 {
     const auto metrics = ChromeMetrics::forStep(step_);
-    auto area = getLocalBounds().withTrimmedTop(1).reduced(metrics.padding);
-    const auto rows = rowsFor(getWidth());
+    const auto area = getLocalBounds().withTrimmedTop(1).reduced(metrics.padding);
     const auto height = metrics.controlHeight;
+    const auto placement = place(getWidth());
+    const auto widths = groupWidths();
+    const auto rowBounds = [&](int row)
+    { return area.withY(area.getY() + row * (height + metrics.gap)).withHeight(height); };
 
-    auto leftRow = area.removeFromTop(height);
-    auto rightRow = leftRow;
-    if (rows > 1)
-    {
-        area.removeFromTop(metrics.gap);
-        rightRow = area.removeFromTop(height);
-    }
+    // The window and gain flow from the left; the buttons sit at the right of their row.
+    std::array<juce::Rectangle<int>, 3> rows{rowBounds(0), rowBounds(1), rowBounds(2)};
+    window_.setBounds(rows[static_cast<std::size_t>(placement.rows[0])].removeFromLeft(
+        std::min(widths[0], area.getWidth())));
+    rows[static_cast<std::size_t>(placement.rows[0])].removeFromLeft(metrics.gap * 2);
+    gain_.setBounds(rows[static_cast<std::size_t>(placement.rows[1])].removeFromLeft(
+        std::min(widths[1], area.getWidth())));
 
-    gain_.setBounds(leftRow.removeFromLeft(std::min(leftWidth(), leftRow.getWidth())));
-
+    auto& buttonRow = rows[static_cast<std::size_t>(placement.rows[2])];
     for (auto* button : {&settings_, &fullScreen_, &diagnostics_})
     {
         if (!button->isVisible())
             continue;
-        button->setBounds(rightRow.removeFromRight(button->preferredWidth(height)));
-        rightRow.removeFromRight(metrics.gap);
+        button->setBounds(buttonRow.removeFromRight(button->preferredWidth(height)));
+        buttonRow.removeFromRight(metrics.gap);
     }
 }
 
-int ControlBar::leftWidth() const
-{
-    return gain_.preferredWidth(ChromeMetrics::forStep(step_).controlHeight);
-}
-
-int ControlBar::rightWidth() const
+std::array<int, 3> ControlBar::groupWidths() const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
-    auto width = 0;
+    auto buttons = 0;
     for (const auto* button : {&diagnostics_, &fullScreen_, &settings_})
         if (button->isVisible())
-            width += button->preferredWidth(metrics.controlHeight) + metrics.gap;
-    return width;
+            buttons += button->preferredWidth(metrics.controlHeight) + metrics.gap;
+    return {window_.preferredWidth(metrics.controlHeight),
+            gain_.preferredWidth(metrics.controlHeight), buttons};
 }
 
-int ControlBar::rowsFor(int width) const
+ControlBar::Placement ControlBar::place(int width) const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
-    const auto needed = leftWidth() + metrics.gap * 2 + rightWidth() + 2 * metrics.padding;
-    return needed > width ? 2 : 1;
+    const auto available = width - 2 * metrics.padding;
+    const auto widths = groupWidths();
+    Placement placement;
+    auto used = 0;
+    for (std::size_t group = 0; group < widths.size(); ++group)
+    {
+        const auto needed = (used > 0 ? metrics.gap * 2 : 0) + widths[group];
+        if (used > 0 && used + needed > available)
+        {
+            ++placement.numRows;
+            used = widths[group];
+        }
+        else
+        {
+            used += needed;
+        }
+        placement.rows[group] = placement.numRows - 1;
+    }
+    return placement;
 }
 
 } // namespace visona

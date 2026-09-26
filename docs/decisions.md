@@ -184,8 +184,8 @@ A lightweight log of decisions and open questions. The architecture is described
 
 ### MVP plan approval
 
-- **D-054 — The MVP plan is approved, including its proposals and technical recommendations.** `Active`
-  The plan is now the basis for the PR steps in [roadmap.md](roadmap.md). Approved:
+- **D-054 — The MVP plan is approved, including its proposals and technical recommendations.** `Amended by D-083`
+  The plan is now the basis for the steps in [roadmap.md](roadmap.md). Approved:
   - the core as plain C++20 without JUCE
   - Catch2 v3
   - B = 4096 bins per window
@@ -200,7 +200,7 @@ A lightweight log of decisions and open questions. The architecture is described
   JUCE 9.0.0 was released on 2026-07-21, and JUCE 8 has had no release since. The license is unchanged, AGPLv3 or commercial, so D-042 holds either way. Sources: [JUCE 9.0.0 release](https://github.com/juce-framework/JUCE/releases/tag/9.0.0), [JUCE releases](https://github.com/juce-framework/JUCE/releases), [LICENSE.md at 9.0.0](https://github.com/juce-framework/JUCE/blob/9.0.0/LICENSE.md).
 - **D-056 — The waveform shape is always the full-band signed min/max. Frequency coloring is a visualization aid that must never alter the shape.** `Active`
   - The colors are only a way to see which frequencies make up the sound; correct waveform rendering matters more.
-  - PR 5 chooses the coloring method, either a blended color per column or bands drawn inside the full-band outline, based on which keeps the waveform correct and readable.
+  - Step 5 chooses the coloring method, either a blended color per column or bands drawn inside the full-band outline, based on which keeps the waveform correct and readable.
   - The mono/precise mode stays.
 
   Amends D-047 and D-051.
@@ -244,13 +244,83 @@ A lightweight log of decisions and open questions. The architecture is described
   - *Compact* (narrower than 480 or lower than 360): the diagnostics and full-screen buttons move into the settings panel, and the bars get slimmer.
   - The status bar drops values from its end, down to the state, whenever they do not fit.
 
-  Until PR 7 adds the WINDOW control, the control bar fits on one row at every allowed window size, so the wrap step is in place but rarely seen.
-- **D-070 — PR 3's debug readout becomes a diagnostics overlay, hidden by default.** `Active`
+  Until step 7 adds the WINDOW control, the control bar fits on one row at every allowed window size, so the wrap step is in place but rarely seen.
+- **D-070 — Step 3's debug readout becomes a diagnostics overlay, hidden by default.** `Active`
   - D, or the Diagnostics button, shows and hides it.
-  - Besides the audio input values, it shows the analysis thread's load, the frame rate, render and paint times, and Visona's total CPU use, for the PR 4 performance check and later measurements (D-040).
+  - Besides the audio input values, it shows the analysis thread's load, the frame rate, render and paint times, and Visona's total CPU use, for the step 4 performance check and later measurements (D-040).
   - It is opaque, so updating it never repaints the scope behind it.
 - **D-071 — The scope is rasterized into image tiles 64 physical pixels wide.** `Active`
   On macOS, JUCE 9 copies the whole `juce::Image` into a new `CFData` every time a changed image is drawn. One window-sized image would copy up to about 58 MB per frame in Retina full screen on a 5K display. With tiles, a frame only changes, and copies, the one or two tiles the write head passed. This implements the incremental rendering of D-054 without OpenGL.
+- **D-072 — MIDI Clock sync (steps 6 and 7) comes before frequency coloring (step 5).** `Active`
+  The maintainer's choice after step 4. Sync is the core of the product, and it does not depend on the band split. The steps keep their numbers.
+- **D-073 — Song Position Pointer is accepted whenever the transport is not `Running`: in `Waiting`, `Stopped` and `ClockLost`.** `Active`
+  The architecture only named `Stopped`. The position is not advancing in the other two either, so a pointer there can only mean a relocation. In `Running` it is still ignored, and counted for the log.
+- **D-074 — The tempo is the least-squares fit of the last 25 clock times (24 intervals, one beat).** `Active`
+  - It uses the same one-beat window as the planned moving average, which only looks at the first and last clock of the window. The fit uses every clock in it, so under the same jitter the estimate varies about half as much.
+  - A gap longer than the clock-loss timeout starts the estimate over, so the time between Stop and Continue, or during a clock loss, is not taken for a clock interval.
+  - It is still reset on Start.
+- **D-075 — The transport describes the audio's sample timeline as spans: free-running, musical, frozen and pending.** `Active`
+  - *Free-running* is before the first Start.
+  - *Musical* lies between two known ticks, or covers the at most one tick extrapolated on Stop or clock loss. The position in ticks runs linearly across it.
+  - *Frozen* is written nowhere: after Stop, after clock loss, and after a Start before its first clock.
+  - *Pending* follows the last tick while running; its audio waits for the next tick.
+  - Each span records how many Starts came before it, so the sweep knows when to start over. A Continue from `Waiting` counts as one, since it leaves the free-running sweep.
+  - The clock-loss timeout runs on the audio's timeline, so it is deterministic in tests.
+  - On Stop, the extrapolation ends at the Stop if that comes first, since audio after it belongs to the stopped song.
+- **D-076 — `ClockTimeMapper` fits a least-squares line through the audio blocks of the last 2 s.** `Active`
+  - With one block, or with a fit more than 1 % off the nominal sample rate, it maps through the newest block at the nominal rate.
+  - With ±100 µs of timestamp jitter at 96 kHz, it maps MIDI times to within 0.7 samples on average and 3 at most, over 300 test seeds.
+- **D-077 — On macOS, JUCE stamps MIDI input with the CoreMIDI packet time, converted to its millisecond counter. Visona converts it back to host nanoseconds.** `Active`
+  - This is the step 7 check of JUCE's MIDI timestamps, read from the JUCE 9.0.2 source (`juce_CoreMidi_mac.mm`, `juce_SystemStats_mac.mm`).
+  - The packet time is the driver's receive time, not the moment the app sees the message.
+  - JUCE anchors the conversion with a whole millisecond, so its timestamp can be up to about 1 ms early. The error is constant while the input stays open.
+  - The counter is `mach_absolute_time()` in milliseconds, modulo 2^32. The MIDI callback undoes the wrap relative to `CLOCK_UPTIME_RAW`, the audio's time base (D-065).
+  - The remaining error of up to 1 ms is left to the offset measurement in step 8. Thin CoreMIDI timestamping in `app/` stays the fallback if it matters.
+- **D-078 — A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, with the audio input latency as the offset.** `Active`
+  - Sound captured at time T carries a stream timestamp of T plus the input latency. A MIDI event stamped at T therefore belongs to the audio that appears later in the stream by that latency. The architecture had the sign the other way.
+  - With CoreAudio's input timestamps, which mark the start of each buffer, the offset is the device latency plus the safety offset plus the stream latency: JUCE's input latency minus one buffer.
+  - With the fallback clock, which is read after the buffer has filled, it is JUCE's full input latency.
+  - The diagnostics overlay shows the offset in use. Step 8 measures the real one.
+- **D-079 — After a freeze, a position that does not carry on from where the sweep froze is a relocation.** `Active`
+  - Carrying on means resuming within one tick of the frozen position, which covers a Stop that came before its extrapolated tick ended.
+  - On a relocation the head jumps to the new phase and starts a new pass without emptying anything, so the old content becomes the previous pass (architecture 3.4).
+  - Start and window changes clear the sweep. Frames missing without a freeze, such as a dropped block, still empty their bins (D-067).
+- **D-080 — The beat-synced UI.** `Active`
+  - The status bar reads `WAITING`, `MIDI RUN`, `STOPPED` or, in red, `MIDI CLOCK LOST`, next to the tempo such as `126.0 BPM`. The window reads `1 BAR` and so on, or `2 s` while the sweep runs free before the first Start.
+  - Bar numbers are absolute, such as 17 after relocating there, and sit at the bottom edge. A window that starts between bars is labelled bar.beat.
+  - The grid of each column is the grid of the pass it was drawn in, so columns ahead of the head keep the previous window's lines.
+  - `STOPPED` dims the frozen view by 30 % and shows a pause mark. `MIDI CLOCK LOST` is a red banner over the scope, like `NO AUDIO INPUT`, which takes precedence.
+  - Keys 1 to 5 choose the window.
+- **D-081 — A new audio stream resets the transport to `Waiting`, and MIDI events wait for the stream's first block.** `Active`
+  - The ticks' sample times belong to the old stream, so a device restart, for example a new sample rate in Settings, needs a new Start or Continue. That is rare, and simpler than carrying positions across streams.
+  - Events that arrive before the first block wait in the queue; without any stream they are dropped.
+  - The MIDI input is saved by JUCE identifier and by name. A saved input that is missing stays chosen, and the next start opens it if it is back.
+- **D-082 — Horizontal zoom is part of the MVP, as its own step, 7b.** `Active`
+  - The maintainer asked for it after step 7: zoom in on part of the window, such as the third beat of a 1-bar window, to study how the waveform moves, without choosing another window.
+  - It is presentation only. The window, the analysis and the sweep stay as they are, and WINDOW still shows the chosen window.
+  - Step 7b follows step 7, and the later steps keep their numbers.
+- **D-083 — B = 131,072 bins per window.** `Active`
+  - At the deepest zoom, 1/32 of the window, 4,096 bins are in view: about one per physical pixel of a 16-inch MacBook Pro's 3,456-pixel-wide Retina display in full screen. Fewer would blur the deepest zoom, and more could not be seen.
+  - A stereo sweep buffer grows from 96 KiB to 3 MiB, and there are four: the analyzer's and three snapshots. Publishing still copies only the bins that changed.
+  - Tests that compare bins with samples choose B = 4096 themselves.
+
+  Amends D-054.
+- **D-084 — Each bin holds the min and max of the signal drawn as straight lines between consecutive samples.** `Active`
+  - A window can now have fewer frames than bins: a ¼-bar window at 120 BPM and 96 kHz has 48,000. Bins between samples would stay empty, and at deep zoom the waveform would fall apart into dots.
+  - Where the line between two consecutive frames crosses a bin boundary, its value there goes into both bins, and a bin no sample falls in holds the piece of line through it. The waveform is one connected line at every zoom, as if the samples were joined by lines.
+  - No line is drawn across a gap (D-067), a freeze or a relocation (D-079).
+  - The bins still do not depend on how the audio is split into blocks.
+- **D-085 — Zoom.** `Active`
+  - Stepless, from the whole window down to 1/32 of it. A zoom within a zoom narrows the view further. There is no panning: zoom out and in again.
+  - Mouse: dragging across the scope zooms to the part selected, freely, without snapping; a drag under 8 pixels is a click and does nothing. The scroll wheel zooms around the pointer, up to zoom in. A trackpad pinch, and a two-finger pinch on a touchscreen, zoom around the point between the fingers.
+  - Reset: Esc once the settings panel is closed, a double-click or double-tap on the scope, or the × of the overview strip. Choosing a window, and a switch between free-running and musical time, such as the first Start, reset it too. There are no zoom keys.
+  - A view may run past the end of the window and carry on at its start, as the head does, so the downbeat can be seen from both sides. Zooming out near an edge gets there. Zooming out also turns the view back towards the whole window, which it reaches exactly at 1×.
+  - While zoomed, an overview strip above the scope shows the whole window, the part in view and the head. The status bar shows the zoom, such as `ZOOM 4.0× · 1.3–1.4`: the magnification, then where the view starts and ends within the window, as bar.beat, bar.beat.sixteenth when less than a beat is in view, or seconds while the sweep runs free. The positions count from the window's start, so they stay the same from one window to the next.
+  - The head line shows only while the head is in view. The grid adds thirty-seconds with a quarter of a bar in view and sixty-fourths with an eighth. With a bar or less in view, beats are labelled bar.beat, and the left edge always names the beat the view starts in.
+  - The zoom works while stopped and in the free-running sweep, lasts through Stop, Continue and every Start after the first, and is not saved across restarts.
+- **D-086 — The roadmap's steps are called steps, not PRs: step 1 to step 8, and step 7b.** `Active`
+  - A step is still one draft pull request, but GitHub numbers pull requests on its own, so "PR 7b" next to #12 was confusing. "PR" and "#" now always mean a GitHub pull request.
+  - The docs were reworded to match. Commit messages and pull requests from before this call step N "PR N".
 
 ---
 
@@ -259,7 +329,7 @@ A lightweight log of decisions and open questions. The architecture is described
 - **Q-006 — What is the BPM min/max range?**
   This matters less with the sweep model, since the sweep buffer is sized in bins rather than samples. The 0.5 s clock-loss timeout implies a floor of about 5 BPM.
 - **Q-008 — Is a calibrated visual sync offset between MIDI and audio needed (e.g. ±20 ms)?**
-  To be decided from the PR 8 measurements. The architecture must not rule it out.
+  To be decided from the step 8 measurements. The architecture must not rule it out.
 - **Q-009 — How is the time signature set in MIDI mode, given that MIDI Clock carries none?**
   Not needed for the MVP (4/4 default).
 - **Q-012 — Which strategy for controls on small screens: auto-hide, overlay, a settings drawer or tap-to-show?**

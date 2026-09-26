@@ -136,6 +136,13 @@ public:
         return droppedFrames_.load(std::memory_order_relaxed);
     }
 
+    /** Any thread. The stream position just after the newest block offered to push(), stored or
+        dropped: how far the audio has got, even where the consumer has not read it yet. */
+    [[nodiscard]] std::uint64_t newestFrameEnd() const noexcept
+    {
+        return newestFrameEnd_.load(std::memory_order_relaxed);
+    }
+
 private:
     void countOverrun(std::uint32_t numFrames) noexcept;
 
@@ -154,6 +161,7 @@ private:
     alignas(cacheLineSize) std::uint64_t writeFrame_ = 0;
     std::atomic<std::uint64_t> overruns_{0};
     std::atomic<std::uint64_t> droppedFrames_{0};
+    std::atomic<std::uint64_t> newestFrameEnd_{0};
 
     // Consumer side. readFrame_ counts every frame ever consumed; the producer reads it to find
     // free space.

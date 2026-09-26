@@ -1,6 +1,6 @@
 # Visona architecture
 
-This document describes what Visona is, the principles it is built on, and the architecture of MVP 1.0. Milestones and PR steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
+This document describes what Visona is, the principles it is built on, and the architecture of MVP 1.0. Milestones and steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
 
 ## 1. Vision
 
@@ -103,8 +103,8 @@ Position is counted in ticks, with `ticksPerBar = 24 × numerator × 4 / denomin
 | Clock in `Running` | Position += 1 tick; the tick's sample time is recorded |
 | Clock in `Stopped`/`Waiting` | Updates the BPM estimate only (some DAWs send clock while stopped) |
 | Stop | `Stopped`. Position is kept; the UI freezes the last frame and shows `STOPPED` |
-| SPP | Position = SPP × 6 ticks. Accepted in `Stopped`; ignored and logged in `Running` |
-| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass |
+| SPP | Position = SPP × 6 ticks. Accepted whenever not `Running` (D-073); ignored and counted in `Running` |
+| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass. From `Waiting`, the sweep starts over as on Start, but at the SPP position |
 | > 0.5 s without Clock in `Running` | `ClockLost`: freeze and show `MIDI CLOCK LOST` |
 | Clock returns in `ClockLost` | `Running` again, continuing the tick count. Position may be off until the next Start, or SPP + Continue |
 
@@ -112,18 +112,20 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 
 **Position per audio sample.** Between tick *k* at sample *s_k* and tick *k+1* at *s_{k+1}*, position = *k + (s − s_k) / (s_{k+1} − s_k)*.
 - Audio is analyzed only up to the latest known tick. This costs about one tick of visual latency (≈ 21 ms at 120 BPM).
-- On Stop or clock loss, the last interval is extrapolated by at most one tick and then held.
+- On Stop or clock loss, the last interval is extrapolated by at most one tick and then held. On Stop, the extrapolation also ends at the Stop.
+- The transport hands the analysis a timeline of spans, each saying how to treat its stretch of audio: free-running, musical (with the position), frozen, or pending until the next tick (D-075).
+- Time in the transport is audio time: the clock-loss timeout runs on the audio's sample timeline.
 
 **BPM.** `BPM = 60 × sampleRate / (24 × tick interval in samples)`.
-- The estimate is a moving average over the last 24 intervals (one beat), reset on Start, and displayed with 0.1 BPM resolution.
+- The estimate is the least-squares tempo of the last 25 clocks, or 24 intervals (one beat). A gap longer than the clock-loss timeout starts it over, and so does Start. It is displayed with 0.1 BPM resolution (D-074).
 - There is no PLL in the MVP (D-035).
 
 **MIDI time to audio sample time**
 
-- MIDI events carry a host time from JUCE's timestamp. Whether that is the CoreMIDI packet timestamp or the arrival time is verified in PR 7.
+- MIDI events carry a host time from JUCE's timestamp. On macOS it is the CoreMIDI packet time, the driver's receive time, converted to JUCE's millisecond counter; Visona converts it back to host nanoseconds (D-077).
 - Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback, in the same time base (D-065).
-- `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime` over the last N blocks. It absorbs callback jitter and drift between the audio clock and the host clock.
-- A MIDI event's sample time is `mapper(t_midi) − latencyOffset`. `latencyOffset` starts as the reported input latency plus an internal calibration constant with no UI. It is measured in PR 8.
+- `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime`: a least-squares line through the blocks of the last 2 s (D-076). It absorbs callback jitter and drift between the audio clock and the host clock.
+- A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, since audio captured at a moment appears in the stream the input latency later than a MIDI event stamped at that moment (D-078). `latencyOffset` starts as the reported input latency, without one buffer when the device supplies input timestamps, plus an internal calibration constant with no UI. It is measured in step 8.
 
 ### 3.4 Sweep data model
 
@@ -131,15 +133,17 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Window.** W ∈ {¼, ½, 1, 2, 4} bars, and phase φ = frac(positionInBars / W).
   - Windows start on multiples of W from bar 1, so a 2-bar window always starts on bar 1, 3, 5 …, and a ¼-bar window starts on every beat.
   - Nothing in the data model assumes W is between ¼ and 4 bars (D-058).
-- **Bins.** A fixed B = 4096 bins per window, independent of screen width (D-054). The renderer reduces bins to pixel columns.
-  - Resizing therefore never touches the analysis, and tests stay deterministic.
+- **Bins.** A fixed B = 131,072 bins per window, independent of screen width (D-054, D-083). The renderer reduces bins to pixel columns.
+  - Resizing and zooming therefore never touch the analysis, and tests stay deterministic.
+  - At the deepest zoom, 1/32 of the window, that is still about one bin per physical pixel on a Retina display.
 - **Cell.** `sweep[source][channel][band][bin] = {min, max}`, signed float (D-050).
   - `full` (broadband) always defines the waveform shape.
-  - `low`, `mid` and `high` drive the frequency coloring only (D-056). PR 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
+  - `low`, `mid` and `high` drive the frequency coloring only (D-056). Step 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
 - **Pass metadata.** Each bin carries a `passId`, so the renderer can tell the new pass from the previous one ahead of the write head. The column at the head shows only the new pass.
 - **Writing.** Each sample maps to bin *b = ⌊φ·B⌋*. When *b* changes, the new bin is reset and stamped with the current `passId`.
+  - A bin holds the min and max of the signal drawn as straight lines between consecutive samples. It also reaches the values where the line crosses its edges, and a bin no sample falls in holds the piece of line through it (D-084).
   - Start and window changes clear the buffer.
-  - Continue after an SPP relocate increments `passId` without clearing.
+  - Continue after an SPP relocate increments `passId` without clearing. The sweep recognizes it as a position that does not carry on within one tick of where it froze (D-079).
   - Frames missing because the ring dropped a block leave their bins empty in the current pass (D-067).
 - **Free-running (`Waiting`).** φ = frac(sampleIndex / (2 s × sampleRate)) (D-060).
 - **Freeze (`Stopped`/`ClockLost`).** No bins are written, but the ring is still drained and status keeps updating.
@@ -153,7 +157,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ### 3.5 Rendering
 
 - **Shape.** For every pixel column, the span between the full-band min and max is filled. That area is the waveform in every mode (D-056).
-- **Frequency coloring.** A visualization aid that shows which frequencies make up the sound. The starting palette is blue lows, orange mids and white highs (D-051). PR 5 picks one of two methods, based on which keeps the waveform correct and readable at ¼ and 4 bars:
+- **Frequency coloring.** A visualization aid that shows which frequencies make up the sound. The starting palette is blue lows, orange mids and white highs (D-051). Step 5 picks one of two methods, based on which keeps the waveform correct and readable at ¼ and 4 bars:
   - *Blended color per column:* the full-band span is filled with one color, mixed from each band's share of that column.
   - *Bands inside the full-band outline:* the band envelopes are drawn clipped to the full-band outline and never extend beyond it.
 - **Mono/precise mode.** Draws `full` in a neutral color only. It stays available as a mode and as a reference that coloring does not change the shape.
@@ -166,12 +170,15 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - A small erase gap follows the head.
   - The previous pass ahead of the head is drawn at full brightness, like the new one; the head line and gap are enough to read the sweep.
 - **Grid.** Neutral gray, not blue.
-  - Downbeats and bar lines are strongest and beat lines weaker. Sixteenths show only at ¼ and ½ bar.
-  - Small bar numbers sit at the lane edge.
+  - Downbeats and bar lines are strongest and beat lines weaker. Sixteenths show when half a bar or less is in view: at ¼ and ½ bar, or zoomed in. Zoomed in to a quarter or an eighth of a bar, thirty-seconds and sixty-fourths are added (D-085).
+  - Small bar numbers sit at the bottom edge; a window that starts between bars is labelled bar.beat (D-080). With a bar or less in view, beats are labelled bar.beat too, and the left edge names the beat the view starts in.
+- **Zoom** (D-085). Presentation only: the view is a part of the window, from an offset for a span, down to 1/32 of it, and may run past the end of the window into its start.
+  - `SweepZoom` in the core holds it and implements zooming around a point and to a selection; `ColumnMapping` maps the view's bins to columns, giving up to two column ranges for a range of bins.
+  - The head line shows only while the head is in view.
 - **Color tokens.** One central palette holds band, grid, head, lane background, status and error colors. That keeps themes cheap later, without building a theme UI now.
 - **Implementation** (D-054):
   - CPU rasterization into `juce::Image` tiles 64 physical pixels wide via `BitmapData`, at physical pixel resolution (HiDPI) (D-071).
-  - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass. Resize, gain and window changes trigger a full redraw.
+  - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass and in a zoomed view. Resize, gain, zoom and window changes trigger a full redraw.
   - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. Without a new snapshot, nothing is drawn. OpenGL only if measurements show it is needed.
 
 ### 3.6 UI layout
@@ -179,6 +186,8 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ 126.0 BPM   MIDI RUN   96 kHz   1 BAR   +12 dB               │  status
+├──────────────────────────────────────────────────────────────┤
+│ [       ▐████▌                                        ]  [×] │  zoom (only while zoomed)
 ├──────────────────────────────────────────────────────────────┤
 │ L  ~~~~~~~~~ sweep ~~~~~~~~~│                                 │
 ├──────────────────────────────────────────────────────────────┤
@@ -189,16 +198,19 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ```
 
 - **Status (top)** (D-046): BPM, MIDI state (`WAITING`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
-  - Until MIDI Clock is wired in (PR 7), the state reads `FREE RUN`, or `NO INPUT` in red when no audio input runs.
+  - The state reads `WAITING`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080).
   - Values are calm white or gray text with tabular digits.
   - Color is used for state only, and red is reserved for errors.
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
   - `STOPPED` shows a freeze indicator and slightly dims the scope.
+  - While zoomed, the zoom comes last, such as `ZOOM 4.0× · 1.3–1.4` (D-085).
+- **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom.
 - **Controls (bottom):** no knobs.
   - WINDOW is an always-visible segmented control.
   - GAIN is `[−] +12 dB [+]`, from 0 to +36 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB.
   - Secondary buttons: Diagnostics and Full screen, next to ⚙.
-  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics.
+  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
+- **Zoom on the scope** (D-085): drag to zoom to the selection, scroll or pinch to zoom around the pointer, and double-click or double-tap to reset.
 - **Responsive chrome** (D-069). The layout reflows in steps:
   - Wide windows put everything on one row.
   - Narrow windows use two rows with abbreviated labels.
@@ -263,10 +275,12 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Group delay per band is measured and documented, from 44.1 to 192 kHz.
 - **Shape invariance.** The rendered outline is identical in every coloring mode and in mono/precise mode for the same input (D-056).
 - **Sweep and rendering.**
-  - A 1 kHz sine at 96 kHz, 120 BPM and 1 bar produces a deterministic buffer: every bin holds exactly the min and max of its samples. A bin is 46.875 samples, about half a cycle, so every three neighbouring bins reach min ≈ −A and max ≈ +A. A sine with at least one cycle per bin, such as 4 kHz, reaches them in every bin.
+  - A 1 kHz sine at 96 kHz, 120 BPM and 1 bar, with B = 4096, produces a deterministic buffer: every bin holds exactly the min and max of the lines through its samples (D-084). A bin is 46.875 samples, about half a cycle, so every three neighbouring bins reach min ≈ −A and max ≈ +A. A sine with at least one cycle per bin, such as 4 kHz, reaches them in every bin.
+  - With more bins than frames, the lines between frames fill the bins between them, and at the default B the waveform is one connected line.
   - A click per beat peaks at 0, ¼, ½ and ¾ of the window (±1 bin).
   - Window changes, free-running and freeze on Stop.
-  - Bin-to-pixel reduction.
+  - Bin-to-pixel reduction, also for zoomed views that run past the end of the window, checked by brute force against which columns show which bins.
+  - Zooming around a point keeps it in place, stops at 1/32 of the window, and zooming out arrives at the whole window.
 - **Channel-count independence.** The analyzer gives the same per-channel result with 1, 2 and 6 channels (D-049).
 - **Concurrency.** Stress tests for the SPSC ring and triple buffer under TSan.
 - **Performance** (informational). A benchmark of analysis cost per second of stereo audio at 96 kHz.
@@ -275,13 +289,13 @@ Everything below runs in CI on Linux without hardware (D-032).
 
 - **MIDI-to-audio jitter and offset.** USB MIDI and callback timing add jitter, and the audio and MIDI paths have different latency. *Mitigation:*
   - Interpolate between known ticks and smooth the clock mapping.
-  - Measure the offset in PR 8.
+  - Measure the offset in step 8.
   - Ableton Live's MIDI Clock Sync Delay can serve as a calibration knob.
   - A sync offset in the UI waits for measured data.
-- **JUCE MIDI timestamp semantics on macOS are unverified.** Arrival-time stamps would add jitter. *Mitigation:* verify in PR 7, and add thin CoreMIDI timestamping in `app/` if needed.
-- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2 ms. That is ≈ 13 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* measure in PR 5 and compensate with a constant delay in the band data if needed.
-- **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in PR 4, and OpenGL as a fallback.
+- **JUCE MIDI timestamps on macOS are CoreMIDI packet times, but only to within about 1 ms.** This was checked in step 7 (D-077); JUCE anchors its conversion with a whole millisecond. *Mitigation:* the offset measurement in step 8, and thin CoreMIDI timestamping in `app/` if it matters.
+- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2 ms. That is ≈ 13 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* measure in step 5 and compensate with a constant delay in the band data if needed.
+- **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in step 4, and OpenGL as a fallback.
 - **Toolchain versions.** CI runner images lag behind new macOS and Xcode releases, and JUCE 9's CoreAudio implementation is new code. *Mitigation:* pin the JUCE tag, the runner image and the Xcode version, and treat the maintainer's local build as the reference.
-- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from PR 3, and build locally or clear the quarantine on the artifact.
-- **Ableton Live clock behavior.** It is unclear whether Live sends clock while stopped, and exactly when SPP arrives relative to Continue. *Mitigation:* the transport handles both cases; verify in PR 7.
+- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3, and build locally or clear the quarantine on the artifact.
+- **Ableton Live clock behavior.** It is unclear whether Live sends clock while stopped, and exactly when SPP arrives relative to Continue. *Mitigation:* the transport handles both cases; verify in step 7.
 - **Analysis thread starvation.** *Mitigation:* a ring of about 1 s, overrun counters, and a raised thread priority if needed.

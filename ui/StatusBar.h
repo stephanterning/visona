@@ -8,22 +8,27 @@ namespace visona
 {
 
 /**
-    The status bar at the top (D-046): state, sample rate, window and gain, as calm text with
-    tabular digits. Colour shows state only; red means an error.
+    The status bar at the top (D-046): BPM, MIDI state, sample rate, window and gain, as calm text
+    with tabular digits, and while zoomed in, the zoom (D-085). Colour shows state only; red means
+    an error.
 
-    When the values do not fit, the bar drops them from the end, keeping the state. It repaints
-    only when a value changes.
+    When the values do not fit, the bar drops them from the end, keeping the BPM and the state. It
+    repaints only when a value changes.
 */
 class StatusBar final : public juce::Component
 {
 public:
     struct Values
     {
+        /** Such as "126.0 BPM"; empty when the tempo is not known. */
+        juce::String bpm;
         juce::String state;
         bool stateIsError = false;
         juce::String sampleRate;
         juce::String window;
         juce::String gain;
+        /** Empty unless zoomed in. */
+        juce::String zoom;
 
         friend bool operator==(const Values&, const Values&) = default;
     };

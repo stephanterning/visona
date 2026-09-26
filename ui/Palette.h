@@ -42,6 +42,8 @@ inline const juce::Colour head{0xff3fe08a};
 inline const juce::Colour gridBar{0xff5a5f69};
 inline const juce::Colour gridBeat{0xff363a42};
 inline const juce::Colour gridSixteenth{0xff23262c};
+/** Thirty-seconds and sixty-fourths, shown only when zoomed in. */
+inline const juce::Colour gridFine{0xff191b20};
 
 // Frequency bands, for colouring only (D-051, D-056)
 inline const juce::Colour bandLow{0xff3a7bff};

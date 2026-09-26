@@ -5,10 +5,12 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 **Status:**
 - The MVP plan is approved (D-054).
 - The license (AGPLv3) and `AGENTS.md` are in place.
-- PR 1 (skeleton and CI) is merged ([#4](https://github.com/stephanterning/visona/pull/4)).
-- PR 2 (core primitives) is in review ([#5](https://github.com/stephanterning/visona/pull/5)).
-- PR 3 (audio input and settings) is in review ([#6](https://github.com/stephanterning/visona/pull/6)), stacked on PR 2.
-- PR 4 (free-running sweep scope) is in review ([#7](https://github.com/stephanterning/visona/pull/7)), stacked on PR 3.
+- Step 1 (skeleton and CI) is merged ([#4](https://github.com/stephanterning/visona/pull/4)).
+- Step 2 (core primitives) is merged ([#5](https://github.com/stephanterning/visona/pull/5)).
+- Step 3 (audio input and settings) is merged ([#6](https://github.com/stephanterning/visona/pull/6)).
+- Step 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
+- MIDI Clock sync, steps 6 and 7, comes before frequency coloring, step 5 (D-072).
+- Step 7b (horizontal zoom) is in review ([#12](https://github.com/stephanterning/visona/pull/12)). It also contains step 6 (MIDI Clock transport in core) and step 7 (beat-synced sweep), which were opened alone as [#8](https://github.com/stephanterning/visona/pull/8) and [#11](https://github.com/stephanterning/visona/pull/11) (D-082).
 
 ## 1. MVP 1.0
 
@@ -20,6 +22,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - One stereo source from the reference audio interface, connected at startup (D-033, D-052)
 - MIDI Clock as the only clock source, with Clock, Start, Stop, Continue and SPP (D-036, D-041)
 - Sweep display with windows of ¼, ½, 1, 2 and 4 bars (D-020, D-034)
+- Horizontal zoom in on part of the window, down to 1/32 of it, without changing the window (D-082, D-085)
 - Full-band signed min/max waveform, with frequency coloring as an aid and a mono/precise mode (D-050, D-056)
 - Display gain from 0 to +36 dB (D-024, D-046)
 - Status bar, control bar, a settings panel with persistence, resizing and fullscreen (D-046)
@@ -42,27 +45,27 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 2. Before the first Start, incoming stereo shows in a free-running sweep.
 3. On Play in Ableton Live, the sweep restarts at bar 1 and the bars stand still on screen.
 4. Kicks on the beat land on the grid lines at 120, 126 and 174 BPM.
-5. The window (¼–4 bars) and gain (0–36 dB) can be changed live.
+5. The window (¼–4 bars), gain (0–36 dB) and zoom can be changed live.
 6. Stop freezes the view and shows `STOPPED`. Moving the playhead to bar 17 and pressing Continue lands correctly (SPP).
 7. Pulling the MIDI cable shows `MIDI CLOCK LOST` within about 0.5 s.
 8. A long studio session runs without dropouts or ring overruns.
 9. Measurements and lessons learned are documented (D-040).
 
-## 2. PR steps
+## 2. Steps
 
-Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048).
+Each step is a draft pull request, which has its own number on GitHub, such as #12 for step 7b (D-086). The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048). The steps keep their numbers, but steps 6 and 7 are done before step 5 (D-072), and step 7b, added later, follows step 7 (D-082).
 
-**PR 1 – Skeleton and CI** (milestone 0)
+**Step 1 – Skeleton and CI** (milestone 0)
 - Content: CMake, JUCE, an empty `core/` library, an app that opens an empty Visona window, Catch2 with one test, CI for both jobs, and `.clang-format`.
 - Acceptance: CI is green on macOS and Linux, and the Linux job does not fetch JUCE.
 - Hardware check: builds in Xcode, the app starts, and the window resizes and goes fullscreen.
 
-**PR 2 – Core primitives**
+**Step 2 – Core primitives**
 - Content: SPSC ring, triple buffer, source layout, `BlockTiming` and `MidiClockEvent`. No UI.
 - Acceptance: unit tests and TSan stress tests are green.
 - Hardware check: none (review only).
 
-**PR 3 – Audio input and settings** (milestone 1)
+**Step 3 – Audio input and settings** (milestone 1)
 - Content:
   - Audio device management and a settings panel for device and input pair, with persistence.
   - The audio callback feeding the ring.
@@ -71,7 +74,7 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
 - Acceptance: CI is green, and the callback does not allocate (checked by review and debug instrumentation).
 - Hardware check: S/PDIF input shows correct L/R levels (pan test), 96 kHz is shown, the choices survive a restart, and there are no overruns over 30 minutes.
 
-**PR 4 – Free-running sweep scope** (milestone 2)
+**Step 4 – Free-running sweep scope** (milestone 2)
 - Content:
   - The analysis thread, and `SweepAnalyzer` with the `full` band only, in a fixed time window.
   - Snapshots via the triple buffer.
@@ -81,7 +84,7 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
 - Acceptance: deterministic sweep tests are green, and rendering holds 60 fps without overruns, including with the settings panel open.
 - Hardware check: the waveform looks right with real music; the write head and passes are readable; gain, resize and fullscreen work; CPU load is noted.
 
-**PR 5 – Frequency coloring** (D-056)
+**Step 5 – Frequency coloring** (D-056)
 - Content:
   - `BandSplitter` (LR4) with tests, and per-band data.
   - Both coloring methods: a blended color per column, and bands inside the full-band outline.
@@ -95,12 +98,12 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
   - Check that the head and grid colors do not clash with the coloring.
   - The chosen method is recorded as a decision.
 
-**PR 6 – MIDI Clock transport in core**
+**Step 6 – MIDI Clock transport in core**
 - Content: state machine, tick counting, SPP, BPM estimate, clock-loss timeout and `ClockTimeMapper`. No UI.
 - Acceptance: every transport, SPP and mapping test in the [test strategy](architecture.md#5-test-strategy) is green on Linux.
 - Hardware check: none (review only).
 
-**PR 7 – Beat-synced sweep** (milestone 4, plus window selection)
+**Step 7 – Beat-synced sweep** (milestone 4, plus window selection)
 - Content:
   - MIDI input in settings (persisted), the MIDI ring, and the transport wired into the analysis.
   - φ from musical position, and WINDOW ¼–4.
@@ -114,7 +117,19 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
   - Relocating to bar 17 and pressing Continue lands correctly.
   - Also a tempo change, window switching, and a pulled MIDI cable showing `MIDI CLOCK LOST`.
 
-**PR 8 – Proof-of-concept hardening and measurements**
+**Step 7b – Horizontal zoom** (D-082)
+- Content:
+  - B = 131,072 bins, and bins that hold the lines between samples, so the waveform stays one connected line at deep zoom (D-083, D-084).
+  - Zoom in `ScopeView` down to 1/32 of the window: drag to select, scroll wheel, trackpad and touch pinch, and reset with Esc, a double-click or a new window (D-085).
+  - A view that may run past the end of the window, a finer grid and beat labels when zoomed, the overview strip and the zoom in the status bar.
+- Acceptance: zoom tests are green, including brute-force tests of the zoomed bin-to-column mapping, and rendering still holds 60 fps.
+- Hardware check with real music, in Ableton Live and before the first Start:
+  - Zoom in on the third beat of a 1-bar window by dragging, and further with the wheel and a trackpad pinch, down to 32×.
+  - Zoom in around the downbeat and see both sides of it.
+  - Esc, a double-click, the × and choosing a window reset the zoom; Stop and Continue keep it.
+  - The waveform looks connected and sharp on the Retina display at every zoom, and CPU load is noted.
+
+**Step 8 – Proof-of-concept hardening and measurements**
 - Content:
   - A file log: device, sample rate, block size, BPM, tick jitter statistics and overruns.
   - A measurement of the visual offset between an audio click and the grid.

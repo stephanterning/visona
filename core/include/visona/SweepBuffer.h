@@ -50,8 +50,9 @@ struct SweepCell
 class SweepBuffer
 {
 public:
-    /** B, the number of bins per window (D-054). */
-    static constexpr std::size_t defaultBinCount = 4096;
+    /** B, the number of bins per window (D-054, D-083): at the deepest zoom, 1/32 of the window,
+        about one bin per physical pixel on a 16-inch MacBook Pro's Retina display. */
+    static constexpr std::size_t defaultBinCount = 131'072;
 
     /** No channels and no bins. */
     SweepBuffer() = default;
@@ -106,8 +107,19 @@ public:
     */
     void advanceHead(std::uint64_t pass, std::size_t bin) noexcept;
 
+    /**
+        Moves the head to bin `bin` of pass `pass`, which must be a later pass, without emptying the
+        bins in between: after a relocation, the old content becomes the previous pass. Only `bin`
+        itself is emptied and stamped.
+    */
+    void jumpHead(std::uint64_t pass, std::size_t bin) noexcept;
+
     /** Widens the head bin of `channel` to include `span`. */
     void addToHead(std::size_t channel, const SweepCell& span) noexcept;
+
+    /** Widens bin `bin` of `channel` to include `span`. The bin must be one the head has just
+        entered, so that copies stay correct. */
+    void addToBin(std::size_t channel, std::size_t bin, const SweepCell& span) noexcept;
 
     /**
         Makes this buffer a copy of `source`, which must have the same number of channels and bins.

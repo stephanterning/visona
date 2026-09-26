@@ -69,9 +69,11 @@ struct AudioEngine::Stream
 AudioEngine::AudioEngine(Settings& settings)
     : settings_(settings)
     , layout_{2} // MVP 1.0 has exactly one stereo source (D-052).
+    , midi_(settings)
     , analysis_(layout_.totalChannelCount())
     , inputChannels_(settings.inputChannels(layout_.totalChannelCount()))
 {
+    analysis_.setMidiQueue(&midi_.queue());
     deviceManager_.addAudioCallback(this);
     deviceManager_.addChangeListener(this);
 }
@@ -97,6 +99,7 @@ void AudioEngine::openSavedDevice()
         deviceManager_.closeAudioDevice();
         applySetup(setup);
     }
+    midi_.openSaved();
 }
 
 bool AudioEngine::isInputRunning() const
@@ -153,6 +156,26 @@ TripleBuffer<SweepSnapshot>& AudioEngine::snapshots() noexcept
 std::uint64_t AudioEngine::analysisBusyNanoseconds() const noexcept
 {
     return analysis_.busyNanoseconds();
+}
+
+void AudioEngine::setWindow(std::size_t windowIndex) noexcept
+{
+    analysis_.setWindow(windowIndex);
+}
+
+juce::String AudioEngine::midiInput() const
+{
+    return midi_.identifier();
+}
+
+juce::String AudioEngine::midiInputName() const
+{
+    return midi_.name();
+}
+
+juce::String AudioEngine::selectMidiInput(const juce::String& identifier)
+{
+    return midi_.select(identifier);
 }
 
 juce::AudioDeviceManager& AudioEngine::deviceManager() noexcept
@@ -223,6 +246,17 @@ void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device)
         layout_.totalChannelCount(),
         ringCapacityFrames(sampleRate, device->getCurrentBufferSizeSamples()),
         device->getActiveInputChannels(), device->getInputChannelNames().size());
+
+    // Audio captured at some moment appears in the stream the input latency later than a MIDI
+    // event stamped at that moment (D-078). CoreAudio's input timestamp already marks the start
+    // of the buffer; the fallback clock is read after the buffer has filled.
+    const bool deviceTimestamps = device->getTypeName() == "CoreAudio";
+    const auto latency =
+        std::max(device->getInputLatencyInSamples() -
+                     (deviceTimestamps ? device->getCurrentBufferSizeSamples() : 0),
+                 0);
+    midiOffsetFrames_.store(static_cast<double>(latency), std::memory_order_relaxed);
+    analysis_.setMidiOffset(static_cast<double>(latency));
     analysis_.setStream(&stream->ring, sampleRate);
 
     const std::scoped_lock lock(lock_);

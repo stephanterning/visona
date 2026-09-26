@@ -22,4 +22,8 @@ target_sources(Visona PRIVATE
     SettingsPanel.cpp
     SettingsPanel.h
     StatusBar.cpp
-    StatusBar.h)
+    StatusBar.h
+    WindowControl.cpp
+    WindowControl.h
+    ZoomOverview.cpp
+    ZoomOverview.h)

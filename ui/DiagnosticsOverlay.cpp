@@ -23,8 +23,9 @@ constexpr int labelWidth = 140;
 constexpr float fontHeight = 13.0f;
 
 // The title and the section headings.
-constexpr int headingRows = 5;
+constexpr int headingRows = 6;
 constexpr int audioRows = 7;
+constexpr int midiRows = 5;
 constexpr int analysisRows = 1;
 constexpr int renderingRows = 5;
 constexpr int processRows = 1;
@@ -44,6 +45,31 @@ juce::String formatDuration(double seconds)
     const auto total = static_cast<std::int64_t>(std::max(seconds, 0.0));
     return juce::String(total / 3600) + ":" + juce::String((total / 60) % 60).paddedLeft('0', 2) +
            ":" + juce::String(total % 60).paddedLeft('0', 2);
+}
+
+juce::String formatState(TransportState state)
+{
+    switch (state)
+    {
+    case TransportState::waiting:
+        return "waiting";
+    case TransportState::running:
+        return "running";
+    case TransportState::stopped:
+        return "stopped";
+    case TransportState::clockLost:
+        return "clock lost";
+    }
+    return {};
+}
+
+/** A position in ticks as bar.beat.tick, counting bars and beats from 1. */
+juce::String formatPosition(std::int64_t tick, const TimeSignature& timeSignature)
+{
+    const auto perBar = timeSignature.ticksPerBar();
+    const auto perBeat = timeSignature.ticksPerBeat();
+    return juce::String(tick / perBar + 1) + "." + juce::String(tick % perBar / perBeat + 1) + "." +
+           juce::String(tick % perBeat);
 }
 
 juce::String formatLoad(double fraction)
@@ -100,7 +126,7 @@ void DiagnosticsOverlay::update(const Values& values, double elapsedSeconds)
 
 int DiagnosticsOverlay::numRows() const
 {
-    return headingRows + audioRows + static_cast<int>(values_.channels.size()) +
+    return headingRows + audioRows + midiRows + static_cast<int>(values_.channels.size()) +
            (values_.callbackAllocations.has_value() ? 1 : 0) + analysisRows + renderingRows +
            processRows;
 }
@@ -215,6 +241,22 @@ void DiagnosticsOverlay::paint(juce::Graphics& g)
             drawRow("Callback allocs", juce::String(*values_.callbackAllocations),
                     *values_.callbackAllocations > 0 ? palette::error : palette::text);
     }
+
+    drawHeading("MIDI CLOCK");
+    drawRow("MIDI input", values_.midiInput.isNotEmpty() ? values_.midiInput : "none");
+    drawRow("Transport", formatState(values_.transportState) + ", next tick at " +
+                             formatPosition(values_.nextTick, values_.timeSignature));
+    drawRow("Tempo", values_.bpm > 0.0 ? juce::String(values_.bpm, 2) + " BPM" : "-");
+    drawRow("Messages",
+            juce::String(values_.midiEvents) + " (" + juce::String(values_.midiDrops) +
+                " dropped, " + juce::String(values_.ignoredSpp) + " SPP ignored)",
+            values_.midiDrops > 0 ? palette::error : palette::text);
+    drawRow("MIDI offset",
+            values_.sampleRate > 0.0
+                ? "+" + juce::String(values_.midiOffsetFrames * 1000.0 / values_.sampleRate, 2) +
+                      " ms (" + juce::String(juce::roundToInt(values_.midiOffsetFrames)) +
+                      " frames)"
+                : "-");
 
     drawHeading("ANALYSIS");
     drawRow("Analysis thread", formatLoad(values_.analysisLoad));

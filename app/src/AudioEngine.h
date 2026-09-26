@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnalysisThread.h"
+#include "MidiClockInput.h"
 #include "ui/AudioSettings.h"
 
 #include <visona/SourceLayout.h>
@@ -49,6 +50,7 @@ public:
     /**
         Opens the saved audio device, or the default input device if none has been saved. If the
         saved device is missing, no device is opened: there is no fallback to another device.
+        Also opens the saved MIDI input.
     */
     void openSavedDevice();
 
@@ -82,6 +84,20 @@ public:
     /** Time the analysis thread has spent analyzing, in nanoseconds. */
     [[nodiscard]] std::uint64_t analysisBusyNanoseconds() const noexcept;
 
+    /** Any thread. Selects the musical window, an index into sweepWindowBars. */
+    void setWindow(std::size_t windowIndex) noexcept;
+
+    /** Frames added to MIDI event positions for the current device (D-078). */
+    [[nodiscard]] double midiOffsetFrames() const noexcept
+    {
+        return midiOffsetFrames_.load(std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] const MidiClockInput& midi() const noexcept
+    {
+        return midi_;
+    }
+
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override;
     juce::String selectDeviceType(const juce::String& typeName) override;
     juce::String selectDevice(const juce::String& inputDeviceName) override;
@@ -90,6 +106,9 @@ public:
     [[nodiscard]] const SourceLayout& layout() const noexcept override;
     [[nodiscard]] int inputChannel(std::size_t channel) const override;
     void setInputChannel(std::size_t channel, int deviceInputChannel) override;
+    [[nodiscard]] juce::String midiInput() const override;
+    [[nodiscard]] juce::String midiInputName() const override;
+    juce::String selectMidiInput(const juce::String& identifier) override;
 
 private:
     struct Stream;
@@ -112,8 +131,12 @@ private:
     Settings& settings_;
     const SourceLayout layout_;
 
+    // Outlives the analysis thread, which drains its queue.
+    MidiClockInput midi_;
+
     // Outlives the device manager, whose callbacks hand it streams.
     AnalysisThread analysis_;
+    std::atomic<double> midiOffsetFrames_{0.0};
 
     juce::AudioDeviceManager deviceManager_;
     juce::String lastError_;

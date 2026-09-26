@@ -32,6 +32,12 @@ void AnalysisThread::setStream(AudioRingBuffer* ring, double sampleRate)
     pipeline_.setStream(ring, sampleRate);
 }
 
+void AnalysisThread::setMidiQueue(MidiClockQueue* queue)
+{
+    const std::scoped_lock lock(lock_);
+    pipeline_.setMidiQueue(queue);
+}
+
 void AnalysisThread::run()
 {
     using Clock = std::chrono::steady_clock;

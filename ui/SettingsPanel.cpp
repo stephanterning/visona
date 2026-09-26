@@ -70,6 +70,14 @@ SettingsPanel::SettingsPanel(AudioSettings& settings)
         };
     }
 
+    addRow(midiRow_, "MIDI input");
+    midiRow_.choices.onChange = [this]
+    {
+        if (const auto index = midiRow_.choices.getSelectedItemIndex(); index >= 0)
+            if (midiIdentifiers_[index] != settings_.midiInput())
+                showResult(settings_.selectMidiInput(midiIdentifiers_[index]));
+    };
+
     deviceTypeRow_.choices.onChange = [this]
     {
         if (const auto index = deviceTypeRow_.choices.getSelectedItemIndex(); index >= 0)
@@ -142,7 +150,7 @@ void SettingsPanel::setViewToggles(bool diagnostics, bool fullScreen)
 
 int SettingsPanel::preferredHeight() const
 {
-    auto rows = static_cast<int>(inputRows_.size()) + (viewLabel_.isVisible() ? 1 : 0);
+    auto rows = static_cast<int>(inputRows_.size()) + 1 + (viewLabel_.isVisible() ? 1 : 0);
     for (const auto* row : {&deviceTypeRow_, &deviceRow_, &sampleRateRow_, &bufferSizeRow_})
         if (row->choices.isVisible())
             ++rows;
@@ -158,6 +166,7 @@ void SettingsPanel::refresh()
     refreshSampleRates(device);
     refreshBufferSizes(device);
     refreshInputChannels(device);
+    refreshMidiInputs();
     notifyPreferredHeight();
 }
 
@@ -193,6 +202,7 @@ void SettingsPanel::resized()
         placeRow(*row);
     for (auto& row : inputRows_)
         placeRow(*row);
+    placeRow(midiRow_);
 
     if (viewLabel_.isVisible())
     {
@@ -320,6 +330,32 @@ void SettingsPanel::refreshInputChannels(juce::AudioIODevice* device)
         choices.setSelectedId(settings_.inputChannel(channel) + 1, juce::dontSendNotification);
         choices.setEnabled(!inputNames.isEmpty());
     }
+}
+
+void SettingsPanel::refreshMidiInputs()
+{
+    auto& choices = midiRow_.choices;
+    choices.clear(juce::dontSendNotification);
+    midiIdentifiers_.clear();
+
+    midiIdentifiers_.add({});
+    choices.addItem("None", 1);
+    const auto current = settings_.midiInput();
+    bool found = current.isEmpty();
+    for (const auto& device : juce::MidiInput::getAvailableDevices())
+    {
+        midiIdentifiers_.add(device.identifier);
+        choices.addItem(device.name, midiIdentifiers_.size());
+        found = found || device.identifier == current;
+    }
+    // A saved input that is missing stays chosen, so that the next start opens it again.
+    if (!found)
+    {
+        midiIdentifiers_.add(current);
+        choices.addItem(settings_.midiInputName() + " (not found)", midiIdentifiers_.size());
+    }
+    choices.setSelectedItemIndex(std::max(midiIdentifiers_.indexOf(current), 0),
+                                 juce::dontSendNotification);
 }
 
 } // namespace visona

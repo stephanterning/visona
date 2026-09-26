@@ -38,6 +38,21 @@ public:
     */
     void setStream(AudioRingBuffer* ring, double sampleRate);
 
+    /** Takes MIDI Clock events from `queue`, which must outlive the thread or the next call. */
+    void setMidiQueue(MidiClockQueue* queue);
+
+    /** Any thread. */
+    void setWindow(std::size_t windowIndex) noexcept
+    {
+        pipeline_.setWindow(windowIndex);
+    }
+
+    /** Any thread. */
+    void setMidiOffset(double frames) noexcept
+    {
+        pipeline_.setMidiOffset(frames);
+    }
+
     /** The UI thread's end of the snapshots. Only one thread may fetch from it. */
     [[nodiscard]] TripleBuffer<SweepSnapshot>& snapshots() noexcept
     {

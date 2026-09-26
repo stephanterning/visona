@@ -10,12 +10,15 @@ add_executable(visona_core_tests
     AnalysisPipelineTests.cpp
     AudioInputWriterTests.cpp
     AudioRingBufferTests.cpp
+    ClockTimeMapperTests.cpp
     ColumnReductionTests.cpp
     LaneMappingTests.cpp
+    MidiClockTransportTests.cpp
     SourceLayoutTests.cpp
     SpscQueueTests.cpp
     SweepAnalyzerTests.cpp
     SweepBufferTests.cpp
+    SweepZoomTests.cpp
     TripleBufferTests.cpp
     VersionTests.cpp
     support/AllocationCounter.cpp

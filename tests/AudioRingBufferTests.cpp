@@ -231,6 +231,23 @@ TEST_CASE("AudioRingBuffer drops a whole block that does not fit and keeps unrea
     CHECK(ring.overrunCount() == 1);
 }
 
+TEST_CASE("AudioRingBuffer tells how far the audio has got, stored or dropped", "[audio-ring]")
+{
+    AudioRingBuffer ring(1, 32, 8);
+    TestBlock block(1, 20);
+    CHECK(ring.newestFrameEnd() == 0);
+
+    REQUIRE(ring.push(block.channels(), block.fill(0, 20)));
+    CHECK(ring.newestFrameEnd() == 20);
+
+    // Dropped, but the audio still got this far.
+    CHECK_FALSE(ring.push(block.channels(), block.fill(20, 20)));
+    CHECK(ring.newestFrameEnd() == 40);
+
+    REQUIRE(ring.push(block.channels(), block.fill(40, 0)));
+    CHECK(ring.newestFrameEnd() == 40);
+}
+
 TEST_CASE("AudioRingBuffer drops a block when its timing storage is full", "[audio-ring]")
 {
     AudioRingBuffer ring(1, 100, 2);
