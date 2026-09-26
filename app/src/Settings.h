@@ -33,6 +33,17 @@ public:
     [[nodiscard]] std::vector<int> inputChannels(std::size_t count) const;
     void setInputChannels(std::span<const int> channels);
 
+    /** A MIDI input, by JUCE's identifier and by name for when it is missing. */
+    struct MidiInputChoice
+    {
+        juce::String identifier;
+        juce::String name;
+    };
+
+    /** The chosen MIDI input; an empty identifier is none. */
+    [[nodiscard]] MidiInputChoice midiInput() const;
+    void setMidiInput(const MidiInputChoice& choice);
+
     [[nodiscard]] juce::File file() const;
 
 private:

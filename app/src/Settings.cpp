@@ -8,6 +8,8 @@ namespace
 
 constexpr auto audioDeviceStateKey = "audioDeviceState";
 constexpr auto inputChannelsKey = "inputChannels";
+constexpr auto midiInputKey = "midiInput";
+constexpr auto midiInputNameKey = "midiInputName";
 
 juce::PropertiesFile::Options fileOptions()
 {
@@ -71,6 +73,17 @@ void Settings::setInputChannels(std::span<const int> channels)
     for (const auto channel : channels)
         tokens.add(juce::String(channel));
     properties_.setValue(inputChannelsKey, tokens.joinIntoString(","));
+}
+
+Settings::MidiInputChoice Settings::midiInput() const
+{
+    return {properties_.getValue(midiInputKey), properties_.getValue(midiInputNameKey)};
+}
+
+void Settings::setMidiInput(const MidiInputChoice& choice)
+{
+    properties_.setValue(midiInputKey, choice.identifier);
+    properties_.setValue(midiInputNameKey, choice.name);
 }
 
 juce::File Settings::file() const

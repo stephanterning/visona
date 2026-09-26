@@ -12,10 +12,10 @@ namespace visona
 {
 
 /**
-    The settings overlay: audio device, sample rate, buffer size, and the device input channel for
-    each source channel. Any input channel can feed any source channel. In small windows it also
-    holds the view controls that no longer fit in the control bar. The panel is opaque, so it never
-    makes the view behind it repaint.
+    The settings overlay: audio device, sample rate, buffer size, the device input channel for each
+    source channel, and the MIDI input for MIDI Clock. Any input channel can feed any source
+    channel. In small windows it also holds the view controls that no longer fit in the control
+    bar. The panel is opaque, so it never makes the view behind it repaint.
 */
 class SettingsPanel final : public juce::Component, private juce::ChangeListener
 {
@@ -65,6 +65,7 @@ private:
     void refreshSampleRates(juce::AudioIODevice* device);
     void refreshBufferSizes(juce::AudioIODevice* device);
     void refreshInputChannels(juce::AudioIODevice* device);
+    void refreshMidiInputs();
 
     AudioSettings& settings_;
 
@@ -75,6 +76,7 @@ private:
     Row sampleRateRow_;
     Row bufferSizeRow_;
     std::vector<std::unique_ptr<Row>> inputRows_;
+    Row midiRow_;
     juce::Label viewLabel_;
     juce::TextButton diagnosticsButton_;
     juce::TextButton fullScreenButton_;
@@ -84,6 +86,7 @@ private:
     juce::StringArray devices_;
     juce::Array<double> sampleRates_;
     juce::Array<int> bufferSizes_;
+    juce::StringArray midiIdentifiers_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SettingsPanel)
 };

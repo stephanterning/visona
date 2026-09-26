@@ -9,7 +9,7 @@
 namespace visona
 {
 
-/** The audio settings that the settings panel shows and changes. */
+/** The audio and MIDI settings that the settings panel shows and changes. */
 class AudioSettings
 {
 public:
@@ -32,6 +32,12 @@ public:
         device is running. */
     [[nodiscard]] virtual int inputChannel(std::size_t channel) const = 0;
     virtual void setInputChannel(std::size_t channel, int deviceInputChannel) = 0;
+
+    /** The MIDI input MIDI Clock comes from, by JUCE's identifier; empty for none. A saved input
+        that is missing keeps its identifier and name. */
+    [[nodiscard]] virtual juce::String midiInput() const = 0;
+    [[nodiscard]] virtual juce::String midiInputName() const = 0;
+    virtual juce::String selectMidiInput(const juce::String& identifier) = 0;
 
 protected:
     AudioSettings() = default;

@@ -26,6 +26,8 @@ target_sources(Visona PRIVATE
     src/Main.cpp
     src/MainComponent.cpp
     src/MainComponent.h
+    src/MidiClockInput.cpp
+    src/MidiClockInput.h
     src/ProcessCpu.h
     src/RealtimeAllocationCheck.cpp
     src/RealtimeAllocationCheck.h
