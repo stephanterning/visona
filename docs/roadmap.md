@@ -51,7 +51,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 8. A long studio session runs without dropouts or ring overruns.
 9. Measurements and lessons learned are documented (D-040).
 
-## 2. PR steps
+## 2. Steps
 
 Each step is a draft pull request, which has its own number on GitHub, such as #12 for step 7b (D-086). The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048). The steps keep their numbers, but steps 6 and 7 are done before step 5 (D-072), and step 7b, added later, follows step 7 (D-082).
 

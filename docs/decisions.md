@@ -185,7 +185,7 @@ A lightweight log of decisions and open questions. The architecture is described
 ### MVP plan approval
 
 - **D-054 — The MVP plan is approved, including its proposals and technical recommendations.** `Amended by D-083`
-  The plan is now the basis for the PR steps in [roadmap.md](roadmap.md). Approved:
+  The plan is now the basis for the steps in [roadmap.md](roadmap.md). Approved:
   - the core as plain C++20 without JUCE
   - Catch2 v3
   - B = 4096 bins per window

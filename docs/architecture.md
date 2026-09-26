@@ -1,6 +1,6 @@
 # Visona architecture
 
-This document describes what Visona is, the principles it is built on, and the architecture of MVP 1.0. Milestones and PR steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
+This document describes what Visona is, the principles it is built on, and the architecture of MVP 1.0. Milestones and steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
 
 ## 1. Vision
 
