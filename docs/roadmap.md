@@ -11,7 +11,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - PR 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
 - MIDI Clock sync, PR 6 and PR 7, comes before frequency coloring, PR 5 (D-072).
 - PR 6 (MIDI Clock transport in core) is in review ([#8](https://github.com/stephanterning/visona/pull/8)).
-- PR 7 (beat-synced sweep) is in review ([#9](https://github.com/stephanterning/visona/pull/9)), stacked on PR 6.
+- PR 7 (beat-synced sweep) is in review ([#11](https://github.com/stephanterning/visona/pull/11)), stacked on PR 6.
 
 ## 1. MVP 1.0
 
