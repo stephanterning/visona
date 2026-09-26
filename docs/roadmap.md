@@ -12,6 +12,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - MIDI Clock sync, PR 6 and PR 7, comes before frequency coloring, PR 5 (D-072).
 - PR 6 (MIDI Clock transport in core) is in review ([#8](https://github.com/stephanterning/visona/pull/8)).
 - PR 7 (beat-synced sweep) is in review ([#11](https://github.com/stephanterning/visona/pull/11)), stacked on PR 6.
+- PR 7b (horizontal zoom) is in review ([#12](https://github.com/stephanterning/visona/pull/12)), stacked on PR 7 (D-082).
 
 ## 1. MVP 1.0
 
