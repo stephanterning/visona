@@ -49,10 +49,11 @@ Visona is a platform-independent real-time engine for musical audio analysis and
   - `MidiClockTransport` and `ClockTimeMapper`
   - `BandSplitter` and `SweepAnalyzer`
   - snapshot types and bin-to-pixel reduction
+  - `AnalysisPipeline`, the analysis thread's work without the thread: ring in, snapshots out
 
   Keeping JUCE out makes the core testable on Linux without a GUI, enforces the platform boundary, and lets the core be reused in plugins and on the Raspberry Pi.
 - **`app/` (JUCE):** audio device management, audio callback, MIDI input, the analysis thread, settings and wiring.
-- **`ui/` (JUCE):** `ScopeView`, `StatusBar`, `ControlBar` and `SettingsPanel`.
+- **`ui/` (JUCE):** `ScopeView`, `StatusBar`, `ControlBar`, `SettingsPanel` and `DiagnosticsOverlay`.
 
 ### 3.2 Threads and data flow
 
@@ -135,13 +136,15 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Cell.** `sweep[source][channel][band][bin] = {min, max}`, signed float (D-050).
   - `full` (broadband) always defines the waveform shape.
   - `low`, `mid` and `high` drive the frequency coloring only (D-056). PR 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
-- **Pass metadata.** Each bin carries a `passId`, so the renderer can dim the previous pass ahead of the write head.
+- **Pass metadata.** Each bin carries a `passId`, so the renderer can tell the new pass from the previous one ahead of the write head. The column at the head shows only the new pass.
 - **Writing.** Each sample maps to bin *b = ⌊φ·B⌋*. When *b* changes, the new bin is reset and stamped with the current `passId`.
   - Start and window changes clear the buffer.
   - Continue after an SPP relocate increments `passId` without clearing.
+  - Frames missing because the ring dropped a block leave their bins empty in the current pass (D-067).
 - **Free-running (`Waiting`).** φ = frac(sampleIndex / (2 s × sampleRate)) (D-060).
 - **Freeze (`Stopped`/`ClockLost`).** No bins are written, but the ring is still drained and status keeps updating.
 - **Snapshot.** Contains the sweep buffer (whole or dirty range), write head bin, `passId`, transport state, BPM, sample rate, window and overrun counters. Display gain is not part of it.
+  - Each triple-buffer slot remembers the sweep state it holds, and publishing copies only the bins that changed since then, so the consumer always reads a whole buffer.
 - **`BandSplitter`.** An in-house fourth-order Linkwitz-Riley (LR4) crossover, with starting values around 200 Hz and 2.5 kHz (D-051).
   - The low band gets allpass compensation, so the bands sum flat.
   - Coefficients are computed from the current sample rate.
@@ -158,18 +161,18 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Vertical mapping.** *y = center − value × dbToGain(gainDb) × laneHalfHeight* (D-024).
   - At the lane edge the waveform is clipped with a *neutral* marker, so display overshoot is not mistaken for audio clipping.
 - **Amplitude references.** A center line, plus faint lines where 0 dBFS and −6 dBFS land after display gain.
-- **Write head and passes.**
-  - The new pass is drawn at full brightness; the previous pass ahead of the head is dimmed to ~50–60 %.
+- **Write head and passes** (D-068).
   - The head is a thin line in an accent color outside the band palette. It is never white, blue, orange or red.
-  - A small erase gap ahead of the head will be tried.
+  - A small erase gap follows the head.
+  - The previous pass ahead of the head is drawn at full brightness, like the new one; the head line and gap are enough to read the sweep.
 - **Grid.** Neutral gray, not blue.
   - Downbeats and bar lines are strongest and beat lines weaker. Sixteenths show only at ¼ and ½ bar.
   - Small bar numbers sit at the lane edge.
 - **Color tokens.** One central palette holds band, grid, head, lane background, status and error colors. That keeps themes cheap later, without building a theme UI now.
 - **Implementation** (D-054):
-  - CPU rasterization into a `juce::Image` via `BitmapData`, at physical pixel resolution (HiDPI).
-  - Only columns that changed since the last frame are redrawn; resize, gain and window changes trigger a full redraw.
-  - `VBlankAttachment`, capped at 60 fps. OpenGL only if measurements show it is needed.
+  - CPU rasterization into `juce::Image` tiles 64 physical pixels wide via `BitmapData`, at physical pixel resolution (HiDPI) (D-071).
+  - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass. Resize, gain and window changes trigger a full redraw.
+  - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. Without a new snapshot, nothing is drawn. OpenGL only if measurements show it is needed.
 
 ### 3.6 UI layout
 
@@ -186,6 +189,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ```
 
 - **Status (top)** (D-046): BPM, MIDI state (`WAITING`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
+  - Until MIDI Clock is wired in (PR 7), the state reads `FREE RUN`, or `NO INPUT` in red when no audio input runs.
   - Values are calm white or gray text with tabular digits.
   - Color is used for state only, and red is reserved for errors.
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
@@ -193,13 +197,15 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Controls (bottom):** no knobs.
   - WINDOW is an always-visible segmented control.
   - GAIN is `[−] +12 dB [+]`, from 0 to +36 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB.
-  - Keyboard shortcuts: 1–5 for window, +/− for gain, F for fullscreen.
-- **Responsive chrome.** The layout reflows in steps:
+  - Secondary buttons: Diagnostics and Full screen, next to ⚙.
+  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics.
+- **Responsive chrome** (D-069). The layout reflows in steps:
   - Wide windows put everything on one row.
   - Narrow windows use two rows with abbreviated labels.
   - Very small windows move secondary controls behind ⚙.
   - The status bar shrinks first, down to BPM and MIDI state.
   - Breakpoints are logical sizes of the component bounds.
+- **Diagnostics overlay** (D-070): audio input, overruns, analysis load, frame rate, render time and CPU use, hidden by default.
 - **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair and MIDI input.
   - The input channel for Left and for Right is chosen separately (D-063).
   - It is a separate overlay that never forces the scope to repaint.
@@ -257,7 +263,7 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Group delay per band is measured and documented, from 44.1 to 192 kHz.
 - **Shape invariance.** The rendered outline is identical in every coloring mode and in mono/precise mode for the same input (D-056).
 - **Sweep and rendering.**
-  - A 1 kHz sine at 96 kHz, 120 BPM and 1 bar produces a deterministic buffer, with min ≈ −A and max ≈ +A in every bin.
+  - A 1 kHz sine at 96 kHz, 120 BPM and 1 bar produces a deterministic buffer: every bin holds exactly the min and max of its samples. A bin is 46.875 samples, about half a cycle, so every three neighbouring bins reach min ≈ −A and max ≈ +A. A sine with at least one cycle per bin, such as 4 kHz, reaches them in every bin.
   - A click per beat peaks at 0, ¼, ½ and ¾ of the window (±1 bin).
   - Window changes, free-running and freeze on Stop.
   - Bin-to-pixel reduction.

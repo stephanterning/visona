@@ -24,7 +24,7 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 - `ui/`: JUCE components, compiled into the app target.
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
 
-The audio callback must not allocate, lock, wait or log. Debug builds of the app count allocations made in it (`app/src/RealtimeAllocationCheck.h`), and the debug readout shows the count, which must stay at 0.
+The audio callback must not allocate, lock, wait or log. Debug builds of the app count allocations made in it (`app/src/RealtimeAllocationCheck.h`), and the diagnostics overlay (press D) shows the count, which must stay at 0.
 
 ### macOS prerequisites
 

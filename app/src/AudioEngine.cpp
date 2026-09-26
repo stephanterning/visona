@@ -1,7 +1,6 @@
 #include "AudioEngine.h"
 
 #include "HostTime.h"
-#include "InputPeakReader.h"
 #include "RealtimeAllocationCheck.h"
 #include "Settings.h"
 
@@ -53,7 +52,6 @@ struct AudioEngine::Stream
         : ring(numChannels, capacityFrames,
                std::max<std::size_t>(capacityFrames / framesPerTimingSlot, 1))
         , writer(ring)
-        , reader(ring)
         , activeInputs(std::move(activeInputsIn))
         , numDeviceInputs(numDeviceInputsIn)
     {
@@ -61,7 +59,6 @@ struct AudioEngine::Stream
 
     AudioRingBuffer ring;
     AudioInputWriter writer;
-    InputPeakReader reader;
     const juce::BigInteger activeInputs;
     const int numDeviceInputs;
 
@@ -72,6 +69,7 @@ struct AudioEngine::Stream
 AudioEngine::AudioEngine(Settings& settings)
     : settings_(settings)
     , layout_{2} // MVP 1.0 has exactly one stereo source (D-052).
+    , analysis_(layout_.totalChannelCount())
     , inputChannels_(settings.inputChannels(layout_.totalChannelCount()))
 {
     deviceManager_.addAudioCallback(this);
@@ -143,12 +141,18 @@ std::optional<AudioEngine::StreamStatus> AudioEngine::streamStatus() const
 
 void AudioEngine::takePeaks(std::span<float> peaks)
 {
-    const std::scoped_lock lock(lock_);
     for (std::size_t channel = 0; channel < peaks.size(); ++channel)
-    {
-        const bool known = stream_ != nullptr && channel < stream_->ring.numChannels();
-        peaks[channel] = known ? stream_->reader.takePeak(channel) : 0.0f;
-    }
+        peaks[channel] = channel < layout_.totalChannelCount() ? analysis_.takePeak(channel) : 0.0f;
+}
+
+TripleBuffer<SweepSnapshot>& AudioEngine::snapshots() noexcept
+{
+    return analysis_.snapshots();
+}
+
+std::uint64_t AudioEngine::analysisBusyNanoseconds() const noexcept
+{
+    return analysis_.busyNanoseconds();
 }
 
 juce::AudioDeviceManager& AudioEngine::deviceManager() noexcept
@@ -214,10 +218,12 @@ void AudioEngine::setInputChannel(std::size_t channel, int deviceInputChannel)
 
 void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device)
 {
+    const auto sampleRate = device->getCurrentSampleRate();
     auto stream = std::make_unique<Stream>(
         layout_.totalChannelCount(),
-        ringCapacityFrames(device->getCurrentSampleRate(), device->getCurrentBufferSizeSamples()),
+        ringCapacityFrames(sampleRate, device->getCurrentBufferSizeSamples()),
         device->getActiveInputChannels(), device->getInputChannelNames().size());
+    analysis_.setStream(&stream->ring, sampleRate);
 
     const std::scoped_lock lock(lock_);
     stream_ = std::move(stream);
@@ -250,12 +256,10 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
 
 void AudioEngine::audioDeviceStopped()
 {
-    std::unique_ptr<Stream> stopped;
-    {
-        const std::scoped_lock lock(lock_);
-        stopped = std::move(stream_);
-    }
-    // Destroying the stream joins its reader thread, so do it outside the lock.
+    // The analysis thread lets go of the ring before the ring is destroyed.
+    analysis_.setStream(nullptr, 0.0);
+    const std::scoped_lock lock(lock_);
+    stream_.reset();
 }
 
 void AudioEngine::changeListenerCallback(juce::ChangeBroadcaster*)

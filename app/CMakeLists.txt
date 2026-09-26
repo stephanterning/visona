@@ -18,14 +18,15 @@ juce_add_gui_app(Visona
     NEEDS_WEB_BROWSER FALSE)
 
 target_sources(Visona PRIVATE
+    src/AnalysisThread.cpp
+    src/AnalysisThread.h
     src/AudioEngine.cpp
     src/AudioEngine.h
     src/HostTime.h
-    src/InputPeakReader.cpp
-    src/InputPeakReader.h
     src/Main.cpp
     src/MainComponent.cpp
     src/MainComponent.h
+    src/ProcessCpu.h
     src/RealtimeAllocationCheck.cpp
     src/RealtimeAllocationCheck.h
     src/Settings.cpp

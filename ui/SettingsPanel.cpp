@@ -91,6 +91,25 @@ SettingsPanel::SettingsPanel(AudioSettings& settings)
             showResult(settings_.selectBufferSize(bufferSizes_[index]));
     };
 
+    viewLabel_.setText("View", juce::dontSendNotification);
+    viewLabel_.setColour(juce::Label::textColourId, palette::textDim);
+    viewLabel_.setFont(juce::FontOptions(15.0f));
+    diagnosticsButton_.setButtonText("Diagnostics");
+    fullScreenButton_.setButtonText("Full screen");
+    diagnosticsButton_.onClick = [this]
+    {
+        if (onDiagnostics)
+            onDiagnostics();
+    };
+    fullScreenButton_.onClick = [this]
+    {
+        if (onFullScreen)
+            onFullScreen();
+    };
+    addChildComponent(viewLabel_);
+    addChildComponent(diagnosticsButton_);
+    addChildComponent(fullScreenButton_);
+
     errorLabel_.setColour(juce::Label::textColourId, palette::error);
     errorLabel_.setJustificationType(juce::Justification::topLeft);
     errorLabel_.setMinimumHorizontalScale(1.0f);
@@ -105,9 +124,25 @@ SettingsPanel::~SettingsPanel()
     settings_.deviceManager().removeChangeListener(this);
 }
 
+void SettingsPanel::setViewControlsVisible(bool visible)
+{
+    if (visible == viewLabel_.isVisible())
+        return;
+    viewLabel_.setVisible(visible);
+    diagnosticsButton_.setVisible(visible);
+    fullScreenButton_.setVisible(visible);
+    notifyPreferredHeight();
+}
+
+void SettingsPanel::setViewToggles(bool diagnostics, bool fullScreen)
+{
+    diagnosticsButton_.setToggleState(diagnostics, juce::dontSendNotification);
+    fullScreenButton_.setToggleState(fullScreen, juce::dontSendNotification);
+}
+
 int SettingsPanel::preferredHeight() const
 {
-    auto rows = static_cast<int>(inputRows_.size());
+    auto rows = static_cast<int>(inputRows_.size()) + (viewLabel_.isVisible() ? 1 : 0);
     for (const auto* row : {&deviceTypeRow_, &deviceRow_, &sampleRateRow_, &bufferSizeRow_})
         if (row->choices.isVisible())
             ++rows;
@@ -158,6 +193,16 @@ void SettingsPanel::resized()
         placeRow(*row);
     for (auto& row : inputRows_)
         placeRow(*row);
+
+    if (viewLabel_.isVisible())
+    {
+        auto bounds = area.removeFromTop(rowHeight);
+        viewLabel_.setBounds(bounds.removeFromLeft(labelWidth));
+        diagnosticsButton_.setBounds(bounds.removeFromLeft((bounds.getWidth() - rowGap) / 2));
+        bounds.removeFromLeft(rowGap);
+        fullScreenButton_.setBounds(bounds);
+        area.removeFromTop(rowGap);
+    }
 
     errorLabel_.setBounds(area.removeFromTop(errorHeight));
 }

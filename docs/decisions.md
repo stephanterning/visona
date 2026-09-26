@@ -229,6 +229,28 @@ A lightweight log of decisions and open questions. The architecture is described
   CoreAudio host time stops while the Mac sleeps, but libc++'s `steady_clock` uses `CLOCK_MONOTONIC_RAW`, which keeps counting. `ClockTimeMapper` needs one time base, and JUCE's MIDI timestamps on macOS are also based on `mach_absolute_time()`.
 - **D-066 — App Nap is disabled while Visona runs.** `Active`
   Visona must keep up while it is in the background, for example behind the DAW. App Nap throttles timers, which would starve the thread that drains the audio ring and cause overruns.
+- **D-067 — Frames missing from the stream leave their bins empty in the current pass.** `Active`
+  When the ring drops a block (D-062), `sampleIndex` jumps, and the sweep empties every bin the missing frames would have filled. The gap shows as a gap in the waveform, instead of the previous pass's data drawn as if it were new, or a flat line that looks like silence. A jump of a whole window or more empties every bin.
+- **D-068 — The write head is a 1.5-pixel accent-green line followed by a 6-pixel erase gap, and the previous pass is not dimmed.** `Active`
+  - Sizes are logical pixels. The accent is `#3fe08a`, which is outside the band palette and the status colours.
+  - The erase gap is the "small erase gap ahead of the head" that the architecture proposed to try.
+  - The plan dimmed the previous pass to 50–60 %. In the hardware check of [PR #7](https://github.com/stephanterning/visona/pull/7), the maintainer found the green line enough to read the sweep, so both passes are drawn at full brightness.
+  - Bins still carry their pass, so the column at the head shows only the new pass, and dimming could return as a setting.
+  - Since the start of a new pass leaves the old columns as they are, it redraws only the columns across the end of the window.
+  - The colour and sizes are a token in `ui/Palette.h` and constants in `ui/ScopeView.cpp`.
+- **D-069 — The chrome reflows in three steps with breakpoints at 760 and 480 logical pixels of width and 360 of height.** `Active`
+  - *Wide* (760 or wider): everything on one row with full labels.
+  - *Narrow*: icon-only buttons; control groups wrap onto a second row if they do not fit.
+  - *Compact* (narrower than 480 or lower than 360): the diagnostics and full-screen buttons move into the settings panel, and the bars get slimmer.
+  - The status bar drops values from its end, down to the state, whenever they do not fit.
+
+  Until PR 7 adds the WINDOW control, the control bar fits on one row at every allowed window size, so the wrap step is in place but rarely seen.
+- **D-070 — PR 3's debug readout becomes a diagnostics overlay, hidden by default.** `Active`
+  - D, or the Diagnostics button, shows and hides it.
+  - Besides the audio input values, it shows the analysis thread's load, the frame rate, render and paint times, and Visona's total CPU use, for the PR 4 performance check and later measurements (D-040).
+  - It is opaque, so updating it never repaints the scope behind it.
+- **D-071 — The scope is rasterized into image tiles 64 physical pixels wide.** `Active`
+  On macOS, JUCE 9 copies the whole `juce::Image` into a new `CFData` every time a changed image is drawn. One window-sized image would copy up to about 58 MB per frame in Retina full screen on a 5K display. With tiles, a frame only changes, and copies, the one or two tiles the write head passed. This implements the incremental rendering of D-054 without OpenGL.
 
 ---
 

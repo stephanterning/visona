@@ -13,8 +13,9 @@ namespace visona
 
 /**
     The settings overlay: audio device, sample rate, buffer size, and the device input channel for
-    each source channel. Any input channel can feed any source channel. The panel is opaque, so it
-    never makes the view behind it repaint.
+    each source channel. Any input channel can feed any source channel. In small windows it also
+    holds the view controls that no longer fit in the control bar. The panel is opaque, so it never
+    makes the view behind it repaint.
 */
 class SettingsPanel final : public juce::Component, private juce::ChangeListener
 {
@@ -27,6 +28,14 @@ public:
 
     /** Called when preferredHeight() may have changed, because rows or an error appeared. */
     std::function<void()> onPreferredHeightChanged;
+
+    /** Called when the user toggles the view controls. */
+    std::function<void()> onDiagnostics;
+    std::function<void()> onFullScreen;
+
+    /** Shows or hides the row of view controls: diagnostics and full screen. */
+    void setViewControlsVisible(bool visible);
+    void setViewToggles(bool diagnostics, bool fullScreen);
 
     /** The height that fits every row. */
     [[nodiscard]] int preferredHeight() const;
@@ -66,6 +75,9 @@ private:
     Row sampleRateRow_;
     Row bufferSizeRow_;
     std::vector<std::unique_ptr<Row>> inputRows_;
+    juce::Label viewLabel_;
+    juce::TextButton diagnosticsButton_;
+    juce::TextButton fullScreenButton_;
     juce::Label errorLabel_;
 
     juce::StringArray deviceTypes_;

@@ -1,18 +1,29 @@
 # Plain C++20 with no JUCE dependency, so it builds and tests anywhere.
 
 add_library(visona_core STATIC
+    include/visona/AnalysisPipeline.h
     include/visona/AudioInputWriter.h
     include/visona/AudioRingBuffer.h
     include/visona/BlockTiming.h
     include/visona/CacheLine.h
+    include/visona/ColumnReduction.h
+    include/visona/LaneMapping.h
     include/visona/MidiClockEvent.h
     include/visona/SourceLayout.h
     include/visona/SpscQueue.h
+    include/visona/SweepAnalyzer.h
+    include/visona/SweepBuffer.h
+    include/visona/SweepSnapshot.h
     include/visona/TripleBuffer.h
     include/visona/Version.h
+    src/AnalysisPipeline.cpp
     src/AudioInputWriter.cpp
     src/AudioRingBuffer.cpp
+    src/ColumnReduction.cpp
+    src/LaneMapping.cpp
     src/SourceLayout.cpp
+    src/SweepAnalyzer.cpp
+    src/SweepBuffer.cpp
     src/Version.cpp)
 add_library(visona::core ALIAS visona_core)
 
