@@ -310,8 +310,8 @@ A lightweight log of decisions and open questions. The architecture is described
   - Where the line between two consecutive frames crosses a bin boundary, its value there goes into both bins, and a bin no sample falls in holds the piece of line through it. The waveform is one connected line at every zoom, as if the samples were joined by lines.
   - No line is drawn across a gap (D-067), a freeze or a relocation (D-079).
   - The bins still do not depend on how the audio is split into blocks.
-- **D-085 — Zoom.** `Active`
-  - Stepless, from the whole window down to 1/32 of it. A zoom within a zoom narrows the view further. There is no panning: zoom out and in again.
+- **D-085 — Zoom.** `Amended by D-089`
+  - Stepless, from the whole window down to 1/32 of it. A zoom within a zoom narrows the view further. There is no panning: zoom out and in again (amended by D-089).
   - Mouse: dragging across the scope zooms to the part selected, freely, without snapping; a drag under 8 pixels is a click and does nothing. The scroll wheel zooms around the pointer, up to zoom in. A trackpad pinch, and a two-finger pinch on a touchscreen, zoom around the point between the fingers.
   - Reset: Esc once the settings panel is closed, a double-click or double-tap on the scope, or the × of the overview strip. Choosing a window, and a switch between free-running and musical time, such as the first Start, reset it too. There are no zoom keys.
   - A view may run past the end of the window and carry on at its start, as the head does, so the downbeat can be seen from both sides. Zooming out near an edge gets there. Zooming out also turns the view back towards the whole window, which it reaches exactly at 1×.
@@ -321,6 +321,14 @@ A lightweight log of decisions and open questions. The architecture is described
 - **D-086 — The roadmap's steps are called steps, not PRs: step 1 to step 8, and step 7b.** `Active`
   - A step is still one draft pull request, but GitHub numbers pull requests on its own, so "PR 7b" next to #12 was confusing. "PR" and "#" now always mean a GitHub pull request.
   - The docs were reworded to match. Commit messages and pull requests from before this call step N "PR N".
+- **D-089 — A zoomed view can be moved, round past either end of the window.** `Active`
+  - The maintainer asked for it after testing step 7b: to study the move from the last beat to the first, drag the view across the end of the window and see the end of one bar and the start of the next.
+  - Dragging anywhere on the overview strip moves the view with the pointer or finger, not only dragging the highlighted part, which is only a few pixels wide at 32×. Past either end of the window the view carries on at the other end, so it can be moved round and round.
+  - A click or tap on the strip outside the part in view centres the view there. A double-click still resets the zoom.
+  - On the scope, scrolling sideways, such as with two fingers on a trackpad, or Shift with a mouse wheel, moves the view. Dragging on the scope still selects a part to zoom to.
+  - Past the end of the window, bar numbers read on into the next window, such as 12.4 and then 13, and so does the status bar, such as `ZOOM 4.0× · 1.4–2.1`.
+
+  Amends D-085.
 
 ---
 
