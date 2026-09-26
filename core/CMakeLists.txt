@@ -9,6 +9,7 @@ add_library(visona_core STATIC
     include/visona/ColumnReduction.h
     include/visona/LaneMapping.h
     include/visona/MidiClockEvent.h
+    include/visona/MusicalTime.h
     include/visona/SourceLayout.h
     include/visona/SpscQueue.h
     include/visona/SweepAnalyzer.h
@@ -21,6 +22,7 @@ add_library(visona_core STATIC
     src/AudioRingBuffer.cpp
     src/ColumnReduction.cpp
     src/LaneMapping.cpp
+    src/MusicalTime.cpp
     src/SourceLayout.cpp
     src/SweepAnalyzer.cpp
     src/SweepBuffer.cpp
