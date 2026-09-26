@@ -89,24 +89,25 @@ Audio thread (JUCE callback)              MIDI thread (JUCE MidiInput)
 
 ### 3.3 MIDI Clock transport
 
-MIDI Clock is the only clock source in MVP 1.0 (D-036). The messages are:
+MIDI Clock is the only external clock source in MVP 1.0 (D-036). Without it, the sweep runs free at a tempo set by hand (D-090). The messages are:
 - Clock `F8` (24 PPQN)
 - Start `FA`, Continue `FB`, Stop `FC`
 - SPP `F2`: a 14-bit value in MIDI beats, where one MIDI beat is a sixteenth note, or 6 ticks.
 
 Position is counted in ticks, with `ticksPerBar = 24 × numerator × 4 / denominator`. That is 96 in 4/4, which is the MVP default (D-017).
 
-| Event | Effect (D-045, D-059, D-060) |
+| Event | Effect (D-045, D-059, D-090) |
 |---|---|
-| Startup | `Waiting`: free-running sweep with a fixed 2 s window |
+| Startup | `FREE`: the sweep runs free in the chosen window at the free tempo |
 | Start | Position = 0, `Running`. The first Clock after Start is the downbeat of bar 1. The sweep clears and restarts at x = 0 |
 | Clock in `Running` | Position += 1 tick; the tick's sample time is recorded |
-| Clock in `Stopped`/`Waiting` | Updates the BPM estimate only (some DAWs send clock while stopped) |
+| Clock in `Stopped`/`FREE` | Updates the BPM estimate only (some DAWs send clock while stopped) |
 | Stop | `Stopped`. Position is kept; the UI freezes the last frame and shows `STOPPED` |
 | SPP | Position = SPP × 6 ticks. Accepted whenever not `Running` (D-073); ignored and counted in `Running` |
-| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass. From `Waiting`, the sweep starts over as on Start, but at the SPP position |
+| Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass. From `FREE`, the sweep starts over as on Start, but at the SPP position |
 | > 0.5 s without Clock in `Running` | `ClockLost`: freeze and show `MIDI CLOCK LOST` |
 | Clock returns in `ClockLost` | `Running` again, continuing the tick count. Position may be off until the next Start, or SPP + Continue |
+| Click on `STOPPED` or `MIDI CLOCK LOST` | `FREE` at the last MIDI tempo; the sweep starts over at bar 1. The position is kept for Continue (D-090) |
 
 The clock-loss timeout only applies in `Running`, so a DAW that stops sending clock on Stop does not trigger a false `MIDI CLOCK LOST`.
 
@@ -145,7 +146,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Start and window changes clear the buffer.
   - Continue after an SPP relocate increments `passId` without clearing. The sweep recognizes it as a position that does not carry on within one tick of where it froze (D-079).
   - Frames missing because the ring dropped a block leave their bins empty in the current pass (D-067).
-- **Free-running (`Waiting`).** φ = frac(sampleIndex / (2 s × sampleRate)) (D-060).
+- **Free-running (`FREE`).** The position in ticks is (sampleIndex − s₀) / framesPerTick at the free tempo, from the frame s₀ where the free sweep started, and φ is as above (D-090). A new tempo or window starts it over.
 - **Freeze (`Stopped`/`ClockLost`).** No bins are written, but the ring is still drained and status keeps updating.
 - **Snapshot.** Contains the sweep buffer (whole or dirty range), write head bin, `passId`, transport state, BPM, sample rate, window and overrun counters. Display gain is not part of it.
   - Each triple-buffer slot remembers the sweep state it holds, and publishing copies only the bins that changed since then, so the consumer always reads a whole buffer.
@@ -193,12 +194,13 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ├──────────────────────────────────────────────────────────────┤
 │ R  ~~~~~~~~~ sweep ~~~~~~~~~│                                 │
 ├──────────────────────────────────────────────────────────────┤
-│ WINDOW [¼][½][1][2][4]        GAIN [−] +12 dB [+]        [⚙] │  controls
+│ WINDOW [¼][½][1][2][4] BPM [−]126.0[+] GAIN [−]+12 dB[+] [⚙] │  controls
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **Status (top)** (D-046): BPM, MIDI state (`WAITING`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
-  - The state reads `WAITING`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080).
+- **Status (top)** (D-046): BPM, MIDI state (`FREE`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
+  - The state reads `FREE`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080, D-090).
+  - `STOPPED` and `MIDI CLOCK LOST` are buttons that switch to `FREE` (D-090).
   - Values are calm white or gray text with tabular digits.
   - Color is used for state only, and red is reserved for errors.
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
@@ -207,6 +209,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom.
 - **Controls (bottom):** no knobs.
   - WINDOW is an always-visible segmented control.
+  - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
   - GAIN is `[−] +12 dB [+]`, from 0 to +36 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB.
   - Secondary buttons: Diagnostics and Full screen, next to ⚙.
   - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
@@ -218,7 +221,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The status bar shrinks first, down to BPM and MIDI state.
   - Breakpoints are logical sizes of the component bounds.
 - **Diagnostics overlay** (D-070): audio input, overruns, analysis load, frame rate, render time and CPU use, hidden by default.
-- **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair and MIDI input.
+- **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair and MIDI input. The free tempo is saved too.
   - The input channel for Left and for Right is chosen separately (D-063).
   - It is a separate overlay that never forces the scope to repaint.
   - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
