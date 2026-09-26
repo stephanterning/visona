@@ -395,3 +395,234 @@ TEST_CASE("SweepAnalyzer does not allocate while it runs", "[sweep][realtime]")
 
     CHECK(allocationCount == 0);
 }
+
+namespace
+{
+
+using visona::TransportSpan;
+
+/** Musical spans for clock ticks at the given frame times, tick `firstTick` at the first. */
+std::vector<TransportSpan> musicalSpans(const std::vector<double>& tickTimes,
+                                        double firstTick = 0.0)
+{
+    std::vector<TransportSpan> spans;
+    for (std::size_t tick = 0; tick + 1 < tickTimes.size(); ++tick)
+        spans.push_back({TransportSpan::Kind::musical, tickTimes[tick], tickTimes[tick + 1],
+                         firstTick + static_cast<double>(tick),
+                         firstTick + static_cast<double>(tick + 1), 1});
+    return spans;
+}
+
+/** Evenly spaced clock ticks: `count` of them, `interval` frames apart, from `first` on. */
+std::vector<double> evenTicks(double first, std::size_t count, double interval)
+{
+    std::vector<double> times;
+    for (std::size_t tick = 0; tick < count; ++tick)
+        times.push_back(first + static_cast<double>(tick) * interval);
+    return times;
+}
+
+/**
+    Feeds the frames of `spans` to `analyzer` in blocks of `blockSize` frames, split where the
+    spans end, as the analysis thread does. `sample(frame)` gives each frame's value in every
+    channel.
+*/
+template <typename Signal>
+void feedMusical(SweepAnalyzer& analyzer, const std::vector<TransportSpan>& spans,
+                 std::size_t blockSize, Signal sample)
+{
+    std::vector<float> samples(blockSize);
+    std::vector<const float*> channels(analyzer.buffer().numChannels(), samples.data());
+    for (const auto& span : spans)
+    {
+        auto frame = static_cast<std::uint64_t>(std::ceil(span.start));
+        const auto end = static_cast<std::uint64_t>(std::ceil(span.end));
+        while (frame < end)
+        {
+            const auto count = static_cast<std::size_t>(
+                std::min<std::uint64_t>(blockSize - frame % blockSize, end - frame));
+            for (std::size_t i = 0; i < count; ++i)
+                samples[i] = sample(frame + i);
+            analyzer.processMusical(frame, channels, count, span);
+            frame += count;
+        }
+    }
+}
+
+} // namespace
+
+TEST_CASE("The musical sweep puts every beat at its quarter of a one-bar window", "[sweep]")
+{
+    const auto bpm = GENERATE(120.0, 126.0, 174.0);
+    CAPTURE(bpm);
+    const auto interval = 60.0 * sampleRate96k / (bpm * 24.0);
+    const auto ticks = evenTicks(10'000.0, 97, interval);
+
+    SweepAnalyzer analyzer(1);
+    analyzer.startMusical(96.0);
+    CHECK(analyzer.isMusical());
+    feedMusical(analyzer, musicalSpans(ticks), 512,
+                [&](std::uint64_t frame)
+                {
+                    for (std::size_t beat = 0; beat < 4; ++beat)
+                        if (frame == static_cast<std::uint64_t>(std::ceil(ticks[beat * 24])))
+                            return 1.0f;
+                    return 0.0f;
+                });
+
+    const auto cells = analyzer.buffer().channel(0);
+    for (std::size_t bin = 0; bin < cells.size(); ++bin)
+    {
+        CAPTURE(bin);
+        const bool beatBin = bin % 1'024 <= 1;
+        if (!beatBin)
+            REQUIRE(cells[bin].max == 0.0f);
+    }
+    for (std::size_t beat = 0; beat < 4; ++beat)
+        CHECK(std::max(cells[beat * 1'024].max, cells[beat * 1'024 + 1].max) == 1.0f);
+    CHECK(analyzer.buffer().pass() == 1);
+}
+
+TEST_CASE("The musical sweep does not depend on how the audio is split into blocks", "[sweep]")
+{
+    const auto ticks = evenTicks(123.4, 200, 60.0 * 96'000.0 / (126.0 * 24.0));
+    const auto spans = musicalSpans(ticks);
+    const auto signal = [](std::uint64_t frame)
+    { return static_cast<float>(std::sin(static_cast<double>(frame) * 0.013)); };
+
+    SweepAnalyzer reference(1, 1'024);
+    reference.startMusical(24.0);
+    feedMusical(reference, spans, 100'000, signal);
+
+    const auto blockSize =
+        GENERATE(std::size_t{1}, std::size_t{7}, std::size_t{64}, std::size_t{333});
+    CAPTURE(blockSize);
+    SweepAnalyzer analyzer(1, 1'024);
+    analyzer.startMusical(24.0);
+    feedMusical(analyzer, spans, blockSize, signal);
+    CHECK(analyzer.buffer() == reference.buffer());
+}
+
+TEST_CASE("A tempo ramp leaves no holes and no bin written twice", "[sweep]")
+{
+    // From 120 to 140 BPM over 4 bars, in a one-bar window. Each frame's value is its position in
+    // ticks, so every bin must hold exactly the positions of its own slice of its own window.
+    std::vector<double> ticks{5'000.0};
+    const auto totalTicks = 4 * 96;
+    for (int tick = 0; tick < totalTicks + 10; ++tick)
+    {
+        const auto bpm = 120.0 + 20.0 * std::min(1.0, tick / static_cast<double>(totalTicks));
+        ticks.push_back(ticks.back() + 60.0 * sampleRate96k / (bpm * 24.0));
+    }
+    const auto spans = musicalSpans(ticks);
+
+    SweepAnalyzer analyzer(1);
+    analyzer.startMusical(96.0);
+    feedMusical(analyzer, spans, 480,
+                [&](std::uint64_t frame)
+                {
+                    for (const auto& span : spans)
+                        if (static_cast<double>(frame) < span.end)
+                            return static_cast<float>(span.tickAt(static_cast<double>(frame)));
+                    return 0.0f;
+                });
+
+    const auto& sweep = analyzer.buffer();
+    const auto head = sweep.head();
+    const auto currentWindow = std::floor(analyzer.windowStartTick() / 96.0);
+    for (std::size_t bin = 0; bin < sweep.numBins(); ++bin)
+    {
+        CAPTURE(bin);
+        const auto& cell = sweep.channel(0)[bin];
+        REQUIRE_FALSE(cell.isEmpty());
+        const auto window = bin <= head ? currentWindow : currentWindow - 1.0;
+        const auto low = (window + static_cast<double>(bin) / 4'096.0) * 96.0;
+        const auto high = (window + static_cast<double>(bin + 1) / 4'096.0) * 96.0;
+        REQUIRE(static_cast<double>(cell.min) >= low - 1.0e-3);
+        REQUIRE(static_cast<double>(cell.max) <= high + 1.0e-3);
+    }
+    CHECK(sweep.pass() == 5);
+}
+
+TEST_CASE("A relocation after a freeze jumps the head without emptying anything", "[sweep]")
+{
+    constexpr double interval = 2'000.0;
+    SweepAnalyzer analyzer(1);
+    analyzer.startMusical(96.0);
+    feedMusical(analyzer, musicalSpans(evenTicks(0.0, 161, interval)), 512,
+                [](std::uint64_t) { return 0.5f; });
+    REQUIRE(analyzer.buffer().pass() == 2);
+    const auto headBefore = analyzer.buffer().head();
+    CHECK(analyzer.windowStartTick() == 96.0);
+
+    analyzer.freeze();
+    SECTION("to bar 18, beat 2")
+    {
+        const double tick = 17 * 96 + 24;
+        feedMusical(analyzer, musicalSpans(evenTicks(1'000'000.0, 3, interval), tick), 512,
+                    [](std::uint64_t) { return -0.5f; });
+        const auto& sweep = analyzer.buffer();
+        CHECK(sweep.pass() == 3);
+        CHECK(analyzer.windowStartTick() == 17 * 96.0);
+        CHECK(sweep.passes()[1'024] == 3);
+        CHECK(sweep.channel(0)[1'024].min == -0.5f);
+        // The rest of the old passes stays as it was.
+        CHECK(sweep.passes()[1'000] == 2);
+        CHECK(sweep.channel(0)[1'000] == SweepCell{0.5f, 0.5f});
+        CHECK(sweep.passes()[headBefore + 1] == 1);
+        CHECK(sweep.channel(0)[headBefore + 1] == SweepCell{0.5f, 0.5f});
+    }
+
+    SECTION("carrying on where it stopped")
+    {
+        feedMusical(analyzer, musicalSpans(evenTicks(1'000'000.0, 3, interval), 160.0), 512,
+                    [](std::uint64_t) { return -0.5f; });
+        CHECK(analyzer.buffer().pass() == 2);
+        CHECK(analyzer.buffer().head() > headBefore);
+    }
+}
+
+TEST_CASE("Frames missing without a freeze leave their bins empty in musical time", "[sweep]")
+{
+    constexpr double interval = 2'000.0;
+    const auto spans = musicalSpans(evenTicks(0.0, 41, interval));
+    SweepAnalyzer analyzer(1);
+    analyzer.startMusical(96.0);
+    // Ticks 0 to 20, then the frames of ticks 20 to 30 are dropped, then ticks 30 to 40.
+    feedMusical(analyzer, {spans.begin(), spans.begin() + 20}, 512,
+                [](std::uint64_t) { return 0.5f; });
+    feedMusical(analyzer, {spans.begin() + 30, spans.end()}, 512,
+                [](std::uint64_t) { return 0.5f; });
+
+    const auto& sweep = analyzer.buffer();
+    CHECK(sweep.pass() == 1);
+    const auto binOfTick = [](double tick)
+    { return static_cast<std::size_t>(tick / 96.0 * 4'096.0); };
+    for (auto bin = binOfTick(20.0) + 1; bin < binOfTick(30.0); ++bin)
+    {
+        CAPTURE(bin);
+        REQUIRE(sweep.channel(0)[bin].isEmpty());
+        REQUIRE(sweep.passes()[bin] == 1);
+    }
+    CHECK_FALSE(sweep.channel(0)[binOfTick(35.0)].isEmpty());
+}
+
+TEST_CASE("Starting a musical sweep clears the buffer", "[sweep]")
+{
+    SweepAnalyzer analyzer(1);
+    analyzer.start(1'000);
+    const std::vector<float> samples(1'000, 0.5f);
+    const float* const channel = samples.data();
+    analyzer.process(0, std::span(&channel, 1), samples.size());
+    const auto generation = analyzer.buffer().generation();
+
+    analyzer.startMusical(24.0);
+    CHECK(analyzer.buffer().generation() == generation + 1);
+    CHECK(analyzer.buffer().pass() == 0);
+    CHECK(analyzer.windowFrames() == 0);
+    CHECK(analyzer.windowTicks() == 24.0);
+    CHECK(analyzer.windowStartTick() == 0.0);
+
+    analyzer.start(1'000);
+    CHECK_FALSE(analyzer.isMusical());
+}
