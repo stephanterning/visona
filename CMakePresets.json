@@ -67,6 +67,18 @@
         "VISONA_BUILD_APP": "OFF",
         "VISONA_SANITIZERS": "address,undefined"
       }
+    },
+    {
+      "name": "core-tsan",
+      "displayName": "Core and tests only (no JUCE), Clang, Debug, TSan",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "VISONA_BUILD_APP": "OFF",
+        "VISONA_SANITIZERS": "thread"
+      }
     }
   ],
   "buildPresets": [
@@ -74,7 +86,8 @@
     { "name": "macos", "configurePreset": "macos" },
     { "name": "core-gcc", "configurePreset": "core-gcc" },
     { "name": "core-clang", "configurePreset": "core-clang" },
-    { "name": "core-sanitize", "configurePreset": "core-sanitize" }
+    { "name": "core-sanitize", "configurePreset": "core-sanitize" },
+    { "name": "core-tsan", "configurePreset": "core-tsan" }
   ],
   "testPresets": [
     {
@@ -94,6 +107,14 @@
       "environment": {
         "ASAN_OPTIONS": "strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1",
         "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    {
+      "name": "core-tsan",
+      "inherits": "base",
+      "configurePreset": "core-tsan",
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1"
       }
     }
   ]

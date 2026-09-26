@@ -217,6 +217,18 @@ A lightweight log of decisions and open questions. The architecture is described
 
 - **D-061 — The macOS bundle ID is `io.github.stephanterning.visona` for now.** `Active`
   It matches the GitHub-hosted project and is used by the skeleton ([PR #4](https://github.com/stephanterning/visona/pull/4)). `se.stephanterning.visona` remains a possible later switch. Changing it later means users must re-grant the microphone permission, and saved settings move.
+- **D-062 — When the audio ring is full, the audio thread drops the whole incoming block and counts an overrun.** `Active`
+  The audio thread never waits, never splits a block and never overwrites audio the analysis thread has not read. `sampleIndex` keeps counting through dropped blocks, so the analysis sees a drop as a jump in `sampleIndex` instead of as shifted time. Overwriting the oldest audio instead would require the producer to move the consumer's read position, which a lock-free SPSC ring cannot do safely. Approved by the maintainer in the review of [PR #5](https://github.com/stephanterning/visona/pull/5).
+- **D-063 — The audio device is opened with all of its input channels, and the audio callback copies the input channel chosen for each source channel into the ring.** `Active`
+  - The settings panel has one choice per source channel (Left and Right), so any two inputs can form the pair, in either order. The reference interface's S/PDIF input, for example, is not on inputs 1 and 2.
+  - A new choice takes effect at the next block without restarting the device, so `sampleIndex` and the overrun counters keep running.
+  - Copying every input channel costs little, even on interfaces with many inputs.
+- **D-064 — The device Visona opens on its first start is saved as the chosen device. If the saved device is missing at a later start, no other device is opened and `NO AUDIO INPUT` is shown.** `Active`
+  Visona restores the last device instead of following the system's default input, and never silently shows another device's audio after a start. A device that disappears while Visona runs is handled by JUCE, which opens the default input; hotplug is Q-018.
+- **D-065 — Block host times use the audio device's time base. On macOS the fallback clock is `CLOCK_UPTIME_RAW` (`mach_absolute_time()`), not `std::chrono::steady_clock`.** `Active`
+  CoreAudio host time stops while the Mac sleeps, but libc++'s `steady_clock` uses `CLOCK_MONOTONIC_RAW`, which keeps counting. `ClockTimeMapper` needs one time base, and JUCE's MIDI timestamps on macOS are also based on `mach_absolute_time()`.
+- **D-066 — App Nap is disabled while Visona runs.** `Active`
+  Visona must keep up while it is in the background, for example behind the DAW. App Nap throttles timers, which would starve the thread that drains the audio ring and cause overruns.
 
 ---
 

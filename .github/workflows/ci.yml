@@ -48,6 +48,10 @@ jobs:
           test "$(lipo -archs "$executable")" = "arm64"
           vtool -show-build "$executable" | grep -E '^ +minos 14\.0$'
           codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+          plist="$APP_BUNDLE/Contents/Info.plist"
+          test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.stephanterning.visona"
+          # Without a usage text, macOS delivers silence from every audio input.
+          plutil -extract NSMicrophoneUsageDescription raw "$plist"
 
       - name: Package app
         run: ditto -c -k --keepParent "$APP_BUNDLE" Visona-macos-arm64.zip
@@ -105,11 +109,19 @@ jobs:
           fi
 
   sanitizers:
-    name: Linux core (ASan + UBSan)
+    name: Linux core (${{ matrix.sanitizers }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sanitizers: ASan + UBSan
+            preset: core-sanitize
+          - sanitizers: TSan
+            preset: core-tsan
     env:
-      PRESET: core-sanitize
+      PRESET: ${{ matrix.preset }}
     steps:
       - uses: actions/checkout@v7
 

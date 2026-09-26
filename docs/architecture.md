@@ -77,6 +77,7 @@ Audio thread (JUCE callback)              MIDI thread (JUCE MidiInput)
 - **Audio thread.** Copies input into the ring and pushes `BlockTiming`, and nothing else.
   - `sampleIndex` is a 64-bit running frame counter since the stream started. All musical time relates to it.
   - The channel count comes from the source layout.
+  - The device is opened with all of its input channels, and the callback copies the input channel chosen for each source channel (D-063).
 - **MIDI thread.** Filters real-time messages and Song Position Pointer (SPP), and pushes `MidiClockEvent{type, sppValue, hostTimeNs}`.
 - **Analysis thread.** Not hard real-time, but allocation-free in steady state.
   - It runs about one tick behind audio, so position is *interpolated* between known ticks rather than extrapolated.
@@ -119,7 +120,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 **MIDI time to audio sample time**
 
 - MIDI events carry a host time from JUCE's timestamp. Whether that is the CoreMIDI packet timestamp or the arrival time is verified in PR 7.
-- Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback.
+- Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback, in the same time base (D-065).
 - `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime` over the last N blocks. It absorbs callback jitter and drift between the audio clock and the host clock.
 - A MIDI event's sample time is `mapper(t_midi) − latencyOffset`. `latencyOffset` starts as the reported input latency plus an internal calibration constant with no UI. It is measured in PR 8.
 
@@ -199,9 +200,11 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Very small windows move secondary controls behind ⚙.
   - The status bar shrinks first, down to BPM and MIDI state.
   - Breakpoints are logical sizes of the component bounds.
-- **Settings panel (⚙):** audio device, input channel pair and MIDI input.
+- **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair and MIDI input.
+  - The input channel for Left and for Right is chosen separately (D-063).
   - It is a separate overlay that never forces the scope to repaint.
   - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
+  - If the saved audio device is missing at startup, `NO AUDIO INPUT` is shown and no other device is opened (D-064).
 - **Window:** freely resizable, with native fullscreen.
 
 ## 4. Build and CI
