@@ -5,14 +5,12 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 **Status:**
 - The MVP plan is approved (D-054).
 - The license (AGPLv3) and `AGENTS.md` are in place.
-- PR 1 (skeleton and CI) is merged ([#4](https://github.com/stephanterning/visona/pull/4)).
-- PR 2 (core primitives) is merged ([#5](https://github.com/stephanterning/visona/pull/5)).
-- PR 3 (audio input and settings) is merged ([#6](https://github.com/stephanterning/visona/pull/6)).
-- PR 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
-- MIDI Clock sync, PR 6 and PR 7, comes before frequency coloring, PR 5 (D-072).
-- PR 6 (MIDI Clock transport in core) is in review ([#8](https://github.com/stephanterning/visona/pull/8)).
-- PR 7 (beat-synced sweep) is in review ([#11](https://github.com/stephanterning/visona/pull/11)), stacked on PR 6.
-- PR 7b (horizontal zoom) is in review ([#12](https://github.com/stephanterning/visona/pull/12)), stacked on PR 7 (D-082).
+- Step 1 (skeleton and CI) is merged ([#4](https://github.com/stephanterning/visona/pull/4)).
+- Step 2 (core primitives) is merged ([#5](https://github.com/stephanterning/visona/pull/5)).
+- Step 3 (audio input and settings) is merged ([#6](https://github.com/stephanterning/visona/pull/6)).
+- Step 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
+- MIDI Clock sync, steps 6 and 7, comes before frequency coloring, step 5 (D-072).
+- Step 7b (horizontal zoom) is in review ([#12](https://github.com/stephanterning/visona/pull/12)). It also contains step 6 (MIDI Clock transport in core) and step 7 (beat-synced sweep), which were opened alone as [#8](https://github.com/stephanterning/visona/pull/8) and [#11](https://github.com/stephanterning/visona/pull/11) (D-082).
 
 ## 1. MVP 1.0
 
@@ -55,19 +53,19 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 
 ## 2. PR steps
 
-Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048). The steps keep their numbers, but PR 6 and PR 7 are done before PR 5 (D-072), and PR 7b, added later, follows PR 7 (D-082).
+Each step is a draft pull request, which has its own number on GitHub, such as #12 for step 7b (D-086). The maintainer tests it on an Apple Silicon Mac with the reference hardware, then merges it (D-043). The `docs/` PR that adds this roadmap comes first (D-048). The steps keep their numbers, but steps 6 and 7 are done before step 5 (D-072), and step 7b, added later, follows step 7 (D-082).
 
-**PR 1 – Skeleton and CI** (milestone 0)
+**Step 1 – Skeleton and CI** (milestone 0)
 - Content: CMake, JUCE, an empty `core/` library, an app that opens an empty Visona window, Catch2 with one test, CI for both jobs, and `.clang-format`.
 - Acceptance: CI is green on macOS and Linux, and the Linux job does not fetch JUCE.
 - Hardware check: builds in Xcode, the app starts, and the window resizes and goes fullscreen.
 
-**PR 2 – Core primitives**
+**Step 2 – Core primitives**
 - Content: SPSC ring, triple buffer, source layout, `BlockTiming` and `MidiClockEvent`. No UI.
 - Acceptance: unit tests and TSan stress tests are green.
 - Hardware check: none (review only).
 
-**PR 3 – Audio input and settings** (milestone 1)
+**Step 3 – Audio input and settings** (milestone 1)
 - Content:
   - Audio device management and a settings panel for device and input pair, with persistence.
   - The audio callback feeding the ring.
@@ -76,7 +74,7 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
 - Acceptance: CI is green, and the callback does not allocate (checked by review and debug instrumentation).
 - Hardware check: S/PDIF input shows correct L/R levels (pan test), 96 kHz is shown, the choices survive a restart, and there are no overruns over 30 minutes.
 
-**PR 4 – Free-running sweep scope** (milestone 2)
+**Step 4 – Free-running sweep scope** (milestone 2)
 - Content:
   - The analysis thread, and `SweepAnalyzer` with the `full` band only, in a fixed time window.
   - Snapshots via the triple buffer.
@@ -86,7 +84,7 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
 - Acceptance: deterministic sweep tests are green, and rendering holds 60 fps without overruns, including with the settings panel open.
 - Hardware check: the waveform looks right with real music; the write head and passes are readable; gain, resize and fullscreen work; CPU load is noted.
 
-**PR 5 – Frequency coloring** (D-056)
+**Step 5 – Frequency coloring** (D-056)
 - Content:
   - `BandSplitter` (LR4) with tests, and per-band data.
   - Both coloring methods: a blended color per column, and bands inside the full-band outline.
@@ -100,12 +98,12 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
   - Check that the head and grid colors do not clash with the coloring.
   - The chosen method is recorded as a decision.
 
-**PR 6 – MIDI Clock transport in core**
+**Step 6 – MIDI Clock transport in core**
 - Content: state machine, tick counting, SPP, BPM estimate, clock-loss timeout and `ClockTimeMapper`. No UI.
 - Acceptance: every transport, SPP and mapping test in the [test strategy](architecture.md#5-test-strategy) is green on Linux.
 - Hardware check: none (review only).
 
-**PR 7 – Beat-synced sweep** (milestone 4, plus window selection)
+**Step 7 – Beat-synced sweep** (milestone 4, plus window selection)
 - Content:
   - MIDI input in settings (persisted), the MIDI ring, and the transport wired into the analysis.
   - φ from musical position, and WINDOW ¼–4.
@@ -119,7 +117,7 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
   - Relocating to bar 17 and pressing Continue lands correctly.
   - Also a tempo change, window switching, and a pulled MIDI cable showing `MIDI CLOCK LOST`.
 
-**PR 7b – Horizontal zoom** (D-082)
+**Step 7b – Horizontal zoom** (D-082)
 - Content:
   - B = 131,072 bins, and bins that hold the lines between samples, so the waveform stays one connected line at deep zoom (D-083, D-084).
   - Zoom in `ScopeView` down to 1/32 of the window: drag to select, scroll wheel, trackpad and touch pinch, and reset with Esc, a double-click or a new window (D-085).
@@ -131,7 +129,7 @@ Each step is a draft PR. The maintainer tests it on an Apple Silicon Mac with th
   - Esc, a double-click, the × and choosing a window reset the zoom; Stop and Continue keep it.
   - The waveform looks connected and sharp on the Retina display at every zoom, and CPU load is noted.
 
-**PR 8 – Proof-of-concept hardening and measurements**
+**Step 8 – Proof-of-concept hardening and measurements**
 - Content:
   - A file log: device, sample rate, block size, BPM, tick jitter statistics and overruns.
   - A measurement of the visual offset between an audio click and the grid.

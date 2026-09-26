@@ -125,7 +125,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - MIDI events carry a host time from JUCE's timestamp. On macOS it is the CoreMIDI packet time, the driver's receive time, converted to JUCE's millisecond counter; Visona converts it back to host nanoseconds (D-077).
 - Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback, in the same time base (D-065).
 - `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime`: a least-squares line through the blocks of the last 2 s (D-076). It absorbs callback jitter and drift between the audio clock and the host clock.
-- A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, since audio captured at a moment appears in the stream the input latency later than a MIDI event stamped at that moment (D-078). `latencyOffset` starts as the reported input latency, without one buffer when the device supplies input timestamps, plus an internal calibration constant with no UI. It is measured in PR 8.
+- A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, since audio captured at a moment appears in the stream the input latency later than a MIDI event stamped at that moment (D-078). `latencyOffset` starts as the reported input latency, without one buffer when the device supplies input timestamps, plus an internal calibration constant with no UI. It is measured in step 8.
 
 ### 3.4 Sweep data model
 
@@ -138,7 +138,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - At the deepest zoom, 1/32 of the window, that is still about one bin per physical pixel on a Retina display.
 - **Cell.** `sweep[source][channel][band][bin] = {min, max}`, signed float (D-050).
   - `full` (broadband) always defines the waveform shape.
-  - `low`, `mid` and `high` drive the frequency coloring only (D-056). PR 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
+  - `low`, `mid` and `high` drive the frequency coloring only (D-056). Step 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
 - **Pass metadata.** Each bin carries a `passId`, so the renderer can tell the new pass from the previous one ahead of the write head. The column at the head shows only the new pass.
 - **Writing.** Each sample maps to bin *b = ⌊φ·B⌋*. When *b* changes, the new bin is reset and stamped with the current `passId`.
   - A bin holds the min and max of the signal drawn as straight lines between consecutive samples. It also reaches the values where the line crosses its edges, and a bin no sample falls in holds the piece of line through it (D-084).
@@ -157,7 +157,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ### 3.5 Rendering
 
 - **Shape.** For every pixel column, the span between the full-band min and max is filled. That area is the waveform in every mode (D-056).
-- **Frequency coloring.** A visualization aid that shows which frequencies make up the sound. The starting palette is blue lows, orange mids and white highs (D-051). PR 5 picks one of two methods, based on which keeps the waveform correct and readable at ¼ and 4 bars:
+- **Frequency coloring.** A visualization aid that shows which frequencies make up the sound. The starting palette is blue lows, orange mids and white highs (D-051). Step 5 picks one of two methods, based on which keeps the waveform correct and readable at ¼ and 4 bars:
   - *Blended color per column:* the full-band span is filled with one color, mixed from each band's share of that column.
   - *Bands inside the full-band outline:* the band envelopes are drawn clipped to the full-band outline and never extend beyond it.
 - **Mono/precise mode.** Draws `full` in a neutral color only. It stays available as a mode and as a reference that coloring does not change the shape.
@@ -289,13 +289,13 @@ Everything below runs in CI on Linux without hardware (D-032).
 
 - **MIDI-to-audio jitter and offset.** USB MIDI and callback timing add jitter, and the audio and MIDI paths have different latency. *Mitigation:*
   - Interpolate between known ticks and smooth the clock mapping.
-  - Measure the offset in PR 8.
+  - Measure the offset in step 8.
   - Ableton Live's MIDI Clock Sync Delay can serve as a calibration knob.
   - A sync offset in the UI waits for measured data.
-- **JUCE MIDI timestamps on macOS are CoreMIDI packet times, but only to within about 1 ms.** This was checked in PR 7 (D-077); JUCE anchors its conversion with a whole millisecond. *Mitigation:* the offset measurement in PR 8, and thin CoreMIDI timestamping in `app/` if it matters.
-- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2 ms. That is ≈ 13 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* measure in PR 5 and compensate with a constant delay in the band data if needed.
-- **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in PR 4, and OpenGL as a fallback.
+- **JUCE MIDI timestamps on macOS are CoreMIDI packet times, but only to within about 1 ms.** This was checked in step 7 (D-077); JUCE anchors its conversion with a whole millisecond. *Mitigation:* the offset measurement in step 8, and thin CoreMIDI timestamping in `app/` if it matters.
+- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2 ms. That is ≈ 13 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* measure in step 5 and compensate with a constant delay in the band data if needed.
+- **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in step 4, and OpenGL as a fallback.
 - **Toolchain versions.** CI runner images lag behind new macOS and Xcode releases, and JUCE 9's CoreAudio implementation is new code. *Mitigation:* pin the JUCE tag, the runner image and the Xcode version, and treat the maintainer's local build as the reference.
-- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from PR 3, and build locally or clear the quarantine on the artifact.
-- **Ableton Live clock behavior.** It is unclear whether Live sends clock while stopped, and exactly when SPP arrives relative to Continue. *Mitigation:* the transport handles both cases; verify in PR 7.
+- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3, and build locally or clear the quarantine on the artifact.
+- **Ableton Live clock behavior.** It is unclear whether Live sends clock while stopped, and exactly when SPP arrives relative to Continue. *Mitigation:* the transport handles both cases; verify in step 7.
 - **Analysis thread starvation.** *Mitigation:* a ring of about 1 s, overrun counters, and a raised thread priority if needed.
