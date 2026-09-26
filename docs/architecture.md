@@ -136,9 +136,9 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Bins.** A fixed B = 131,072 bins per window, independent of screen width (D-054, D-083). The renderer reduces bins to pixel columns.
   - Resizing and zooming therefore never touch the analysis, and tests stay deterministic.
   - At the deepest zoom, 1/32 of the window, that is still about one bin per physical pixel on a Retina display.
-- **Cell.** `sweep[source][channel][band][bin] = {min, max}`, signed float (D-050).
+- **Cell.** `sweep[source][channel][bin] = {min, max}`, signed float (D-050), plus where the signal enters the bin, for STD (D-091), and the peak level of each band, for DJ (D-092).
   - `full` (broadband) always defines the waveform shape.
-  - `low`, `mid` and `high` drive the frequency coloring only (D-056). Step 5 decides whether per-band min/max is enough, or whether a per-bin energy value is also needed.
+  - `low`, `mid` and `high` drive the frequency coloring only (D-056). A peak level per band per bin is enough for it.
 - **Pass metadata.** Each bin carries a `passId`, so the renderer can tell the new pass from the previous one ahead of the write head. The column at the head shows only the new pass.
 - **Writing.** Each sample maps to bin *b = ⌊φ·B⌋*. When *b* changes, the new bin is reset and stamped with the current `passId`.
   - A bin holds the min and max of the signal drawn as straight lines between consecutive samples. It also reaches the values where the line crosses its edges, and a bin no sample falls in holds the piece of line through it (D-084).
@@ -153,20 +153,22 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The low band gets allpass compensation, so the bands sum flat.
   - Coefficients are computed from the current sample rate.
   - It feeds the coloring only; `full` is computed directly from the input.
+  - It runs only in DJ mode (D-092).
 
 ### 3.5 Rendering
 
-- **Shape.** For every pixel column, the span between the full-band min and max is filled. That area is the waveform in every mode (D-056).
-- **Frequency coloring.** A visualization aid that shows which frequencies make up the sound. The starting palette is blue lows, orange mids and white highs (D-051). Step 5 picks one of two methods, based on which keeps the waveform correct and readable at ¼ and 4 bars:
-  - *Blended color per column:* the full-band span is filled with one color, mixed from each band's share of that column.
-  - *Bands inside the full-band outline:* the band envelopes are drawn clipped to the full-band outline and never extend beyond it.
-- **Mono/precise mode.** Draws `full` in a neutral color only. It stays available as a mode and as a reference that coloring does not change the shape.
+- **Modes** (D-091). The shape is the full-band signal in every mode (D-056).
+  - *PRECISE:* for every pixel column, the span between the full-band min and max is filled in the waveform colour.
+  - *STD:* a thin line through the signal at each column edge, in the waveform colour. `sampleColumnEdges()` interpolates between the starts of neighbouring bins.
+  - *DJ:* PRECISE, with each column coloured by its bands (D-092).
+- **Frequency coloring** (D-092). A visualization aid that shows which frequencies make up the sound. Each column's band peaks are mixed as red (lows), green (mids) and blue (highs), weighted and squared so that the strongest band sets the hue, at full brightness. `reduceColumnBands()` reads each band later by its filter delay, within the same pass, and `djColour()` mixes the colour.
+- **Waveform colour** (D-093). STD and PRECISE use one of eight presets, teal by default, chosen in the settings.
 - **Lanes.** Stacked, with L on top (D-057). Each lane is a generic *channel view*, which in the MVP is one channel; Mid, Side or a single lane can become a setting later.
 - **Vertical mapping.** *y = center − value × dbToGain(gainDb) × laneHalfHeight* (D-024).
   - At the lane edge the waveform is clipped with a *neutral* marker, so display overshoot is not mistaken for audio clipping.
 - **Amplitude references.** A center line, plus faint lines where 0 dBFS and −6 dBFS land after display gain.
 - **Write head and passes** (D-068).
-  - The head is a thin line in an accent color outside the band palette. It is never white, blue, orange or red.
+  - The head is a thin line in an accent colour outside the waveform colours; there is no green preset.
   - A small erase gap follows the head.
   - The previous pass ahead of the head is drawn at full brightness, like the new one; the head line and gap are enough to read the sweep.
 - **Grid.** Neutral gray, not blue.
@@ -206,10 +208,11 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - While zoomed, the zoom comes last, such as `ZOOM 4.0× · 1.3–1.4` (D-085).
 - **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom.
 - **Controls (bottom):** no knobs.
+  - WAVE `[STD][PRECISE][DJ]` chooses the drawing mode (D-091).
   - WINDOW is an always-visible segmented control.
   - GAIN is `[−] +12 dB [+]`, from 0 to +36 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB.
   - Secondary buttons: Diagnostics and Full screen, next to ⚙.
-  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
+  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
 - **Zoom on the scope** (D-085): drag to zoom to the selection, scroll or pinch to zoom around the pointer, and double-click or double-tap to reset.
 - **Responsive chrome** (D-069). The layout reflows in steps:
   - Wide windows put everything on one row.
@@ -218,7 +221,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The status bar shrinks first, down to BPM and MIDI state.
   - Breakpoints are logical sizes of the component bounds.
 - **Diagnostics overlay** (D-070): audio input, overruns, analysis load, frame rate, render time and CPU use, hidden by default.
-- **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair and MIDI input.
+- **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair, MIDI input and the waveform colour (D-093).
   - The input channel for Left and for Right is chosen separately (D-063).
   - It is a separate overlay that never forces the scope to repaint.
   - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
@@ -269,11 +272,12 @@ Everything below runs in CI on Linux without hardware (D-032).
   - The Stop → SPP → Continue sequence that Ableton Live sends.
   - SPP while `Running` is ignored; the maximum value, 16383, is handled.
 - **Clock mapping.** Synthetic block timestamps with callback jitter and drift. The mapping error must average under 1 sample and stay within a fixed maximum.
+- **Waveform modes.** Each bin's start is its first sample or where the line crosses into it; band levels show which band a tone is in and are empty while band splitting is off; the DJ colour of a single band is its own colour and never depends on the level; the column reductions shift bands within a pass and interpolate edges.
 - **Band split.**
   - 50 Hz lands in low, 1 kHz in mid and 8 kHz in high, each by a clear dB margin.
   - At each crossover both bands are at ≈ −6 dB, and the bands sum flat within ±0.1 dB.
   - Group delay per band is measured and documented, from 44.1 to 192 kHz.
-- **Shape invariance.** The rendered outline is identical in every coloring mode and in mono/precise mode for the same input (D-056).
+- **Shape invariance.** Band splitting does not change the bins' min/max or starts, so the outline is identical in PRECISE and DJ for the same input (D-056).
 - **Sweep and rendering.**
   - A 1 kHz sine at 96 kHz, 120 BPM and 1 bar, with B = 4096, produces a deterministic buffer: every bin holds exactly the min and max of the lines through its samples (D-084). A bin is 46.875 samples, about half a cycle, so every three neighbouring bins reach min ≈ −A and max ≈ +A. A sine with at least one cycle per bin, such as 4 kHz, reaches them in every bin.
   - With more bins than frames, the lines between frames fill the bins between them, and at the default B the waveform is one connected line.
@@ -293,7 +297,7 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Ableton Live's MIDI Clock Sync Delay can serve as a calibration knob.
   - A sync offset in the UI waits for measured data.
 - **JUCE MIDI timestamps on macOS are CoreMIDI packet times, but only to within about 1 ms.** This was checked in step 7 (D-077); JUCE anchors its conversion with a whole millisecond. *Mitigation:* the offset measurement in step 8, and thin CoreMIDI timestamping in `app/` if it matters.
-- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2 ms. That is ≈ 13 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* measure in step 5 and compensate with a constant delay in the band data if needed.
+- **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2.6 ms. That is ≈ 17 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* the renderer reads each band later by its delay at the band's reference frequency (D-092).
 - **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in step 4, and OpenGL as a fallback.
 - **Toolchain versions.** CI runner images lag behind new macOS and Xcode releases, and JUCE 9's CoreAudio implementation is new code. *Mitigation:* pin the JUCE tag, the runner image and the Xcode version, and treat the maintainer's local build as the reference.
 - **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3, and build locally or clear the quarantine on the artifact.

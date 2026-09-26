@@ -23,7 +23,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - MIDI Clock as the only clock source, with Clock, Start, Stop, Continue and SPP (D-036, D-041)
 - Sweep display with windows of ¼, ½, 1, 2 and 4 bars (D-020, D-034)
 - Horizontal zoom in on part of the window, down to 1/32 of it, without changing the window (D-082, D-085)
-- Full-band signed min/max waveform, with frequency coloring as an aid and a mono/precise mode (D-050, D-056)
+- Full-band waveform in three modes, STD, PRECISE and DJ, with DJ's frequency coloring as an aid and a chosen colour for the others (D-050, D-056, D-091–D-093)
 - Display gain from 0 to +36 dB (D-024, D-046)
 - Status bar, control bar, a settings panel with persistence, resizing and fullscreen (D-046)
 - Transport policies per D-045, D-059 and D-060
@@ -84,19 +84,18 @@ Each step is a draft pull request, which has its own number on GitHub, such as #
 - Acceptance: deterministic sweep tests are green, and rendering holds 60 fps without overruns, including with the settings panel open.
 - Hardware check: the waveform looks right with real music; the write head and passes are readable; gain, resize and fullscreen work; CPU load is noted.
 
-**Step 5 – Frequency coloring** (D-056)
+**Step 5 – Waveform modes and frequency coloring** (D-056, D-091–D-093)
 - Content:
-  - `BandSplitter` (LR4) with tests, and per-band data.
-  - Both coloring methods: a blended color per column, and bands inside the full-band outline.
-  - A toggle between them and mono/precise mode.
+  - `BandSplitter` (LR4) with tests, and per-band peak levels per bin, split only in DJ mode.
+  - Three drawing modes modelled on Oszillos Mega Scope: STD (a thin line), PRECISE (filled min/max) and DJ (PRECISE coloured by frequency, bands as red, green and blue), with WAVE in the control bar.
+  - Eight waveform colours for STD and PRECISE in the settings. The mode and colour are saved.
 - Acceptance:
-  - Band split tests are green, and group delay is documented.
-  - The outline is identical in every coloring mode and in mono/precise mode.
+  - Band split tests are green, and group delay is documented and compensated.
+  - The outline is identical in PRECISE and DJ.
 - Hardware check, with real music at both ¼ and 4 bars:
-  - Pick the method that keeps the waveform most correct and readable.
-  - Judge whether the colors reveal the frequency content, and whether the crossovers or starting palette need tuning.
-  - Check that the head and grid colors do not clash with the coloring.
-  - The chosen method is recorded as a decision.
+  - DJ: kicks read red to orange, mids green and hi-hats blue, and the colours line up with the transients. Tune the band weights if one band dominates.
+  - STD looks like a thin line and costs less to render than PRECISE; note the render time of each mode in diagnostics.
+  - Check that the head and grid colors do not clash with the coloring or the chosen colour.
 
 **Step 6 – MIDI Clock transport in core**
 - Content: state machine, tick counting, SPP, BPM estimate, clock-loss timeout and `ClockTimeMapper`. No UI.
