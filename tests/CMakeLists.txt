@@ -15,6 +15,7 @@ add_executable(visona_core_tests
     ColumnReductionTests.cpp
     LaneMappingTests.cpp
     MidiClockTransportTests.cpp
+    ScopeGridTests.cpp
     SourceLayoutTests.cpp
     SpscQueueTests.cpp
     SweepAnalyzerTests.cpp

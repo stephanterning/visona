@@ -166,14 +166,15 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Lanes.** Stacked, with L on top (D-057). Each lane is a generic *channel view*, which in the MVP is one channel; Mid, Side or a single lane can become a setting later.
 - **Vertical mapping.** *y = center − value × dbToGain(gainDb) × laneHalfHeight* (D-024).
   - At the lane edge the waveform is clipped with a *neutral* marker, so display overshoot is not mistaken for audio clipping.
-- **Amplitude references.** A center line, plus faint lines where 0 dBFS and −6 dBFS land after display gain.
+- **Amplitude references.** A center line, plus faint lines where 0 dBFS and −6 dBFS land after display gain, and −12 dBFS and −18 dBFS from +4 dB and +10 dB of gain (D-088).
 - **Write head and passes** (D-068).
   - The head is a thin line in an accent colour outside the waveform colours; there is no green preset.
   - A small erase gap follows the head.
   - The previous pass ahead of the head is drawn at full brightness, like the new one; the head line and gap are enough to read the sweep.
 - **Grid.** Neutral gray, not blue.
-  - Downbeats and bar lines are strongest and beat lines weaker. Sixteenths show when half a bar or less is in view: at ¼ and ½ bar, or zoomed in. Zoomed in to a quarter or an eighth of a bar, thirty-seconds and sixty-fourths are added (D-085).
+  - Downbeats and bar lines are strongest and beat lines weaker. A finer note value follows how much is in view: beats only above 2 bars, eighths up to 2, sixteenths up to 1, thirty-seconds up to ½ and sixty-fourths from ¼ bar down (D-087). `gridDivisionFor()` in the core holds the rule.
   - Small bar numbers sit at the bottom edge; a window that starts between bars is labelled bar.beat (D-080). With a bar or less in view, beats are labelled bar.beat too, and the left edge names the beat the view starts in.
+  - The bottom right corner names the finest note value and its length at the current tempo, such as `1/16 · 125 ms` (D-087).
 - **Zoom** (D-085). Presentation only: the view is a part of the window, from an offset for a span, down to 1/32 of it, and may run past the end of the window into its start.
   - `SweepZoom` in the core holds it and implements zooming around a point and to a selection; `ColumnMapping` maps the view's bins to columns, giving up to two column ranges for a range of bins.
   - The head line shows only while the head is in view.
@@ -285,6 +286,7 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Window changes, free-running and freeze on Stop.
   - Bin-to-pixel reduction, also for zoomed views that run past the end of the window, checked by brute force against which columns show which bins.
   - Zooming around a point keeps it in place, stops at 1/32 of the window, and zooming out arrives at the whole window.
+  - The grid's finest note value for each amount in view, its length at a tempo, and which amplitude references show at each display gain.
 - **Channel-count independence.** The analyzer gives the same per-channel result with 1, 2 and 6 channels (D-049).
 - **Concurrency.** Stress tests for the SPSC ring and triple buffer under TSan.
 - **Performance** (informational). A benchmark of analysis cost per second of stereo audio at 96 kHz.

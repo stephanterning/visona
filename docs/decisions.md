@@ -310,17 +310,28 @@ A lightweight log of decisions and open questions. The architecture is described
   - Where the line between two consecutive frames crosses a bin boundary, its value there goes into both bins, and a bin no sample falls in holds the piece of line through it. The waveform is one connected line at every zoom, as if the samples were joined by lines.
   - No line is drawn across a gap (D-067), a freeze or a relocation (D-079).
   - The bins still do not depend on how the audio is split into blocks.
-- **D-085 — Zoom.** `Active`
+- **D-085 — Zoom.** `Amended by D-087`
   - Stepless, from the whole window down to 1/32 of it. A zoom within a zoom narrows the view further. There is no panning: zoom out and in again.
   - Mouse: dragging across the scope zooms to the part selected, freely, without snapping; a drag under 8 pixels is a click and does nothing. The scroll wheel zooms around the pointer, up to zoom in. A trackpad pinch, and a two-finger pinch on a touchscreen, zoom around the point between the fingers.
   - Reset: Esc once the settings panel is closed, a double-click or double-tap on the scope, or the × of the overview strip. Choosing a window, and a switch between free-running and musical time, such as the first Start, reset it too. There are no zoom keys.
   - A view may run past the end of the window and carry on at its start, as the head does, so the downbeat can be seen from both sides. Zooming out near an edge gets there. Zooming out also turns the view back towards the whole window, which it reaches exactly at 1×.
   - While zoomed, an overview strip above the scope shows the whole window, the part in view and the head. The status bar shows the zoom, such as `ZOOM 4.0× · 1.3–1.4`: the magnification, then where the view starts and ends within the window, as bar.beat, bar.beat.sixteenth when less than a beat is in view, or seconds while the sweep runs free. The positions count from the window's start, so they stay the same from one window to the next.
-  - The head line shows only while the head is in view. The grid adds thirty-seconds with a quarter of a bar in view and sixty-fourths with an eighth. With a bar or less in view, beats are labelled bar.beat, and the left edge always names the beat the view starts in.
+  - The head line shows only while the head is in view. The grid adds thirty-seconds with a quarter of a bar in view and sixty-fourths with an eighth With a bar or less in view, beats are labelled bar.beat, and the left edge always names the beat the view starts in.
   - The zoom works while stopped and in the free-running sweep, lasts through Stop, Continue and every Start after the first, and is not saved across restarts.
 - **D-086 — The roadmap's steps are called steps, not PRs: step 1 to step 8, and step 7b.** `Active`
   - A step is still one draft pull request, but GitHub numbers pull requests on its own, so "PR 7b" next to #12 was confusing. "PR" and "#" now always mean a GitHub pull request.
   - The docs were reworded to match. Commit messages and pull requests from before this call step N "PR N".
+- **D-087 — The grid's finest note value follows how much is in view, and the scope names it.** `Active`
+  - With more than 2 bars in view the grid marks beats only, up to 2 bars eighths, up to 1 bar sixteenths, up to ½ bar thirty-seconds, and with ¼ bar or less sixty-fourths. Each window gets its own value unzoomed, from 1/4 at 4 bars to 1/64 at ¼ bar, and zooming in refines it.
+  - The maintainer asked for sixteenths in the 1-bar window, which before showed them only from ½ bar in view.
+  - Eighths and sixteenths share one grey; thirty-seconds and sixty-fourths are fainter.
+  - The bottom right corner of the scope names the finest value and its length at the current tempo, such as `1/16 · 125 ms`, in whole milliseconds from the tempo as the status bar shows it. Bar numbers that would run into it are left out.
+  - The free-running sweep has no grid, so it shows nothing there.
+
+  Amends D-085.
+- **D-088 — −12 dBFS and −18 dBFS reference lines appear from +4 dB and +10 dB of display gain.** `Active`
+  - With more gain, 0 dBFS and then −6 dBFS leave the lane, and the quieter lines take over as references. They look like the others and are labelled the same way.
+  - There are no lines below −18 dBFS; the maintainer does not expect to need that much gain.
 - **D-091 — The waveform has three drawing modes: STD, PRECISE and DJ, modelled on Oszillos Mega Scope.** `Active`
   - The maintainer asked for them in step 5, after using Mega Scope, whose Precise mode he uses most.
   - *PRECISE* is the filled full-band signed min/max of every column, as before (D-050). Nothing is missed, and it is the default.
