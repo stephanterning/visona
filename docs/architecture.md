@@ -159,7 +159,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ### 3.5 Rendering
 
 - **Modes** (D-091). The shape is the full-band signal in every mode (D-056).
-  - *PRECISE:* for every pixel column, the span between the full-band min and max is filled in the waveform colour.
+  - *PRECISE:* for every pixel column, the waveform colour fills from the centre line out to the signed min and max.
   - *STD:* a thin line through the signal at each column edge, in the waveform colour. `sampleColumnEdges()` interpolates between the starts of neighbouring bins.
   - *DJ:* PRECISE, with each column coloured by its bands (D-092).
 - **Frequency coloring** (D-092). A visualization aid that shows which frequencies make up the sound. Each column's band peaks are mixed as red (lows), green (mids) and blue (highs), weighted and squared so that the strongest band sets the hue, at full brightness. `reduceColumnBands()` reads each band later by its filter delay, within the same pass, and `djColour()` mixes the colour.
