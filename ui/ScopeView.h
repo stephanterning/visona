@@ -1,6 +1,7 @@
 #pragma once
 
 #include <visona/ColumnReduction.h>
+#include <visona/Ruler.h>
 #include <visona/SourceLayout.h>
 #include <visona/SweepSnapshot.h>
 #include <visona/SweepZoom.h>
@@ -48,6 +49,14 @@ namespace visona
     the window (D-089). A double-click, Esc (handled by the main component) or a new window resets
     it. The head line shows only while the head is in view. Past the end of the window, bar
     numbers read on into the next one.
+
+    The measurement ruler (D-094) is a rectangle drawn by dragging with the right button, a
+    two-finger click or Control, or on a touchscreen by holding a finger still for half a second
+    and then dragging. It lives only while the button or finger is held. It is read against the
+    axes as shown, never the audio: its width gives ms, samples, frequency, note and musical
+    length from the window, zoom and tempo, and the heights where it started and where the
+    pointer is give levels in dBFS on the amplitude scale, display gain included. It may span
+    both lanes.
 
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
     vertical image tiles. Frames follow the display's vertical blank, capped at 60 per second, and
@@ -226,6 +235,17 @@ private:
     void zoomAround(float x, double factor);
     [[nodiscard]] bool updatePinch();
 
+    void startRuler(int source, juce::Point<float> at);
+    /** Turns a finger held still long enough into a ruler. */
+    void checkLongPress();
+    [[nodiscard]] juce::Point<float> clampedToScope(juce::Point<float> point) const noexcept;
+    [[nodiscard]] std::vector<RulerRow> rulerRows() const;
+    [[nodiscard]] juce::Rectangle<float> readoutArea(const std::vector<RulerRow>& rows) const;
+    /** What the ruler and its readout cover, or nothing while there is no ruler. */
+    [[nodiscard]] juce::Rectangle<int> rulerArea() const;
+    void repaintRuler();
+    void drawRuler(juce::Graphics& g) const;
+
     TripleBuffer<SweepSnapshot>& snapshots_;
     const SourceLayout& layout_;
 
@@ -276,6 +296,16 @@ private:
     float pinchStartDistance_ = 0.0f;
     double pinchAnchor_ = 0.0;
     SweepZoom pinchStartZoom_;
+
+    // The ruler while it is drawn, in logical pixels, and a finger held down that may become one.
+    std::optional<int> rulerSource_;
+    juce::Point<float> rulerStart_;
+    juce::Point<float> rulerEnd_;
+    juce::Rectangle<int> rulerShown_;
+    std::optional<int> pressSource_;
+    juce::Point<float> pressStart_;
+    juce::Point<float> pressLatest_;
+    double pressStartMs_ = 0.0;
 
     double nextFrameSeconds_ = 0.0;
     double firstFrameSeconds_ = 0.0;

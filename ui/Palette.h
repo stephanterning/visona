@@ -70,6 +70,11 @@ inline const juce::Colour gridSixteenth{0xff23262c};
 /** Thirty-seconds and sixty-fourths, shown only when zoomed in. */
 inline const juce::Colour gridFine{0xff191b20};
 
+// The measurement ruler (D-094): light and neutral, unlike the zoom selection and the head.
+inline const juce::Colour rulerFill{0x2ee6e6e8};
+inline const juce::Colour rulerEdge{0xb3e6e6e8};
+inline const juce::Colour readoutBackground{0xeb17191e};
+
 // State
 inline const juce::Colour error{0xffc93b35};
 

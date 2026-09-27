@@ -47,6 +47,15 @@ constexpr float minPinchDistance = 24.0f;
 constexpr float selectionFillAlpha = 0.14f;
 constexpr float selectionEdgeAlpha = 0.6f;
 
+// The measurement ruler (D-094). A finger held within minSelectionWidth of where it landed for
+// longPressMs becomes a ruler. The readout sits readoutOffset from the pointer, in logical pixels.
+constexpr double longPressMs = 500.0;
+constexpr float readoutFontHeight = 13.0f;
+constexpr float readoutRowHeight = 17.0f;
+constexpr float readoutPadding = 8.0f;
+constexpr float readoutColumnGap = 12.0f;
+constexpr float readoutOffset = 16.0f;
+
 /** Sixteenths are one MIDI beat of 6 ticks. The grid counts half ticks, so that sixty-fourths,
     1.5 ticks, are whole numbers of them. */
 constexpr int halfTicksPerSixteenth = 12;
@@ -191,6 +200,7 @@ void ScopeView::paint(juce::Graphics& g)
     drawBarNumbers(g);
     drawStopped(g);
     drawSelection(g);
+    drawRuler(g);
 
     paintTiming_.add(nowMs() - start);
 }
@@ -205,6 +215,7 @@ void ScopeView::onVBlank(double timestampSeconds)
 {
     ++vblanks_;
     updateStats(timestampSeconds);
+    checkLongPress();
 
     // Nothing to draw into before the first paint has sized the tiles.
     if (tiles_.empty() || timestampSeconds + frameTolerance < nextFrameSeconds_)
@@ -221,6 +232,9 @@ void ScopeView::onVBlank(double timestampSeconds)
     renderChanges();
     renderTiming_.add(nowMs() - start);
     noticeTransport();
+    // The ruler reads the tempo, which may have changed.
+    if (rulerSource_.has_value())
+        repaintRuler();
     if (renderTiming_.count == 1)
         firstFrameSeconds_ = timestampSeconds;
     lastFrameSeconds_ = timestampSeconds;
@@ -784,6 +798,9 @@ void ScopeView::setZoom(SweepZoom zoom)
 
 void ScopeView::mouseDown(const juce::MouseEvent& event)
 {
+    // While the ruler is drawn, other presses and fingers do nothing.
+    if (rulerSource_.has_value())
+        return;
     if (event.source.isTouch())
     {
         const auto free = std::find_if(touches_.begin(), touches_.end(),
@@ -796,6 +813,7 @@ void ScopeView::mouseDown(const juce::MouseEvent& event)
             // A second finger turns the drag into a pinch around the point between the fingers.
             repaint(selectionArea());
             dragSource_.reset();
+            pressSource_.reset();
             pinching_ = false;
             pinchStartZoom_ = zoom_;
             pinchAnchor_ = static_cast<double>((touches_[0].x + touches_[1].x) / 2.0f) /
@@ -803,15 +821,42 @@ void ScopeView::mouseDown(const juce::MouseEvent& event)
             return;
         }
     }
-    if (event.mods.isPopupMenu() || pinching_)
+    // The right button, a two-finger click and Control-click all draw the ruler.
+    if (event.mods.isPopupMenu())
+    {
+        if (!event.source.isTouch() && !dragSource_.has_value())
+            startRuler(event.source.getIndex(), event.position);
+        return;
+    }
+    if (pinching_)
         return;
     dragSource_ = event.source.getIndex();
     dragStart_ = event.position.x;
     dragEnd_ = event.position.x;
+    // Touch has no right button: a finger held still draws the ruler instead.
+    if (event.source.isTouch())
+    {
+        pressSource_ = event.source.getIndex();
+        pressStart_ = event.position;
+        pressLatest_ = event.position;
+        pressStartMs_ = nowMs();
+    }
 }
 
 void ScopeView::mouseDrag(const juce::MouseEvent& event)
 {
+    if (rulerSource_ == event.source.getIndex())
+    {
+        rulerEnd_ = clampedToScope(event.position);
+        repaintRuler();
+        return;
+    }
+    if (pressSource_ == event.source.getIndex())
+    {
+        pressLatest_ = event.position;
+        if (event.position.getDistanceFrom(pressStart_) >= minSelectionWidth)
+            pressSource_.reset();
+    }
     if (event.source.isTouch())
     {
         for (auto& touch : touches_)
@@ -831,6 +876,18 @@ void ScopeView::mouseDrag(const juce::MouseEvent& event)
 
 void ScopeView::mouseUp(const juce::MouseEvent& event)
 {
+    if (rulerSource_ == event.source.getIndex())
+    {
+        // The ruler and its readout go away with the button or finger.
+        for (auto& touch : touches_)
+            if (touch.source == event.source.getIndex())
+                touch = {};
+        rulerSource_.reset();
+        repaintRuler();
+        return;
+    }
+    if (pressSource_ == event.source.getIndex())
+        pressSource_.reset();
     if (event.source.isTouch())
     {
         const bool wasPinch = touches_[0].source >= 0 && touches_[1].source >= 0;
@@ -857,8 +914,10 @@ void ScopeView::mouseUp(const juce::MouseEvent& event)
                            static_cast<double>(std::max(dragStart_, dragEnd_)) / width));
 }
 
-void ScopeView::mouseDoubleClick(const juce::MouseEvent&)
+void ScopeView::mouseDoubleClick(const juce::MouseEvent& event)
 {
+    if (event.mods.isPopupMenu())
+        return;
     resetZoom();
 }
 
@@ -934,6 +993,145 @@ void ScopeView::drawSelection(juce::Graphics& g) const
     g.setColour(palette::level.withAlpha(selectionEdgeAlpha));
     g.fillRect(area.withWidth(1));
     g.fillRect(area.withTrimmedLeft(area.getWidth() - 1));
+}
+
+void ScopeView::startRuler(int source, juce::Point<float> at)
+{
+    rulerSource_ = source;
+    rulerStart_ = clampedToScope(at);
+    rulerEnd_ = rulerStart_;
+    repaintRuler();
+}
+
+void ScopeView::checkLongPress()
+{
+    if (!pressSource_.has_value() || rulerSource_.has_value() ||
+        nowMs() - pressStartMs_ < longPressMs)
+        return;
+    const auto source = *pressSource_;
+    pressSource_.reset();
+    // A second finger has made it a pinch.
+    if (dragSource_ != source)
+        return;
+    repaint(selectionArea());
+    dragSource_.reset();
+    startRuler(source, pressStart_);
+    rulerEnd_ = clampedToScope(pressLatest_);
+    repaintRuler();
+}
+
+juce::Point<float> ScopeView::clampedToScope(juce::Point<float> point) const noexcept
+{
+    return {std::clamp(point.x, 0.0f, static_cast<float>(getWidth())),
+            std::clamp(point.y, 0.0f, static_cast<float>(getHeight()))};
+}
+
+std::vector<RulerRow> ScopeView::rulerRows() const
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    RulerTimeAxis axis;
+    axis.windowTicks = snapshot.musical ? snapshot.windowTicks : 0.0;
+    axis.viewSpan = zoom_.span;
+    axis.bpm = snapshot.bpm;
+    axis.sampleRate = snapshot.hasStream ? snapshot.sampleRate : 0.0;
+    axis.timeSignature = snapshot.timeSignature;
+    const auto width = static_cast<double>(std::max(1, getWidth()));
+    const auto fraction = static_cast<double>(std::abs(rulerEnd_.x - rulerStart_.x)) / width;
+
+    // Lanes are in physical pixels.
+    std::vector<RulerLane> lanes;
+    lanes.reserve(lanes_.size());
+    for (const auto& lane : lanes_)
+        lanes.push_back({static_cast<double>(lane.top), static_cast<double>(lane.height)});
+    const auto gain = DisplayGain::toLinear(gainDb_);
+    const auto levelAt = [&](float y)
+    { return rulerLevelAt(static_cast<double>(y * scale_), lanes, gain); };
+    return rulerReadout(axis, fraction, levelAt(rulerStart_.y), levelAt(rulerEnd_.y));
+}
+
+juce::Rectangle<float> ScopeView::readoutArea(const std::vector<RulerRow>& rows) const
+{
+    const auto font = juce::FontOptions(readoutFontHeight).withFeatureEnabled("tnum");
+    float labelWidth = 0.0f;
+    float valueWidth = 0.0f;
+    for (const auto& [label, value] : rows)
+    {
+        labelWidth = std::max(labelWidth, juce::GlyphArrangement::getStringWidth(
+                                              font, juce::String::fromUTF8(label.c_str())));
+        valueWidth = std::max(valueWidth, juce::GlyphArrangement::getStringWidth(
+                                              font, juce::String::fromUTF8(value.c_str())));
+    }
+    const auto width =
+        std::ceil(2.0f * readoutPadding + labelWidth + readoutColumnGap + valueWidth);
+    const auto height = 2.0f * readoutPadding + readoutRowHeight * static_cast<float>(rows.size());
+
+    // Beside the pointer, on whichever side keeps it inside the scope.
+    const auto scopeWidth = static_cast<float>(getWidth());
+    const auto scopeHeight = static_cast<float>(getHeight());
+    auto x = rulerEnd_.x + readoutOffset;
+    if (x + width > scopeWidth - labelMargin)
+        x = rulerEnd_.x - readoutOffset - width;
+    x = std::max(0.0f, std::min(x, scopeWidth - labelMargin - width));
+    auto y = rulerEnd_.y + readoutOffset;
+    if (y + height > scopeHeight - labelMargin)
+        y = rulerEnd_.y - readoutOffset - height;
+    y = std::max(0.0f, std::min(y, scopeHeight - labelMargin - height));
+    return {x, y, width, height};
+}
+
+juce::Rectangle<int> ScopeView::rulerArea() const
+{
+    if (!rulerSource_.has_value())
+        return {};
+    const auto rectangle = juce::Rectangle<float>(rulerStart_, rulerEnd_).expanded(2.0f);
+    return rectangle.getUnion(readoutArea(rulerRows())).getSmallestIntegerContainer();
+}
+
+void ScopeView::repaintRuler()
+{
+    const auto area = rulerArea();
+    repaint(rulerShown_.getUnion(area));
+    rulerShown_ = area;
+}
+
+void ScopeView::drawRuler(juce::Graphics& g) const
+{
+    if (!rulerSource_.has_value())
+        return;
+
+    const auto rectangle = juce::Rectangle<float>(rulerStart_, rulerEnd_);
+    g.setColour(palette::rulerFill);
+    g.fillRect(rectangle);
+    g.setColour(palette::rulerEdge);
+    g.drawRect(rectangle.expanded(0.5f), 1.0f);
+
+    const auto rows = rulerRows();
+    const auto area = readoutArea(rows);
+    g.setColour(palette::readoutBackground);
+    g.fillRoundedRectangle(area, 4.0f);
+    g.setColour(palette::outline);
+    g.drawRoundedRectangle(area.reduced(0.5f), 4.0f, 1.0f);
+
+    g.setFont(juce::FontOptions(readoutFontHeight).withFeatureEnabled("tnum"));
+    auto labelWidth = 0.0f;
+    for (const auto& row : rows)
+        labelWidth = std::max(labelWidth,
+                              juce::GlyphArrangement::getStringWidth(
+                                  g.getCurrentFont(), juce::String::fromUTF8(row.first.c_str())));
+    auto line = area.reduced(readoutPadding).withHeight(readoutRowHeight);
+    for (const auto& [label, value] : rows)
+    {
+        auto valueArea = line;
+        const auto labelArea = valueArea.removeFromLeft(labelWidth);
+        valueArea.removeFromLeft(readoutColumnGap);
+        g.setColour(palette::textDim);
+        g.drawText(juce::String::fromUTF8(label.c_str()), labelArea,
+                   juce::Justification::centredRight, false);
+        g.setColour(palette::text);
+        g.drawText(juce::String::fromUTF8(value.c_str()), valueArea,
+                   juce::Justification::centredLeft, false);
+        line.translate(0.0f, readoutRowHeight);
+    }
 }
 
 juce::Rectangle<int> ScopeView::logicalColumns(int first, int last) const noexcept
