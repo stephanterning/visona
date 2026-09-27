@@ -51,8 +51,8 @@ juce::String formatState(TransportState state)
 {
     switch (state)
     {
-    case TransportState::waiting:
-        return "waiting";
+    case TransportState::freeRunning:
+        return "free";
     case TransportState::running:
         return "running";
     case TransportState::stopped:

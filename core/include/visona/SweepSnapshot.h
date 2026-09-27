@@ -28,9 +28,6 @@ struct SweepSnapshot
 
     double sampleRate = 0.0;
 
-    /** Free-running: frames per window. 0 while the sweep follows musical time. */
-    std::uint64_t windowFrames = 0;
-
     /** Stream position of the next frame to analyze: every frame analyzed or dropped so far. */
     std::uint64_t nextSampleIndex = 0;
 
@@ -38,13 +35,15 @@ struct SweepSnapshot
     std::uint64_t overruns = 0;
     std::uint64_t droppedFrames = 0;
 
-    /** The MIDI Clock transport (architecture.md 3.3). The tempo is 0 when not known. */
-    TransportState transportState = TransportState::waiting;
+    /** The MIDI Clock transport (architecture.md 3.3). The tempo is the free tempo while the sweep
+        runs free, and otherwise MIDI Clock's, or 0 when not known. */
+    TransportState transportState = TransportState::freeRunning;
     double bpm = 0.0;
     std::int64_t nextTick = 0;
     TimeSignature timeSignature;
 
-    /** Whether the sweep follows musical time; before the first Start it runs free. */
+    /** Whether a sweep is running. It is always in bars, following MIDI Clock or running free at
+        the free tempo (D-090); only before the stream's first audio is there none. */
     bool musical = false;
 
     /** The selected window, an index into sweepWindowBars, and its length in ticks. */

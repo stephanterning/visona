@@ -16,7 +16,6 @@
 #include <vector>
 
 using Catch::Matchers::WithinAbs;
-using visona::freeRunningWindowFrames;
 using visona::SweepAnalyzer;
 using visona::SweepBuffer;
 using visona::SweepCell;
@@ -28,7 +27,7 @@ namespace
 {
 
 constexpr double sampleRate96k = 96'000.0;
-constexpr std::uint64_t window96k = 192'000; // 2 s at 96 kHz, which is also 1 bar at 120 BPM
+constexpr std::uint64_t window96k = 192'000; // 2 s at 96 kHz, which is 1 bar at 120 BPM
 
 /** Feeds `channels` to `analyzer` from `firstSampleIndex` on, in blocks of `blockSize` frames. */
 void feed(SweepAnalyzer& analyzer, const std::vector<std::vector<float>>& channels,
@@ -96,16 +95,6 @@ bool nearlyEqual(const SweepCell& a, const SweepCell& b)
 }
 
 } // namespace
-
-TEST_CASE("The free-running window is 2 s at every sample rate", "[sweep]")
-{
-    CHECK(freeRunningWindowFrames(44'100.0) == 88'200);
-    CHECK(freeRunningWindowFrames(48'000.0) == 96'000);
-    CHECK(freeRunningWindowFrames(88'200.0) == 176'400);
-    CHECK(freeRunningWindowFrames(96'000.0) == window96k);
-    CHECK(freeRunningWindowFrames(192'000.0) == 384'000);
-    CHECK(freeRunningWindowFrames(0.0) == 1);
-}
 
 TEST_CASE("A 1 kHz sine at 96 kHz gives a deterministic sweep", "[sweep]")
 {
@@ -179,7 +168,7 @@ TEST_CASE("A click every quarter window lands in the bin at that quarter", "[swe
 {
     const auto sampleRate = GENERATE(44'100.0, 48'000.0, 88'200.0, 96'000.0, 192'000.0);
     CAPTURE(sampleRate);
-    const auto windowFrames = freeRunningWindowFrames(sampleRate);
+    const auto windowFrames = static_cast<std::uint64_t>(2.0 * sampleRate);
     std::vector<std::uint64_t> clickFrames;
     for (std::uint64_t quarter = 0; quarter < 4; ++quarter)
         clickFrames.push_back(quarter * windowFrames / 4);

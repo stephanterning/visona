@@ -22,15 +22,16 @@ namespace visona
     Each poll():
     1. places the MIDI Clock events from the MIDI queue on the audio's sample timeline with a
        ClockTimeMapper, and hands them to the MidiClockTransport;
-    2. drains the audio ring into the SweepAnalyzer as the transport's spans say: free-running
-       before the first Start, at interpolated musical positions while running, and writing
-       nothing while frozen. Audio after the latest tick waits in the ring for the next one;
+    2. drains the audio ring into the SweepAnalyzer as the transport's spans say: at interpolated
+       musical positions while running, and writing nothing while frozen. Audio after the latest
+       tick waits in the ring for the next one. While the transport runs free, the sweep keeps
+       its own time: bars at the free tempo, counted from bar 1 where it started (D-090);
     3. publishes a SweepSnapshot for the UI thread if anything changed.
 
     setStream(), setMidiQueue() and poll() are the analysis side. They must not run concurrently;
     the app calls them under one lock, which only the analysis thread and stream changes take. The
-    UI thread is the only consumer of snapshots(). setWindow(), setBandSplitting(),
-    setMidiOffset() and takePeak() may be called from any thread.
+    UI thread is the only consumer of snapshots(). setWindow(), setFreeTempo(), runFree(),
+    setBandSplitting(), setMidiOffset() and takePeak() may be called from any thread.
 
     All storage, including the three snapshots, is allocated in the constructor. Nothing else
     allocates.
@@ -52,7 +53,7 @@ public:
 
     /**
         Analysis side. Starts following `ring`, a new stream at `sampleRate`, with a cleared
-        free-running sweep and the transport back to waiting, or follows nothing if `ring` is null.
+        sweep and the transport back to free-running, or follows nothing if `ring` is null.
         The next poll() publishes the change. `ring` must have numChannels() channels and stay alive
         until the next call.
     */
@@ -65,6 +66,14 @@ public:
     /** Any thread. Selects the musical window, an index into sweepWindowBars. A new window clears
         the musical sweep. */
     void setWindow(std::size_t windowIndex) noexcept;
+
+    /** Any thread. The tempo of the free-running sweep, clamped by clampFreeBpm(). A new tempo
+        starts the free-running sweep over from bar 1. */
+    void setFreeTempo(double bpm) noexcept;
+
+    /** Any thread. Leaves Stopped or clock loss for the free-running sweep, which starts over
+        from bar 1 (D-090). Does nothing in other states. */
+    void runFree() noexcept;
 
     /** Any thread. Turns the band splitting for DJ colouring on or off (D-092). */
     void setBandSplitting(bool enabled) noexcept;
@@ -96,7 +105,10 @@ private:
     bool handleMidi() noexcept;
     void analyze(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
                  const TransportSpan& span) noexcept;
-    void followStart(std::uint64_t startCount) noexcept;
+    /** Starts the sweep over from bar 1 at `sampleIndex` if the transport has started again, or
+        began running free, since the sweep last started. */
+    void followStart(std::uint64_t startCount, std::uint64_t sampleIndex) noexcept;
+    void analyzeFree(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames) noexcept;
     [[nodiscard]] double windowTicks() const noexcept;
     void publish() noexcept;
 
@@ -113,9 +125,13 @@ private:
     bool changed_ = true;
 
     std::atomic<std::size_t> requestedWindow_;
+    std::atomic<double> requestedFreeBpm_;
+    std::atomic<std::uint64_t> freeRequests_{0};
     std::atomic<double> midiOffset_{0.0};
     std::atomic<bool> bandSplitting_{false};
     std::size_t window_;
+    double freeBpm_;
+    std::uint64_t handledFreeRequests_ = 0;
 
     // The block last added to the mapper, and the Start the musical sweep belongs to.
     bool mappedAnyBlock_ = false;
@@ -123,8 +139,12 @@ private:
     bool followsStart_ = false;
     std::uint64_t followedStart_ = 0;
 
+    // Where the free-running sweep started, and its frames per tick.
+    std::uint64_t freeOrigin_ = 0;
+    double freeFramesPerTick_ = 1.0;
+
     std::uint64_t midiEvents_ = 0;
-    TransportState publishedState_ = TransportState::waiting;
+    TransportState publishedState_ = TransportState::freeRunning;
 
     std::vector<const float*> channels_;
     std::vector<std::atomic<float>> peaks_;

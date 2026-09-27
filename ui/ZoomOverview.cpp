@@ -2,8 +2,6 @@
 
 #include "Palette.h"
 
-#include <visona/SweepAnalyzer.h>
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -35,9 +33,6 @@ constexpr int ticksPerSixteenth = 6;
 
 /** A position this close above a boundary counts as on it, despite rounding. */
 constexpr double boundaryTolerance = 1.0e-6;
-
-/** Free-running marks: every half second of the 2-second window. */
-constexpr int freeRunningMarks = 4;
 
 juce::String formatFactor(double factor)
 {
@@ -93,11 +88,6 @@ void ZoomOverview::setTimeline(const SweepSnapshot& snapshot)
             marks.push_back({static_cast<double>(tick) / static_cast<double>(windowTicks),
                              wholeBars && tick % ticksPerBar == 0});
     }
-    else
-    {
-        for (int mark = 1; mark < freeRunningMarks; ++mark)
-            marks.push_back({static_cast<double>(mark) / freeRunningMarks, false});
-    }
     if (marks == marks_)
         return;
     marks_ = std::move(marks);
@@ -125,37 +115,25 @@ juce::String ZoomOverview::describe(SweepZoom zoom, const SweepSnapshot& snapsho
     const auto start = zoom.offset;
     const auto end = zoom.offset + zoom.span;
 
-    juce::String from;
-    juce::String to;
     const auto ticksPerBar = snapshot.timeSignature.ticksPerBar();
     const auto ticksPerBeat = snapshot.timeSignature.ticksPerBeat();
-    if (snapshot.musical && snapshot.windowTicks > 0.0 && ticksPerBar > 0 && ticksPerBeat > 0)
+    auto text = "ZOOM " + formatFactor(zoom.factor());
+    if (!snapshot.musical || !(snapshot.windowTicks > 0.0) || ticksPerBar <= 0 || ticksPerBeat <= 0)
+        return text;
+
+    const bool sixteenths = zoom.span * snapshot.windowTicks < ticksPerBeat;
+    const auto format = [&](double position)
     {
-        const bool sixteenths = zoom.span * snapshot.windowTicks < ticksPerBeat;
-        const auto format = [&](double position)
-        {
-            const auto tick = static_cast<std::int64_t>(
-                std::floor(position * snapshot.windowTicks + boundaryTolerance));
-            auto text = juce::String(tick / ticksPerBar + 1) + "." +
-                        juce::String(tick % ticksPerBar / ticksPerBeat + 1);
-            if (sixteenths)
-                text << "." << juce::String(tick % ticksPerBeat / ticksPerSixteenth + 1);
-            return text;
-        };
-        from = format(start);
-        to = format(end);
-    }
-    else
-    {
-        const auto decimals = zoom.span * freeRunningWindowSeconds >= 0.2 ? 2 : 3;
-        from = juce::String(start * freeRunningWindowSeconds, decimals);
-        to = juce::String((end > 1.0 + boundaryTolerance ? end - 1.0 : end) *
-                              freeRunningWindowSeconds,
-                          decimals) +
-             " s";
-    }
-    return "ZOOM " + formatFactor(zoom.factor()) + juce::String::fromUTF8(" \xc2\xb7 ") + from +
-           juce::String::fromUTF8("\xe2\x80\x93") + to;
+        const auto tick = static_cast<std::int64_t>(
+            std::floor(position * snapshot.windowTicks + boundaryTolerance));
+        auto result = juce::String(tick / ticksPerBar + 1) + "." +
+                      juce::String(tick % ticksPerBar / ticksPerBeat + 1);
+        if (sixteenths)
+            result << "." << juce::String(tick % ticksPerBeat / ticksPerSixteenth + 1);
+        return result;
+    };
+    return text + juce::String::fromUTF8(" \xc2\xb7 ") + format(start) +
+           juce::String::fromUTF8("\xe2\x80\x93") + format(end);
 }
 
 void ZoomOverview::paint(juce::Graphics& g)

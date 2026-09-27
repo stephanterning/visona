@@ -32,11 +32,12 @@ namespace visona
     - Faint lines mark the centre and where 0 dBFS and -6 dBFS land after display gain, and
       -12 dBFS and -18 dBFS from +4 and +10 dB of gain (D-088). Display overshoot is cut at the
       lane edge with a neutral marker.
-    - While the sweep follows MIDI Clock, a neutral grey grid marks bars, beats and a finer note
-      value that depends on how much is in view: sixteenths with 1 bar, down to sixty-fourths with
-      ¼ bar or less, and up to quarter notes with more than 2 bars (D-087). Small bar numbers sit
-      at the bottom edge, and the bottom right corner names the finest note value and its length,
-      such as "1/16 · 125 ms".
+    - The sweep is always in bars, following MIDI Clock or running free at the free tempo
+      (D-090). A neutral grey grid marks bars, beats and a finer note value that depends on how
+      much is in view: sixteenths with 1 bar, down to sixty-fourths with ¼ bar or less, and up to
+      quarter notes with more than 2 bars (D-087). Small bar numbers sit at the bottom edge, and
+      the bottom right corner names the finest note value and its length, such as
+      "1/16 · 125 ms".
     - STOPPED dims the frozen view slightly and shows a pause mark.
     - Display gain and zoom are applied only here (D-024, D-085).
 
@@ -260,7 +261,7 @@ private:
     int renderedHeadStart_ = 0;
 
     // The transport as last shown.
-    TransportState shownState_ = TransportState::waiting;
+    TransportState shownState_ = TransportState::freeRunning;
     bool shownMusical_ = false;
     std::size_t shownWindow_ = 0;
     double shownWindowStart_ = 0.0;

@@ -47,6 +47,11 @@ private:
 
     void setGainDb(int gainDb);
     void setWindow(std::size_t window);
+    void setFreeTempo(double bpm);
+
+    /** Leaves STOPPED or MIDI CLOCK LOST for the free-running sweep, at the last MIDI tempo. */
+    void runFree();
+
     void setWaveformMode(WaveformMode mode);
     void setWaveformColour(std::size_t index);
     void showSettings(bool shouldShow);

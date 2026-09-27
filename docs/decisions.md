@@ -124,7 +124,7 @@ A lightweight log of decisions and open questions. The architecture is described
   Bar positions stand still on screen. Sweep is the only mode in the MVP.
 - **D-035 — Sync precision in the MVP: MIDI Clock is trusted directly (tick counting plus simple smoothing), with no PLL.** `Active`
   Enough to prove the concept. Acceptance criteria and jitter handling are revisited after the MVP as a dedicated focus area.
-- **D-036 — MIDI Clock (Clock, Start, Stop, Continue) is the MVP's only clock source; Manual BPM moves to after the MVP.** `Active`
+- **D-036 — MIDI Clock (Clock, Start, Stop, Continue) is the MVP's only clock source; Manual BPM moves to after the MVP.** `Amended by D-090`
   MIDI Clock is the most important sync method in the studio. Amends D-013. The ¼–4 bar window selection stays in the MVP.
 - **D-037 — The terms `MidiClock` and `Auto` are kept as specified.** `Active`
   `MidiClock` means sync to MIDI Clock, and `Auto` means audio-based tempo detection. Reserving `Auto` for audio-based detection avoids confusion in code and docs.
@@ -210,7 +210,7 @@ A lightweight log of decisions and open questions. The architecture is described
   The sweep buffer and bins do not assume ¼–4 bars, so ⅛ bar and 8 bars can be added as settings later. Confirms D-020.
 - **D-059 — Clock recovery: when ticks return after a clock loss, the transport continues counting from the last position.** `Active`
   Simplest for the MVP. The position may be off until the next Start, or SPP + Continue.
-- **D-060 — Before the first Start, the free-running sweep uses a fixed 2 s window.** `Active`
+- **D-060 — Before the first Start, the free-running sweep uses a fixed 2 s window.** `Superseded by D-090`
   Completes D-045.
 
 ### Implementation
@@ -285,13 +285,13 @@ A lightweight log of decisions and open questions. The architecture is described
   - Carrying on means resuming within one tick of the frozen position, which covers a Stop that came before its extrapolated tick ended.
   - On a relocation the head jumps to the new phase and starts a new pass without emptying anything, so the old content becomes the previous pass (architecture 3.4).
   - Start and window changes clear the sweep. Frames missing without a freeze, such as a dropped block, still empty their bins (D-067).
-- **D-080 — The beat-synced UI.** `Active`
+- **D-080 — The beat-synced UI.** `Amended by D-090`
   - The status bar reads `WAITING`, `MIDI RUN`, `STOPPED` or, in red, `MIDI CLOCK LOST`, next to the tempo such as `126.0 BPM`. The window reads `1 BAR` and so on, or `2 s` while the sweep runs free before the first Start.
   - Bar numbers are absolute, such as 17 after relocating there, and sit at the bottom edge. A window that starts between bars is labelled bar.beat.
   - The grid of each column is the grid of the pass it was drawn in, so columns ahead of the head keep the previous window's lines.
   - `STOPPED` dims the frozen view by 30 % and shows a pause mark. `MIDI CLOCK LOST` is a red banner over the scope, like `NO AUDIO INPUT`, which takes precedence.
   - Keys 1 to 5 choose the window.
-- **D-081 — A new audio stream resets the transport to `Waiting`, and MIDI events wait for the stream's first block.** `Active`
+- **D-081 — A new audio stream resets the transport to `Waiting`, and MIDI events wait for the stream's first block.** `Active` (`Waiting` is `FREE` since D-090)
   - The ticks' sample times belong to the old stream, so a device restart, for example a new sample rate in Settings, needs a new Start or Continue. That is rare, and simpler than carrying positions across streams.
   - Events that arrive before the first block wait in the queue; without any stream they are dropped.
   - The MIDI input is saved by JUCE identifier and by name. A saved input that is missing stays chosen, and the next start opens it if it is back.
@@ -310,7 +310,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Where the line between two consecutive frames crosses a bin boundary, its value there goes into both bins, and a bin no sample falls in holds the piece of line through it. The waveform is one connected line at every zoom, as if the samples were joined by lines.
   - No line is drawn across a gap (D-067), a freeze or a relocation (D-079).
   - The bins still do not depend on how the audio is split into blocks.
-- **D-085 — Zoom.** `Amended by D-087 and D-089`
+- **D-085 — Zoom.** `Amended by D-087, D-089 and D-090`
   - Stepless, from the whole window down to 1/32 of it. A zoom within a zoom narrows the view further. There is no panning: zoom out and in again (amended by D-089).
   - Mouse: dragging across the scope zooms to the part selected, freely, without snapping; a drag under 8 pixels is a click and does nothing. The scroll wheel zooms around the pointer, up to zoom in. A trackpad pinch, and a two-finger pinch on a touchscreen, zoom around the point between the fingers.
   - Reset: Esc once the settings panel is closed, a double-click or double-tap on the scope, or the × of the overview strip. Choosing a window, and a switch between free-running and musical time, such as the first Start, reset it too. There are no zoom keys.
@@ -340,6 +340,17 @@ A lightweight log of decisions and open questions. The architecture is described
   - Past the end of the window, bar numbers read on into the next window, such as 12.4 and then 13, and so does the status bar, such as `ZOOM 4.0× · 1.4–2.1`.
 
   Amends D-085.
+- **D-090 — The free-running sweep is in bars at a tempo set by hand, and is called `FREE`. Clicking `STOPPED` or `MIDI CLOCK LOST` switches to it.** `Active`
+  - The maintainer asked for it after testing step 7b: after Stop in Live, switch Visona to running free instead of looking at a frozen view.
+  - `FREE` replaces `WAITING` and the 2 s window (D-060). The sweep then shows the chosen window, ¼ to 4 bars, at the free tempo, with the same grid and bar numbers as with MIDI Clock. It is not locked to any music: bar 1 is where the sweep started, and it starts over at bar 1 on a new tempo or window.
+  - `STOPPED` and `MIDI CLOCK LOST` are drawn as buttons in the status bar. A click or tap switches to `FREE` at the tempo MIDI Clock last had, or the saved free tempo if none is known. The next Start or Continue follows MIDI Clock again; Continue resumes where the song stopped, as from `Waiting` before.
+  - Manual BPM is back in the MVP, as the tempo of `FREE`: `BPM [−] 120.0 [+]` in the control bar, next to WINDOW. The buttons step whole BPM and repeat while held; dragging the value or scrolling over it fine-tunes it in 0.1 BPM steps. The range is 40–300 BPM, which answers Q-006 for the free tempo. While MIDI Clock sets the tempo, the control shows it dimmed and cannot be changed.
+  - The free tempo is saved, and is 120 BPM on the first start. Visona starts in `FREE` at the saved tempo.
+  - In the core, the transport's `runFree()` leaves `Stopped` or `ClockLost` for the free-running state, as a new start, and the pipeline gives the free-running sweep positions in ticks from the free tempo. The analyzer's frame-based window is no longer used by the app.
+  - A Start from `FREE` keeps the zoom, since the window is the same.
+  - `FREE` has the grid and the resolution label of D-087, with the free tempo's milliseconds.
+
+  Amends D-036, D-045, D-080, D-085 and D-087, and supersedes D-060.
 - **D-091 — The waveform has three drawing modes: STD, PRECISE and DJ, modelled on Oszillos Mega Scope.** `Active`
   - The maintainer asked for them in step 5, after using Mega Scope, whose Precise mode he uses most.
   - *PRECISE* is the filled full-band signed min/max of every column, as before (D-050). Nothing is missed, and it is the default.
@@ -367,7 +378,7 @@ A lightweight log of decisions and open questions. The architecture is described
 ## Open questions
 
 - **Q-006 — What is the BPM min/max range?**
-  This matters less with the sweep model, since the sweep buffer is sized in bins rather than samples. The 0.5 s clock-loss timeout implies a floor of about 5 BPM.
+  The free tempo is 40–300 BPM (D-090). MIDI Clock's tempo is not limited. This matters less with the sweep model, since the sweep buffer is sized in bins rather than samples. The 0.5 s clock-loss timeout implies a floor of about 5 BPM.
 - **Q-008 — Is a calibrated visual sync offset between MIDI and audio needed (e.g. ±20 ms)?**
   To be decided from the step 8 measurements. The architecture must not rule it out.
 - **Q-009 — How is the time signature set in MIDI mode, given that MIDI Clock carries none?**
@@ -393,4 +404,4 @@ A lightweight log of decisions and open questions. The architecture is described
 - **Q-023 — Which loudness library: libebur128 or an alternative, for LUFS, True Peak and LRA?**
   Evaluated in milestone 11.
 - **Q-026 — In which order do the parts moved out of the MVP come back, and how do they fit the post-v1 order?**
-  The candidates are Manual BPM, the Pi work, sync precision and hotplug/reconnect.
+  The candidates are the Pi work, sync precision and hotplug/reconnect. Manual BPM came back into the MVP (D-090).

@@ -25,6 +25,10 @@ target_sources(Visona PRIVATE
     SettingsPanel.h
     StatusBar.cpp
     StatusBar.h
+    StepButton.cpp
+    StepButton.h
+    TempoControl.cpp
+    TempoControl.h
     WaveformControl.cpp
     WaveformControl.h
     WindowControl.cpp

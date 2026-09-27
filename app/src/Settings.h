@@ -46,6 +46,11 @@ public:
     [[nodiscard]] MidiInputChoice midiInput() const;
     void setMidiInput(const MidiInputChoice& choice);
 
+    /** The tempo of the free-running sweep, clamped by clampFreeBpm(), 120 BPM if none is saved
+        (D-090). */
+    [[nodiscard]] double freeTempo() const;
+    void setFreeTempo(double bpm);
+
     /** How the waveform is drawn (D-091); precise if nothing is saved. */
     [[nodiscard]] WaveformMode waveformMode() const;
     void setWaveformMode(WaveformMode mode);

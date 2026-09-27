@@ -1,5 +1,7 @@
 #include "Settings.h"
 
+#include <visona/SweepWindow.h>
+
 namespace visona
 {
 
@@ -10,6 +12,7 @@ constexpr auto audioDeviceStateKey = "audioDeviceState";
 constexpr auto inputChannelsKey = "inputChannels";
 constexpr auto midiInputKey = "midiInput";
 constexpr auto midiInputNameKey = "midiInputName";
+constexpr auto freeTempoKey = "freeTempo";
 constexpr auto waveformModeKey = "waveformMode";
 constexpr auto waveformColourKey = "waveformColour";
 
@@ -86,6 +89,16 @@ void Settings::setMidiInput(const MidiInputChoice& choice)
 {
     properties_.setValue(midiInputKey, choice.identifier);
     properties_.setValue(midiInputNameKey, choice.name);
+}
+
+double Settings::freeTempo() const
+{
+    return clampFreeBpm(properties_.getDoubleValue(freeTempoKey, defaultFreeBpm));
+}
+
+void Settings::setFreeTempo(double bpm)
+{
+    properties_.setValue(freeTempoKey, clampFreeBpm(bpm));
 }
 
 WaveformMode Settings::waveformMode() const

@@ -10,7 +10,8 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - Step 3 (audio input and settings) is merged ([#6](https://github.com/stephanterning/visona/pull/6)).
 - Step 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
 - MIDI Clock sync, steps 6 and 7, comes before frequency coloring, step 5 (D-072).
-- Step 7b (horizontal zoom) is in review ([#12](https://github.com/stephanterning/visona/pull/12)). It also contains step 6 (MIDI Clock transport in core) and step 7 (beat-synced sweep), which were opened alone as [#8](https://github.com/stephanterning/visona/pull/8) and [#11](https://github.com/stephanterning/visona/pull/11) (D-082).
+- Steps 6, 7 and 7b (MIDI Clock transport, beat-synced sweep and horizontal zoom) are merged ([#12](https://github.com/stephanterning/visona/pull/12)) (D-082).
+- After testing step 7b, the maintainer asked for refinements that are not steps of their own: the grid and reference lines (D-087, D-088), moving the zoom (D-089) and `FREE` with manual BPM (D-090).
 
 ## 1. MVP 1.0
 
@@ -20,18 +21,19 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 
 - macOS standalone, Apple Silicon only, deployment target macOS 14 (D-044, D-053)
 - One stereo source from the reference audio interface, connected at startup (D-033, D-052)
-- MIDI Clock as the only clock source, with Clock, Start, Stop, Continue and SPP (D-036, D-041)
+- MIDI Clock as the only external clock source, with Clock, Start, Stop, Continue and SPP (D-036, D-041)
+- `FREE`: without MIDI Clock, or after Stop, the sweep runs free at a tempo set by hand, 40–300 BPM (D-090)
 - Sweep display with windows of ¼, ½, 1, 2 and 4 bars (D-020, D-034)
 - Horizontal zoom in on part of the window, down to 1/32 of it, without changing the window (D-082, D-085)
 - Full-band waveform in three modes, STD, PRECISE and DJ, with DJ's frequency coloring as an aid and a chosen colour for the others (D-050, D-056, D-091–D-093)
 - Display gain from 0 to +36 dB (D-024, D-046)
 - Status bar, control bar, a settings panel with persistence, resizing and fullscreen (D-046)
-- Transport policies per D-045, D-059 and D-060
+- Transport policies per D-045, D-059 and D-090
 - CI on every PR: the macOS app, plus core and tests on Linux (D-043)
 
 **Out of scope**
 
-- Manual BPM and `Auto` (audio-based tempo detection) (D-036, D-037)
+- `Auto` (audio-based tempo detection) (D-036, D-037). Manual BPM is in scope as the tempo of `FREE` (D-090).
 - Raspberry Pi, the 7" touch UI and the appliance (D-033)
 - Hotplug and reconnect (D-033). A device missing at startup only shows `NO AUDIO INPUT`.
 - PLL and advanced jitter handling (D-035)
@@ -42,11 +44,11 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 **Definition of Done: the proof-of-concept scenario**
 
 1. Visona starts on the Mac with the last audio device, input channel pair and MIDI input restored.
-2. Before the first Start, incoming stereo shows in a free-running sweep.
+2. Before the first Start, incoming stereo shows in a free-running sweep at the saved free tempo.
 3. On Play in Ableton Live, the sweep restarts at bar 1 and the bars stand still on screen.
 4. Kicks on the beat land on the grid lines at 120, 126 and 174 BPM.
 5. The window (¼–4 bars), gain (0–36 dB) and zoom can be changed live.
-6. Stop freezes the view and shows `STOPPED`. Moving the playhead to bar 17 and pressing Continue lands correctly (SPP).
+6. Stop freezes the view and shows `STOPPED`. Moving the playhead to bar 17 and pressing Continue lands correctly (SPP). Clicking `STOPPED` runs the sweep free at the last tempo.
 7. Pulling the MIDI cable shows `MIDI CLOCK LOST` within about 0.5 s.
 8. A long studio session runs without dropouts or ring overruns.
 9. Measurements and lessons learned are documented (D-040).
@@ -146,8 +148,8 @@ v1 is the Raspberry Pi appliance: power on, the app starts fullscreen on a 7" to
 | Pi boots straight into the app, fullscreen on 7" | After MVP | 6 |
 | Audio interface found automatically | Partly: connected at startup, last choice restored, no hotplug | 1 (6) |
 | Stereo S/PDIF shown as a waveform | Yes | 1, 2 |
-| Choose MANUAL or MIDI clock | MIDI only (D-036) | 3, 4 |
-| Set BPM manually | After MVP | 3 |
+| Choose MANUAL or MIDI clock | Partly: `FREE` runs at a manual tempo until MIDI Clock starts (D-090) | 3, 4 |
+| Set BPM manually | Yes, for `FREE` (D-090) | 3 |
 | Follows incoming MIDI Clock | Yes | 4 |
 | Choose ¼, ½, 1, 2, 4 bars | Yes | 3 (window part), 4 |
 | Stable sync to the chosen period | Yes, with simple sync; Start and SPP + Continue give the correct alignment | 4 |
@@ -165,7 +167,7 @@ Stricter sync acceptance criteria are defined after the MVP as a dedicated focus
 | 0 | Project skeleton | A minimal app (CMake, JUCE, core library, app target, basic tests) builds on macOS, with core and tests on Linux | MVP 1.0 |
 | 1 | Audio input | Prove that correct stereo audio arrives continuously | MVP 1.0 |
 | 2 | Free-running scope | A useful plain oscilloscope, isolated from transport problems | MVP 1.0 |
-| 3 | Manual musical sync | Show exactly N bars at a given BPM | Partly: window selection in MVP, manual BPM after |
+| 3 | Manual musical sync | Show exactly N bars at a given BPM | MVP 1.0: window selection, and manual BPM for `FREE` (D-090) |
 | 4 | MIDI Clock | Lock the scope to external MIDI Clock | MVP 1.0 |
 | 5 | Touch UI | Use the product from a 7" touchscreen | After MVP |
 | 6 | Raspberry Pi appliance | Mount the Pi permanently and use it as an instrument | After MVP |
@@ -182,7 +184,6 @@ Milestone 7 is a separate DSP track and must not delay earlier milestones.
 
 **Moved out of the MVP** (order still open):
 
-- Manual BPM, the rest of milestone 3 (D-036)
 - Sync precision as a dedicated focus area: acceptance criteria, jitter handling, possibly a PLL, and a sync offset (D-035)
 - Raspberry Pi: a hardware spike, the touch UI (milestone 5) and the appliance with hotplug and reconnect (milestone 6) (D-033)
 

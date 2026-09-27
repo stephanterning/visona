@@ -53,7 +53,7 @@ public:
         bool allocationCheckWorks = true;
 
         juce::String midiInput;
-        TransportState transportState = TransportState::waiting;
+        TransportState transportState = TransportState::freeRunning;
         std::int64_t nextTick = 0;
         TimeSignature timeSignature;
         double bpm = 0.0;
