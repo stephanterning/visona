@@ -3,6 +3,7 @@
 #include "AudioEngine.h"
 #include "ProcessCpu.h"
 #include "RealtimeAllocationCheck.h"
+#include "Settings.h"
 #include "ui/ChannelNames.h"
 #include "ui/ChromeLayout.h"
 #include "ui/GainControl.h"
@@ -41,8 +42,9 @@ juce::String formatSampleRate(double sampleRate)
 
 } // namespace
 
-MainComponent::MainComponent(AudioEngine& engine)
+MainComponent::MainComponent(AudioEngine& engine, Settings& settings)
     : engine_(engine)
+    , settings_(settings)
     , scope_(engine.snapshots(), engine.layout())
     , settingsPanel_(engine)
     , window_(defaultSweepWindow)
@@ -68,6 +70,8 @@ MainComponent::MainComponent(AudioEngine& engine)
     controlBar_.tempo().onTempoChange = [this](double bpm) { setFreeTempo(bpm); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     statusBar_.onStateClick = [this] { runFree(); };
+    controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
+    settingsPanel_.onWaveformColourChange = [this](std::size_t index) { setWaveformColour(index); };
     scope_.onTransportChange = [this]
     {
         zoomOverview_.setTimeline(scope_.snapshot());
@@ -90,6 +94,15 @@ MainComponent::MainComponent(AudioEngine& engine)
     settingsPanel_.onPreferredHeightChanged = [this] { resized(); };
     settingsPanel_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
     settingsPanel_.onFullScreen = [this] { toggleFullScreen(); };
+
+    const auto mode = settings_.waveformMode();
+    controlBar_.waveform().setMode(mode);
+    scope_.setWaveformMode(mode);
+    engine_.setBandSplitting(mode == WaveformMode::dj);
+    const auto colour =
+        settings_.waveformColour(palette::waveformColours.size(), palette::defaultWaveformColour);
+    settingsPanel_.setWaveformColour(colour);
+    scope_.setWaveformColour(palette::waveformColours[colour].colour);
 
     setWantsKeyboardFocus(true);
     setSize(1280, 720);
@@ -195,6 +208,12 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         showDiagnostics(!diagnostics_.isVisible());
         return true;
     }
+    if (character == 'w')
+    {
+        const auto next = (static_cast<int>(scope_.waveformMode()) + 1) % 3;
+        setWaveformMode(static_cast<WaveformMode>(next));
+        return true;
+    }
     return false;
 }
 
@@ -245,6 +264,22 @@ void MainComponent::runFree()
         engine_.setFreeTempo(snapshot.bpm);
     engine_.runFree();
     updateStatus();
+}
+
+void MainComponent::setWaveformMode(WaveformMode mode)
+{
+    scope_.setWaveformMode(mode);
+    controlBar_.waveform().setMode(mode);
+    engine_.setBandSplitting(mode == WaveformMode::dj);
+    settings_.setWaveformMode(mode);
+}
+
+void MainComponent::setWaveformColour(std::size_t index)
+{
+    index = std::min(index, palette::waveformColours.size() - 1);
+    scope_.setWaveformColour(palette::waveformColours[index].colour);
+    settingsPanel_.setWaveformColour(index);
+    settings_.setWaveformColour(index);
 }
 
 void MainComponent::showSettings(bool shouldShow)

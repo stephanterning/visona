@@ -32,6 +32,7 @@ ControlBar::ControlBar()
     addAndMakeVisible(window_);
     addAndMakeVisible(tempo_);
     addAndMakeVisible(gain_);
+    addAndMakeVisible(waveform_);
     addAndMakeVisible(diagnostics_);
     addAndMakeVisible(fullScreen_);
     addAndMakeVisible(settings_);
@@ -57,6 +58,8 @@ void ControlBar::setStep(ChromeStep step)
     tempo_.setFontHeight(metrics.fontHeight);
     gain_.setShowsLabel(step != ChromeStep::compact);
     gain_.setFontHeight(metrics.fontHeight);
+    waveform_.setShowsLabel(step != ChromeStep::compact);
+    waveform_.setFontHeight(metrics.fontHeight);
     for (auto* button : {&diagnostics_, &fullScreen_, &settings_})
     {
         button->setShowsLabel(wide);
@@ -92,10 +95,11 @@ void ControlBar::resized()
     const auto rowBounds = [&](int row)
     { return area.withY(area.getY() + row * (height + metrics.gap)).withHeight(height); };
 
-    // The window, tempo and gain flow from the left; the buttons sit at the right of their row.
-    std::array<juce::Rectangle<int>, 4> rows{rowBounds(0), rowBounds(1), rowBounds(2),
-                                             rowBounds(3)};
-    const std::array<juce::Component*, 3> controls{&window_, &tempo_, &gain_};
+    // The window, tempo, gain and waveform flow from the left; the buttons sit at the right of
+    // their row.
+    std::array<juce::Rectangle<int>, 5> rows{rowBounds(0), rowBounds(1), rowBounds(2), rowBounds(3),
+                                             rowBounds(4)};
+    const std::array<juce::Component*, 4> controls{&window_, &tempo_, &gain_, &waveform_};
     for (std::size_t group = 0; group < controls.size(); ++group)
     {
         auto& row = rows[static_cast<std::size_t>(placement.rows[group])];
@@ -103,7 +107,7 @@ void ControlBar::resized()
         row.removeFromLeft(metrics.gap * 2);
     }
 
-    auto& buttonRow = rows[static_cast<std::size_t>(placement.rows[3])];
+    auto& buttonRow = rows[static_cast<std::size_t>(placement.rows[4])];
     for (auto* button : {&settings_, &fullScreen_, &diagnostics_})
     {
         if (!button->isVisible())
@@ -113,7 +117,7 @@ void ControlBar::resized()
     }
 }
 
-std::array<int, 4> ControlBar::groupWidths() const
+std::array<int, 5> ControlBar::groupWidths() const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
     auto buttons = 0;
@@ -122,7 +126,8 @@ std::array<int, 4> ControlBar::groupWidths() const
             buttons += button->preferredWidth(metrics.controlHeight) + metrics.gap;
     return {window_.preferredWidth(metrics.controlHeight),
             tempo_.preferredWidth(metrics.controlHeight),
-            gain_.preferredWidth(metrics.controlHeight), buttons};
+            gain_.preferredWidth(metrics.controlHeight),
+            waveform_.preferredWidth(metrics.controlHeight), buttons};
 }
 
 ControlBar::Placement ControlBar::place(int width) const

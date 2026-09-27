@@ -5,6 +5,7 @@
 #include <visona/SweepSnapshot.h>
 #include <visona/SweepZoom.h>
 #include <visona/TripleBuffer.h>
+#include <visona/WaveformStyle.h>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -20,7 +21,11 @@ namespace visona
 
 /**
     The sweep scope: one lane per channel, stacked with L on top (D-057). Each lane shows the
-    full-band signed min/max per pixel column in the neutral mono/precise colour (D-050, D-056).
+    full-band signal in one of three modes (D-091): STD, a thin line through the signal sampled at
+    every column edge, in the waveform colour; PRECISE, the signed min/max of every column filled
+    in the waveform colour (D-050); and DJ, PRECISE coloured by the column's bands, bass red, mids
+    green and highs blue, with each band shifted back by its filter delay (D-092). The shape
+    never depends on the colouring (D-056).
 
     - The write head is a thin accent line followed by a small erase gap. The previous pass ahead
       of it is drawn like the new one (D-068).
@@ -63,6 +68,16 @@ public:
     {
         return gainDb_;
     }
+
+    void setWaveformMode(WaveformMode mode);
+
+    [[nodiscard]] WaveformMode waveformMode() const noexcept
+    {
+        return mode_;
+    }
+
+    /** The colour of the STD and PRECISE modes (D-093). */
+    void setWaveformColour(juce::Colour colour);
 
     /** The snapshot on screen, for the status bar. Message thread only. */
     [[nodiscard]] const SweepSnapshot& snapshot() const noexcept
@@ -196,6 +211,9 @@ private:
     void renderColumns(int first, int last);
     void drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, int first, int last);
 
+    /** How many bins each band is read later in DJ colouring, to line it up with the shape. */
+    [[nodiscard]] std::array<std::size_t, 3> bandShifts() const noexcept;
+
     /** The first column of the head line and the last column of the erase gap after it, or -1
         for both if nothing has been written or the head is out of view. */
     [[nodiscard]] std::pair<int, int> headColumns(const SweepBuffer& sweep) const noexcept;
@@ -212,6 +230,8 @@ private:
     const SourceLayout& layout_;
 
     int gainDb_ = 0;
+    WaveformMode mode_ = WaveformMode::precise;
+    juce::PixelARGB waveformColour_;
 
     // Tiles are in physical pixels, scale_ per logical pixel.
     float scale_ = 1.0f;
@@ -223,6 +243,8 @@ private:
     ColumnMapping mapping_{1, 1};
     bool mappingIsStale_ = true;
     std::vector<ColumnSpan> spans_;
+    std::vector<BandLevels> bands_;
+    std::vector<float> edges_;
     std::vector<GridLine> grid_;
     GridKey gridKey_;
     int headWidth_ = 1;

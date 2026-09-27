@@ -31,7 +31,7 @@ namespace visona
     setStream(), setMidiQueue() and poll() are the analysis side. They must not run concurrently;
     the app calls them under one lock, which only the analysis thread and stream changes take. The
     UI thread is the only consumer of snapshots(). setWindow(), setFreeTempo(), runFree(),
-    setMidiOffset() and takePeak() may be called from any thread.
+    setBandSplitting(), setMidiOffset() and takePeak() may be called from any thread.
 
     All storage, including the three snapshots, is allocated in the constructor. Nothing else
     allocates.
@@ -74,6 +74,9 @@ public:
     /** Any thread. Leaves Stopped or clock loss for the free-running sweep, which starts over
         from bar 1 (D-090). Does nothing in other states. */
     void runFree() noexcept;
+
+    /** Any thread. Turns the band splitting for DJ colouring on or off (D-092). */
+    void setBandSplitting(bool enabled) noexcept;
 
     /** Any thread. Frames added to every MIDI event's mapped position, for the latency between the
         audio and MIDI timestamps (D-078). */
@@ -125,6 +128,7 @@ private:
     std::atomic<double> requestedFreeBpm_;
     std::atomic<std::uint64_t> freeRequests_{0};
     std::atomic<double> midiOffset_{0.0};
+    std::atomic<bool> bandSplitting_{false};
     std::size_t window_;
     double freeBpm_;
     std::uint64_t handledFreeRequests_ = 0;

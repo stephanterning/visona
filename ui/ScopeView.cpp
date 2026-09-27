@@ -98,7 +98,6 @@ struct Colours
     juce::PixelARGB laneDivider = palette::laneDivider.getPixelARGB();
     juce::PixelARGB centreLine = palette::centreLine.getPixelARGB();
     juce::PixelARGB referenceLine = palette::referenceLine.getPixelARGB();
-    juce::PixelARGB waveform = palette::waveform.getPixelARGB();
     juce::PixelARGB clipMarker = palette::clipMarker.getPixelARGB();
     juce::PixelARGB head = palette::head.getPixelARGB();
     juce::PixelARGB gridBar = palette::gridBar.getPixelARGB();
@@ -130,6 +129,8 @@ void ScopeView::Timing::add(double ms) noexcept
 ScopeView::ScopeView(TripleBuffer<SweepSnapshot>& snapshots, const SourceLayout& layout)
     : snapshots_(snapshots)
     , layout_(layout)
+    , waveformColour_(
+          palette::waveformColours[palette::defaultWaveformColour].colour.getPixelARGB())
     , vblank_(this, [this](double timestampSeconds) { onVBlank(timestampSeconds); })
 {
     setOpaque(true);
@@ -142,6 +143,25 @@ void ScopeView::setGainDb(int gainDb)
     if (gainDb == gainDb_)
         return;
     gainDb_ = gainDb;
+    needsFullRender_ = true;
+    repaint();
+}
+
+void ScopeView::setWaveformMode(WaveformMode mode)
+{
+    if (mode == mode_)
+        return;
+    mode_ = mode;
+    needsFullRender_ = true;
+    repaint();
+}
+
+void ScopeView::setWaveformColour(juce::Colour colour)
+{
+    const auto pixel = colour.getPixelARGB();
+    if (pixel.getNativeARGB() == waveformColour_.getNativeARGB())
+        return;
+    waveformColour_ = pixel;
     needsFullRender_ = true;
     repaint();
 }
@@ -287,6 +307,8 @@ bool ScopeView::ensureTiles(float scale)
     for (int x = 0; x < width_; x += tileWidth)
         tiles_.emplace_back(juce::Image::ARGB, std::min(tileWidth, width_ - x), height_, false);
     spans_.assign(static_cast<std::size_t>(tileWidth), {});
+    bands_.assign(static_cast<std::size_t>(tileWidth), {});
+    edges_.assign(static_cast<std::size_t>(tileWidth) + 1, 0.0f);
     lanes_.clear();
 
     headWidth_ = toPhysical(headLineWidth, scale_);
@@ -419,6 +441,7 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
     const auto [headStart, gapEnd] = headColumns(sweep);
     const auto count = static_cast<std::size_t>(last - first + 1);
     const std::span spans(spans_.data(), count);
+    const auto shifts = mode_ == WaveformMode::dj ? bandShifts() : std::array<std::size_t, 3>{};
 
     for (std::size_t index = 0; index < lanes_.size(); ++index)
     {
@@ -462,31 +485,66 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
 
         if (index >= sweep.numChannels() || sweep.numBins() == 0)
             continue;
-        reduceColumns(sweep, index, mapping_, static_cast<std::size_t>(first), spans);
-        for (int column = first; column <= last; ++column)
-        {
-            const auto& span = spans[static_cast<std::size_t>(column - first)];
-            if (span.pass == ColumnSpan::Pass::none || (column >= headStart && column <= gapEnd))
-                continue;
 
-            const auto rows = mapping.rowsOf(span.min, span.max);
-            auto top = rows.top;
-            auto bottom = rows.bottom;
-            // The waveform stops short of the marker, so the marker reads as a marker.
+        // The waveform stops short of a clip marker, so the marker reads as a marker.
+        const auto fillColumn = [&](int column, LaneRows rows, juce::PixelARGB fill)
+        {
             const auto marker = colour.clipMarker;
             const auto markerGap = std::max(1, markerHeight_ / 2);
             if (rows.clippedTop)
             {
                 canvas.fill(column, column, lane.top, lane.top + markerHeight_ - 1, marker);
-                top = std::max(top, lane.top + markerHeight_ + markerGap);
+                rows.top = std::max(rows.top, lane.top + markerHeight_ + markerGap);
             }
             if (rows.clippedBottom)
             {
                 canvas.fill(column, column, laneBottom - markerHeight_ + 1, laneBottom, marker);
-                bottom = std::min(bottom, laneBottom - markerHeight_ - markerGap);
+                rows.bottom = std::min(rows.bottom, laneBottom - markerHeight_ - markerGap);
             }
-            if (top <= bottom)
-                canvas.fill(column, column, top, bottom, colour.waveform);
+            if (rows.top <= rows.bottom)
+                canvas.fill(column, column, rows.top, rows.bottom, fill);
+        };
+        const auto inGap = [&](int column) { return column >= headStart && column <= gapEnd; };
+
+        if (mode_ == WaveformMode::standard)
+        {
+            // A line from each column's left edge to its right edge.
+            const std::span edges(edges_.data(), count + 1);
+            sampleColumnEdges(sweep, index, mapping_, static_cast<std::size_t>(first), edges);
+            for (int column = first; column <= last; ++column)
+            {
+                const auto from = edges[static_cast<std::size_t>(column - first)];
+                const auto to = edges[static_cast<std::size_t>(column - first) + 1];
+                if (std::isnan(from) || inGap(column))
+                    continue;
+                const auto end = std::isnan(to) ? from : to;
+                fillColumn(column, mapping.rowsOf(std::min(from, end), std::max(from, end)),
+                           waveformColour_);
+            }
+            continue;
+        }
+
+        reduceColumns(sweep, index, mapping_, static_cast<std::size_t>(first), spans);
+        const std::span bands(bands_.data(), count);
+        if (mode_ == WaveformMode::dj)
+            reduceColumnBands(sweep, index, mapping_, static_cast<std::size_t>(first), shifts,
+                              bands);
+        for (int column = first; column <= last; ++column)
+        {
+            const auto offset = static_cast<std::size_t>(column - first);
+            const auto& span = spans[offset];
+            if (span.pass == ColumnSpan::Pass::none || inGap(column))
+                continue;
+
+            auto fill = waveformColour_;
+            if (mode_ == WaveformMode::dj && !bands[offset].isEmpty())
+            {
+                const auto mix = djColour(bands[offset]);
+                fill = juce::PixelARGB(255, static_cast<juce::uint8>(mix.red * 255.0f + 0.5f),
+                                       static_cast<juce::uint8>(mix.green * 255.0f + 0.5f),
+                                       static_cast<juce::uint8>(mix.blue * 255.0f + 0.5f));
+            }
+            fillColumn(column, mapping.rowsOf(span.min, span.max), fill);
         }
     }
 
@@ -501,6 +559,25 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
     const auto headEnd = std::min(headStart + headWidth_ - 1, last);
     if (headStart >= 0 && std::max(headStart, first) <= headEnd)
         canvas.fill(std::max(headStart, first), headEnd, 0, height_ - 1, colour.head);
+}
+
+std::array<std::size_t, 3> ScopeView::bandShifts() const noexcept
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    const auto numBins = static_cast<double>(snapshot.sweep.numBins());
+    // Without a tempo there is nothing to convert the delays with, and they are left as they are.
+    if (!snapshot.musical || !(snapshot.bpm > 0.0) || !(numBins > 0.0))
+        return {};
+    const auto windowFrames = snapshot.windowTicks * 60.0 * snapshot.sampleRate /
+                              (TimeSignature::ticksPerQuarterNote * snapshot.bpm);
+    if (!(windowFrames > 0.0))
+        return {};
+
+    std::array<std::size_t, 3> shifts{};
+    for (std::size_t band = 0; band < shifts.size(); ++band)
+        shifts[band] = static_cast<std::size_t>(
+            std::llround(std::max(snapshot.bandDelayFrames[band], 0.0) * numBins / windowFrames));
+    return shifts;
 }
 
 void ScopeView::updateGrid()

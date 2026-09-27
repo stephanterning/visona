@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <limits>
 
 namespace visona
 {
@@ -181,6 +182,75 @@ void reduceColumns(const SweepBuffer& sweep, std::size_t channel, const ColumnMa
             out[index] = {previous.min, previous.max, ColumnSpan::Pass::previous};
         else
             out[index] = {};
+    }
+}
+
+void reduceColumnBands(const SweepBuffer& sweep, std::size_t channel, const ColumnMapping& mapping,
+                       std::size_t firstColumn, const std::array<std::size_t, 3>& shift,
+                       std::span<BandLevels> out) noexcept
+{
+    assert(mapping.numBins() == sweep.numBins());
+    assert(firstColumn + out.size() <= mapping.numColumns());
+
+    const auto bands = sweep.bands(channel);
+    const auto passes = sweep.passes();
+    const auto headPass = sweep.pass();
+    const auto numBins = sweep.numBins();
+    const auto delayed = [&](std::size_t bin, std::size_t band) -> const BandLevels&
+    {
+        const auto later = (bin + shift[band] % numBins) % numBins;
+        return passes[later] == passes[bin] ? bands[later] : bands[bin];
+    };
+
+    std::array<ColumnMapping::BinRange, 2> ranges;
+    for (std::size_t index = 0; index < out.size(); ++index)
+    {
+        BandLevels current;
+        BandLevels previous;
+        bool hasCurrent = false;
+        const auto count = mapping.binsOf(firstColumn + index, ranges);
+        for (std::size_t range = 0; range < count; ++range)
+        {
+            const auto end = std::min(ranges[range].end, numBins);
+            for (auto bin = ranges[range].first; bin < end; ++bin)
+            {
+                if (passes[bin] == 0)
+                    continue;
+                const bool isCurrent = passes[bin] == headPass;
+                hasCurrent = hasCurrent || isCurrent;
+                auto& levels = isCurrent ? current : previous;
+                levels.merge({delayed(bin, 0).low, delayed(bin, 1).mid, delayed(bin, 2).high});
+            }
+        }
+        out[index] = hasCurrent ? current : previous;
+    }
+}
+
+void sampleColumnEdges(const SweepBuffer& sweep, std::size_t channel, const ColumnMapping& mapping,
+                       std::size_t firstColumn, std::span<float> out) noexcept
+{
+    assert(mapping.numBins() == sweep.numBins());
+
+    const auto starts = sweep.starts(channel);
+    const auto passes = sweep.passes();
+    const auto numBins = static_cast<double>(sweep.numBins());
+    for (std::size_t index = 0; index < out.size(); ++index)
+    {
+        const auto position =
+            mapping.windowPositionOf(static_cast<double>(firstColumn + index)) * numBins;
+        const auto bin = std::min(static_cast<std::size_t>(position), sweep.numBins() - 1);
+        const auto next = (bin + 1) % sweep.numBins();
+        const auto start = starts[bin];
+        if (start == SweepBuffer::unknownStart)
+        {
+            out[index] = std::numeric_limits<float>::quiet_NaN();
+            continue;
+        }
+        const auto end = starts[next];
+        const auto fraction = static_cast<float>(position - std::floor(position));
+        out[index] = end != SweepBuffer::unknownStart && passes[next] == passes[bin]
+                         ? start + (end - start) * fraction
+                         : start;
     }
 }
 

@@ -175,7 +175,7 @@ A lightweight log of decisions and open questions. The architecture is described
 
 - **D-050 — The waveform is drawn as signed min/max per pixel, not as a mirrored envelope.** `Active`
   Signed min/max preserves asymmetry, such as DC offset and asymmetric transients, which a mirrored envelope hides. Refines D-023.
-- **D-051 — There are three bands, with blue lows, orange mids and white highs, and crossovers around 200 Hz and 2.5 kHz as starting values.** `Amended by D-056`
+- **D-051 — There are three bands, with blue lows, orange mids and white highs, and crossovers around 200 Hz and 2.5 kHz as starting values.** `Amended by D-056 and D-092`
   The bands drive the frequency coloring only, and are tuned after testing with real music.
 - **D-052 — Inputs are modeled as sources, each a group of 1..N channels. The MVP has exactly one stereo source.** `Active`
   The concrete model for D-049: the core iterates over sources and channels, never over a fixed L/R pair.
@@ -198,7 +198,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - gain in 1 dB steps with double-click reset
 - **D-055 — JUCE 9.0.2, with 8.0.15 as the fallback if the skeleton does not build cleanly.** `Active`
   JUCE 9.0.0 was released on 2026-07-21, and JUCE 8 has had no release since. The license is unchanged, AGPLv3 or commercial, so D-042 holds either way. Sources: [JUCE 9.0.0 release](https://github.com/juce-framework/JUCE/releases/tag/9.0.0), [JUCE releases](https://github.com/juce-framework/JUCE/releases), [LICENSE.md at 9.0.0](https://github.com/juce-framework/JUCE/blob/9.0.0/LICENSE.md).
-- **D-056 — The waveform shape is always the full-band signed min/max. Frequency coloring is a visualization aid that must never alter the shape.** `Active`
+- **D-056 — The waveform shape is always the full-band signed min/max. Frequency coloring is a visualization aid that must never alter the shape.** `Active` (the coloring method is D-092)
   - The colors are only a way to see which frequencies make up the sound; correct waveform rendering matters more.
   - Step 5 chooses the coloring method, either a blended color per column or bands drawn inside the full-band outline, based on which keeps the waveform correct and readable.
   - The mono/precise mode stays.
@@ -351,6 +351,27 @@ A lightweight log of decisions and open questions. The architecture is described
   - `FREE` has the grid and the resolution label of D-087, with the free tempo's milliseconds.
 
   Amends D-036, D-045, D-080, D-085 and D-087, and supersedes D-060.
+- **D-091 — The waveform has three drawing modes: STD, PRECISE and DJ, modelled on Oszillos Mega Scope.** `Active`
+  - The maintainer asked for them in step 5, after using Mega Scope, whose Precise mode he uses most.
+  - *PRECISE* is the filled full-band signed min/max of every column, as before (D-050). Nothing is missed, and it is the default.
+  - *STD* is a thin line through the signal, sampled at each column edge. With many samples per column it is cheaper to draw, since it reads two bins per column instead of every bin, but it can miss peaks. At deep zoom it is exact, since the bins then hold the lines between samples (D-084). For it, every bin also records where the signal enters it.
+  - *DJ* is PRECISE coloured by frequency (D-092).
+  - WAVE `[STD][PRECISE][DJ]` in the control bar chooses the mode, and W steps through them. The mode is saved.
+  - The shape of every mode is the full-band signal (D-056). The mono/precise mode of the plan is PRECISE.
+- **D-092 — DJ colouring mixes the three bands as red, green and blue per column, like Mega Scope.** `Active`
+  - Mega Scope's manual describes its colouring as a three-band EQ whose outputs are used as RGB colours ([manual, section 17](https://schulz.audio/products/oszillos-mega-scope/manual/)). DJ mode's own details are not documented; its screenshots show saturated colours at full brightness.
+  - Each bin holds the peak level of each band from the `BandSplitter` (LR4 at 200 Hz and 2.5 kHz with allpass compensation, from the closed [#9](https://github.com/stephanterning/visona/pull/9)). A column takes the peak of each band over its bins.
+  - The colour is a mix of a warm red for the lows, a bright green for the mids and a light blue for the highs. Each band is weighted, 1, 1.3 and 1.8, since music has far more energy in the bass, and squared, so that the strongest band sets the hue: a kick is red, a kick with mids orange, a hi-hat blue. The mix is scaled to full brightness, so the colour shows the balance between the bands and never the level. The weights are starting values to tune against real music.
+  - Each band is shifted back by its filter delay when it is read, at the band's reference frequency: 2.6 ms for the lows, 0.4 ms for the mids and 0.03 ms for the highs. Only bins of the same pass are used, so the head's column never takes the previous pass's colour.
+  - The band filters run only in DJ mode; STD and PRECISE cost nothing extra. In a Debug build, DJ mode took the analysis thread from about 1 % to 2 % of a core. Bins written before DJ mode was chosen have no band levels and use the waveform colour.
+  - The head stays green; the erase gap after it keeps it readable against the green of the mids.
+  - Each bin grows by 16 bytes per channel: 4 MiB per stereo sweep buffer, 16 MiB for the analyzer's buffer and the three snapshots.
+
+  Supersedes the two coloring methods of step 5 and the palette of D-051; the crossovers stay.
+- **D-093 — STD and PRECISE use a waveform colour chosen in the settings from eight presets.** `Active`
+  - Teal, like Mega Scope, is the default, and cyan, blue, violet, pink, amber, yellow and grey the others: calm but clear on black. Green is left out, since it is the head's colour.
+  - The colour is a row of swatches in the settings panel, and is saved.
+  - It only colours the waveform. A colour for the UI's own components may come later.
 
 ---
 

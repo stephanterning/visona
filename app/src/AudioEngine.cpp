@@ -180,6 +180,11 @@ void AudioEngine::runFree() noexcept
     analysis_.runFree();
 }
 
+void AudioEngine::setBandSplitting(bool enabled) noexcept
+{
+    analysis_.setBandSplitting(enabled);
+}
+
 juce::String AudioEngine::midiInput() const
 {
     return midi_.identifier();

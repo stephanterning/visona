@@ -96,6 +96,9 @@ public:
     /** Any thread. Leaves STOPPED or MIDI CLOCK LOST for the free-running sweep. */
     void runFree() noexcept;
 
+    /** Any thread. Runs the band splitting for DJ colouring, or stops it (D-092). */
+    void setBandSplitting(bool enabled) noexcept;
+
     /** Frames added to MIDI event positions for the current device (D-078). */
     [[nodiscard]] double midiOffsetFrames() const noexcept
     {

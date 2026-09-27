@@ -10,6 +10,8 @@ target_sources(Visona PRIVATE
     ChromeButton.cpp
     ChromeButton.h
     ChromeLayout.h
+    ColourSwatches.cpp
+    ColourSwatches.h
     ControlBar.cpp
     ControlBar.h
     DiagnosticsOverlay.cpp
@@ -27,6 +29,8 @@ target_sources(Visona PRIVATE
     StepButton.h
     TempoControl.cpp
     TempoControl.h
+    WaveformControl.cpp
+    WaveformControl.h
     WindowControl.cpp
     WindowControl.h
     ZoomOverview.cpp

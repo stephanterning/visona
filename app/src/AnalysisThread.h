@@ -60,6 +60,12 @@ public:
     }
 
     /** Any thread. */
+    void setBandSplitting(bool enabled) noexcept
+    {
+        pipeline_.setBandSplitting(enabled);
+    }
+
+    /** Any thread. */
     void setMidiOffset(double frames) noexcept
     {
         pipeline_.setMidiOffset(frames);

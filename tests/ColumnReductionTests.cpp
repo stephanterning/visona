@@ -13,7 +13,9 @@
 
 using visona::ColumnMapping;
 using visona::ColumnSpan;
+using visona::reduceColumnBands;
 using visona::reduceColumns;
+using visona::sampleColumnEdges;
 using visona::SweepBuffer;
 using visona::SweepCell;
 
@@ -360,4 +362,71 @@ TEST_CASE("reduceColumns draws nothing for a cleared sweep", "[columns]")
     reduceColumns(sweep, 1, mapping, 0, spans);
     for (const auto& span : spans)
         CHECK(span.pass == ColumnSpan::Pass::none);
+}
+
+TEST_CASE("reduceColumnBands takes each band's peak, read later by its shift within a pass",
+          "[columns]")
+{
+    SweepBuffer sweep(1, 16);
+    sweep.advanceHead(1, 0);
+    for (std::size_t bin = 0; bin < 12; ++bin)
+    {
+        if (bin > 0)
+            sweep.advanceHead(1, bin);
+        sweep.addToHead(0, {-0.1f, 0.1f});
+        // The low band arrives two bins late; the others are on time.
+        sweep.addBandsToHead(0, {bin == 6 ? 0.9f : 0.1f, bin == 4 ? 0.5f : 0.0f, 0.0f});
+    }
+    const ColumnMapping mapping(16, 4); // 4 bins per column
+    std::array<visona::BandLevels, 4> out;
+
+    reduceColumnBands(sweep, 0, mapping, 0, {0, 0, 0}, out);
+    CHECK(out[1] == visona::BandLevels{0.9f, 0.5f, 0.0f});
+    CHECK(out[0] == visona::BandLevels{0.1f, 0.0f, 0.0f});
+
+    reduceColumnBands(sweep, 0, mapping, 0, {2, 0, 0}, out);
+    CHECK(out[1].low == 0.9f);
+    CHECK(out[1].mid == 0.5f);
+    CHECK(out[0].low == 0.1f);
+    reduceColumnBands(sweep, 0, mapping, 0, {3, 0, 0}, out);
+    CHECK(out[0].low == 0.9f); // bins 0 to 3 read 3 to 6
+    CHECK(out[1].low == 0.1f);
+
+    // Bins 12 to 15 are not written yet: pass 0, nothing to show, and nothing read from them.
+    reduceColumnBands(sweep, 0, mapping, 0, {6, 0, 0}, out);
+    CHECK(out[3].isEmpty());
+    CHECK(out[2].low == 0.1f); // bins 8 to 11 would read 14 to 17, which are not in the pass
+}
+
+TEST_CASE("sampleColumnEdges follows the line between bin starts", "[columns]")
+{
+    SweepBuffer sweep(1, 8);
+    for (std::size_t bin = 0; bin < 6; ++bin)
+    {
+        sweep.advanceHead(1, bin);
+        sweep.addToHead(0, {0.0f, 1.0f});
+        sweep.markHeadStart(0, static_cast<float>(bin) / 10.0f);
+    }
+
+    // Four columns per bin: the edges step a quarter of the way between starts.
+    const ColumnMapping zoomed(8, 32);
+    std::array<float, 25> edges{};
+    sampleColumnEdges(sweep, 0, zoomed, 0, edges);
+    for (std::size_t edge = 0; edge < 20; ++edge)
+    {
+        CAPTURE(edge);
+        CHECK(std::abs(edges[edge] - static_cast<float>(edge) / 40.0f) < 1.0e-6f);
+    }
+    // Bin 5 is the last one written: its value holds, and the empty bins after it have none.
+    CHECK(edges[21] == 0.5f);
+    CHECK(std::isnan(edges[24]));
+
+    // Two bins per column: each edge samples the start of the bin it falls on.
+    const ColumnMapping wide(8, 4);
+    std::array<float, 4> sampled{};
+    sampleColumnEdges(sweep, 0, wide, 0, sampled);
+    CHECK(sampled[0] == 0.0f);
+    CHECK(std::abs(sampled[1] - 0.2f) < 1.0e-6f);
+    CHECK(std::abs(sampled[2] - 0.4f) < 1.0e-6f);
+    CHECK(std::isnan(sampled[3]));
 }

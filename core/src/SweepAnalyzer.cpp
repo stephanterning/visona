@@ -44,7 +44,29 @@ SweepCell between(float a, float b) noexcept
 SweepAnalyzer::SweepAnalyzer(std::size_t numChannels, std::size_t numBins)
     : buffer_(numChannels, numBins)
     , lastSamples_(numChannels, 0.0f)
+    , splitters_(numChannels)
+    , lastBands_(numChannels)
 {
+}
+
+void SweepAnalyzer::setBandSplitting(bool enabled, double sampleRate) noexcept
+{
+    const bool wasOn = splitsBands_;
+    splitsBands_ = enabled && sampleRate > 0.0;
+    if (!splitsBands_ || (wasOn && splitters_.front().sampleRate() == sampleRate))
+        return;
+    for (auto& splitter : splitters_)
+        splitter = BandSplitter(sampleRate);
+    std::fill(lastBands_.begin(), lastBands_.end(), BandLevels{});
+}
+
+std::array<double, 3> SweepAnalyzer::bandDelayFrames() const noexcept
+{
+    if (!splitsBands_ || splitters_.empty())
+        return {};
+    const auto& splitter = splitters_.front();
+    return {splitter.delayFrames(Band::low), splitter.delayFrames(Band::mid),
+            splitter.delayFrames(Band::high)};
 }
 
 void SweepAnalyzer::start(std::uint64_t windowFrames) noexcept
@@ -115,11 +137,7 @@ void SweepAnalyzer::processMusical(std::uint64_t sampleIndex,
                              ? std::size_t{1}
                              : static_cast<std::size_t>(std::min(
                                    framesToBoundary, static_cast<double>(numFrames - done)));
-        for (std::size_t channel = 0; channel < channels.size(); ++channel)
-        {
-            const float* const samples = channels[channel];
-            buffer_.addToHead(channel, spanOf(samples == nullptr ? nullptr : samples + done, run));
-        }
+        addRun(channels, done, run);
         done += run;
         rememberFrame(channels, done - 1, sampleIndex + done - 1,
                       positionOf(sampleIndex + done - 1));
@@ -201,11 +219,7 @@ void SweepAnalyzer::process(std::uint64_t sampleIndex, std::span<const float* co
         const auto framesLeftInBin = binStartFrame(bin + 1) - frameInWindow;
         const auto run =
             static_cast<std::size_t>(std::min<std::uint64_t>(numFrames - done, framesLeftInBin));
-        for (std::size_t channel = 0; channel < channels.size(); ++channel)
-        {
-            const float* const samples = channels[channel];
-            buffer_.addToHead(channel, spanOf(samples == nullptr ? nullptr : samples + done, run));
-        }
+        addRun(channels, done, run);
         done += run;
         rememberFrame(channels, done - 1, sampleIndex + done - 1,
                       positionOf(sampleIndex + done - 1));
@@ -221,6 +235,8 @@ void SweepAnalyzer::enterBin(std::span<const float* const> channels, std::size_t
     if (!consecutive || to <= from || !(position > lastPosition_))
     {
         moveHead();
+        for (std::size_t channel = 0; channel < channels.size(); ++channel)
+            buffer_.markHeadStart(channel, sampleAt(channels[channel], offset));
         return;
     }
 
@@ -241,12 +257,47 @@ void SweepAnalyzer::enterBin(std::span<const float* const> channels, std::size_t
     for (std::size_t channel = 0; channel < channels.size(); ++channel)
         buffer_.addToHead(channel, pointAt(valueAt(channel, from + 1.0)));
     moveHead();
+    // The bins in between get the bands of the frame before, since this frame's are not split yet.
     for (auto edge = from + 1.0; edge < to; edge += 1.0)
         for (std::size_t channel = 0; channel < channels.size(); ++channel)
-            buffer_.addToBin(channel, binOf(edge),
+        {
+            const auto bin = binOf(edge);
+            buffer_.addToBin(channel, bin,
                              between(valueAt(channel, edge), valueAt(channel, edge + 1.0)));
+            buffer_.markBinStart(channel, bin, valueAt(channel, edge));
+            if (splitsBands_)
+                buffer_.addBandsToBin(channel, bin, lastBands_[channel]);
+        }
     for (std::size_t channel = 0; channel < channels.size(); ++channel)
+    {
         buffer_.addToHead(channel, pointAt(valueAt(channel, to)));
+        buffer_.markHeadStart(channel, valueAt(channel, to));
+    }
+}
+
+void SweepAnalyzer::addRun(std::span<const float* const> channels, std::size_t offset,
+                           std::size_t run) noexcept
+{
+    for (std::size_t channel = 0; channel < channels.size(); ++channel)
+    {
+        const float* const samples =
+            channels[channel] == nullptr ? nullptr : channels[channel] + offset;
+        buffer_.addToHead(channel, spanOf(samples, run));
+        if (!splitsBands_)
+            continue;
+
+        auto& splitter = splitters_[channel];
+        BandLevels levels;
+        BandLevels last;
+        for (std::size_t frame = 0; frame < run; ++frame)
+        {
+            const auto split = splitter.process(samples == nullptr ? 0.0f : samples[frame]);
+            last = {std::abs(split.low), std::abs(split.mid), std::abs(split.high)};
+            levels.merge(last);
+        }
+        lastBands_[channel] = last;
+        buffer_.addBandsToHead(channel, levels);
+    }
 }
 
 void SweepAnalyzer::rememberFrame(std::span<const float* const> channels, std::size_t offset,

@@ -4,6 +4,7 @@
 #include <visona/SweepBuffer.h>
 #include <visona/TimeSignature.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -51,6 +52,10 @@ struct SweepSnapshot
 
     /** The tick at which the window the head is in starts, for bar numbers. */
     double windowStartTick = 0.0;
+
+    /** How many frames the low, mid and high band levels lag the full band, while band splitting
+        is on, so the renderer can line the colours up with the shape (D-092). */
+    std::array<double, 3> bandDelayFrames{};
 
     /** MIDI Clock messages received, and Song Position Pointers ignored while running. */
     std::uint64_t midiEvents = 0;
