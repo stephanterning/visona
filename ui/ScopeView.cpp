@@ -4,6 +4,7 @@
 #include "Palette.h"
 
 #include <visona/LaneMapping.h>
+#include <visona/ScopeGrid.h>
 
 #include <algorithm>
 #include <array>
@@ -47,18 +48,14 @@ constexpr float selectionEdgeAlpha = 0.6f;
 /** Sixteenths are one MIDI beat of 6 ticks. The grid counts half ticks, so that sixty-fourths,
     1.5 ticks, are whole numbers of them. */
 constexpr int halfTicksPerSixteenth = 12;
-constexpr int halfTicksPerThirtySecond = 6;
-constexpr int halfTicksPerSixtyFourth = 3;
+constexpr int halfTicksPerWholeNote = 2 * 4 * TimeSignature::ticksPerQuarterNote;
 
-/** The amplitude reference lines: 0 dBFS and -6 dBFS, with their labels in UTF-8. */
-struct Reference
+juce::String referenceLabel(int levelDb)
 {
-    float level;
-    const char* label;
-};
-const std::array<Reference, 2> references{{{1.0f, "0 dB"},
-                                           {0.501187f, "\xe2\x88\x92"
-                                                       "6 dB"}}};
+    // A real minus sign, as elsewhere in the UI.
+    return levelDb < 0 ? juce::String::fromUTF8("\xe2\x88\x92") + juce::String(-levelDb) + " dB"
+                       : juce::String(levelDb) + " dB";
+}
 
 double nowMs()
 {
@@ -227,6 +224,11 @@ void ScopeView::noticeTransport()
     // A zoom is a part of one window; in another it would show something else.
     if (modeChanged)
         resetZoom();
+    if (auto resolution = resolutionText(); resolution != shownResolution_)
+    {
+        shownResolution_ = std::move(resolution);
+        repaint(barNumberArea());
+    }
     if ((stateChanged || modeChanged) && onTransportChange)
         onTransportChange();
 }
@@ -432,7 +434,7 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
             case GridLine::fine:
                 canvas.fill(column, column, lane.top, laneBottom, colour.gridFine);
                 break;
-            case GridLine::sixteenth:
+            case GridLine::division:
                 canvas.fill(column, column, lane.top, laneBottom, colour.gridSixteenth);
                 break;
             case GridLine::beat:
@@ -443,7 +445,7 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
                 break;
             }
         }
-        for (const auto& reference : references)
+        for (const auto& reference : amplitudeReferencesAt(gainDb_))
         {
             if (!mapping.isInside(reference.level))
                 continue;
@@ -520,21 +522,16 @@ void ScopeView::updateGrid()
     const auto windowHalfTicks = 2 * key.windowTicks;
     const auto barHalfTicks = 2 * key.ticksPerBar;
     const auto beatHalfTicks = 2 * key.ticksPerBeat;
-    const auto visibleHalfTicks = static_cast<double>(windowHalfTicks) * mapping_.span();
-    const auto finest = 8.0 * visibleHalfTicks <= barHalfTicks   ? halfTicksPerSixtyFourth
-                        : 4.0 * visibleHalfTicks <= barHalfTicks ? halfTicksPerThirtySecond
-                        : 2.0 * visibleHalfTicks <= barHalfTicks ? halfTicksPerSixteenth
-                                                                 : 0;
+    const auto finest = halfTicksPerWholeNote / gridDivisionFor(visibleBars());
     const auto lineWidth = toPhysical(gridLineWidth, scale_);
     for (std::int64_t half = 0; half < windowHalfTicks; ++half)
     {
         const auto absolute = 2 * key.windowStartTick + half;
         const auto line = absolute % barHalfTicks == 0            ? GridLine::bar
                           : absolute % beatHalfTicks == 0         ? GridLine::beat
-                          : finest == 0                           ? GridLine::none
-                          : absolute % halfTicksPerSixteenth == 0 ? GridLine::sixteenth
-                          : absolute % finest == 0                ? GridLine::fine
-                                                                  : GridLine::none;
+                          : absolute % finest != 0                ? GridLine::none
+                          : absolute % halfTicksPerSixteenth == 0 ? GridLine::division
+                                                                  : GridLine::fine;
         if (line == GridLine::none)
             continue;
         const auto position = static_cast<double>(half) / static_cast<double>(windowHalfTicks);
@@ -546,6 +543,28 @@ void ScopeView::updateGrid()
         for (int x = first; x < std::min(first + lineWidth, width_); ++x)
             grid_[static_cast<std::size_t>(x)] = std::max(grid_[static_cast<std::size_t>(x)], line);
     }
+}
+
+double ScopeView::visibleBars() const noexcept
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    const auto ticksPerBar = snapshot.timeSignature.ticksPerBar();
+    return ticksPerBar > 0 ? snapshot.windowTicks * zoom_.span / ticksPerBar : 0.0;
+}
+
+juce::String ScopeView::resolutionText() const
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    if (!snapshot.musical || !(snapshot.windowTicks > 0.0) ||
+        snapshot.timeSignature.ticksPerBar() <= 0)
+        return {};
+    const auto division = gridDivisionFor(visibleBars());
+    auto text = "1/" + juce::String(division);
+    // From the tempo as the status bar shows it, so that the two agree.
+    const auto bpm = std::round(snapshot.bpm * 10.0) / 10.0;
+    if (const auto ms = divisionMilliseconds(division, bpm); ms > 0.0)
+        text << juce::String::fromUTF8(" \xc2\xb7 ") << juce::roundToInt(ms) << " ms";
+    return text;
 }
 
 juce::Rectangle<int> ScopeView::barNumberArea() const noexcept
@@ -564,8 +583,18 @@ void ScopeView::drawBarNumbers(juce::Graphics& g) const
         !g.clipRegionIntersects(area))
         return;
 
-    g.setFont(juce::FontOptions(labelFontHeight).withFeatureEnabled("tnum"));
+    const auto font = juce::FontOptions(labelFontHeight).withFeatureEnabled("tnum");
+    g.setFont(font);
     g.setColour(palette::laneLabel);
+
+    // The grid's resolution in the bottom right corner, which bar numbers keep clear of.
+    const auto resolution = resolutionText();
+    const auto resolutionWidth = juce::GlyphArrangement::getStringWidth(font, resolution);
+    const auto resolutionArea = juce::Rectangle<float>(
+        static_cast<float>(area.getRight()) - labelMargin - resolutionWidth,
+        static_cast<float>(area.getY()), resolutionWidth, static_cast<float>(area.getHeight()));
+    g.drawText(resolution, resolutionArea, juce::Justification::centredRight, false);
+
     const auto startTick = static_cast<std::int64_t>(std::llround(snapshot.windowStartTick));
     const auto barBeat = [&](std::int64_t absolute)
     {
@@ -574,8 +603,12 @@ void ScopeView::drawBarNumbers(juce::Graphics& g) const
     };
     const auto label = [&](float x, const juce::String& text)
     {
+        const auto left = x + 4.0f;
+        if (resolutionWidth > 0.0f && left + juce::GlyphArrangement::getStringWidth(font, text) >
+                                          resolutionArea.getX() - labelMargin)
+            return;
         g.drawText(text,
-                   juce::Rectangle<float>(x + 4.0f, static_cast<float>(area.getY()), 60.0f,
+                   juce::Rectangle<float>(left, static_cast<float>(area.getY()), 60.0f,
                                           static_cast<float>(area.getHeight())),
                    juce::Justification::centredLeft, false);
     };
@@ -838,7 +871,7 @@ void ScopeView::drawLabels(juce::Graphics& g) const
         }
 
         const LaneMapping mapping(0, lanes_[index].height, gain);
-        for (const auto& reference : references)
+        for (const auto& reference : amplitudeReferencesAt(gainDb_))
         {
             if (!mapping.isInside(reference.level))
                 continue;
@@ -851,7 +884,7 @@ void ScopeView::drawLabels(juce::Graphics& g) const
             if (!g.clipRegionIntersects(area.getSmallestIntegerContainer()))
                 continue;
             g.setColour(palette::laneLabel);
-            g.drawText(juce::String::fromUTF8(reference.label), area, juce::Justification::topRight,
+            g.drawText(referenceLabel(reference.levelDb), area, juce::Justification::topRight,
                        false);
         }
     }
