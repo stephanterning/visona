@@ -41,6 +41,14 @@ struct SweepZoom
         part narrower than the deepest zoom is widened around its centre. */
     [[nodiscard]] SweepZoom selected(double from, double to) const noexcept;
 
+    /** This view moved by `distance`, a fraction of the window, later for a positive distance
+        (D-089). Past the end of the window it carries on at its start, and the other way round.
+        The whole window stays where it is. */
+    [[nodiscard]] SweepZoom panned(double distance) const noexcept;
+
+    /** This view moved so that its centre is at `position` in the window. */
+    [[nodiscard]] SweepZoom centredOn(double position) const noexcept;
+
     /** Where `fraction` of the way across the view is in the window, in [0, 1). */
     [[nodiscard]] double windowPositionOf(double fraction) const noexcept;
 

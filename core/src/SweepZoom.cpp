@@ -67,6 +67,20 @@ SweepZoom SweepZoom::selected(double from, double to) const noexcept
     return normalized({newOffset, newSpan});
 }
 
+SweepZoom SweepZoom::panned(double distance) const noexcept
+{
+    if (!std::isfinite(distance) || !isZoomed())
+        return *this;
+    return normalized({offset + distance, span});
+}
+
+SweepZoom SweepZoom::centredOn(double position) const noexcept
+{
+    if (!std::isfinite(position) || !isZoomed())
+        return *this;
+    return normalized({position - span / 2.0, span});
+}
+
 double SweepZoom::windowPositionOf(double fraction) const noexcept
 {
     return wrap(offset + fraction * span);
