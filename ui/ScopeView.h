@@ -24,11 +24,14 @@ namespace visona
 
     - The write head is a thin accent line followed by a small erase gap. The previous pass ahead
       of it is drawn like the new one (D-068).
-    - Faint lines mark the centre and where 0 dBFS and -6 dBFS land after display gain. Display
-      overshoot is cut at the lane edge with a neutral marker.
-    - While the sweep follows MIDI Clock, a neutral grey grid marks bars, beats and, when half a
-      bar or less is in view, sixteenths, with small bar numbers at the bottom edge. Zoomed in to
-      a quarter or an eighth of a bar, thirty-seconds and sixty-fourths are added.
+    - Faint lines mark the centre and where 0 dBFS and -6 dBFS land after display gain, and
+      -12 dBFS and -18 dBFS from +4 and +10 dB of gain (D-088). Display overshoot is cut at the
+      lane edge with a neutral marker.
+    - While the sweep follows MIDI Clock, a neutral grey grid marks bars, beats and a finer note
+      value that depends on how much is in view: sixteenths with 1 bar, down to sixty-fourths with
+      ¼ bar or less, and up to quarter notes with more than 2 bars (D-087). Small bar numbers sit
+      at the bottom edge, and the bottom right corner names the finest note value and its length,
+      such as "1/16 · 125 ms".
     - STOPPED dims the frozen view slightly and shows a pause mark.
     - Display gain and zoom are applied only here (D-024, D-085).
 
@@ -132,8 +135,8 @@ private:
     enum class GridLine : std::uint8_t
     {
         none,
-        fine, ///< Thirty-seconds and sixty-fourths.
-        sixteenth,
+        fine,     ///< Thirty-seconds and sixty-fourths.
+        division, ///< Eighths and sixteenths.
         beat,
         bar
     };
@@ -171,6 +174,13 @@ private:
     void updateStats(double timestampSeconds);
     void noticeTransport();
     void updateGrid();
+
+    /** How many bars are in view, or 0 without a musical window. */
+    [[nodiscard]] double visibleBars() const noexcept;
+
+    /** The grid's finest note value and its length at the current tempo, such as
+        "1/16 · 125 ms", or nothing without a grid. */
+    [[nodiscard]] juce::String resolutionText() const;
     [[nodiscard]] juce::Rectangle<int> barNumberArea() const noexcept;
     void drawBarNumbers(juce::Graphics& g) const;
     void drawStopped(juce::Graphics& g) const;
@@ -232,6 +242,7 @@ private:
     bool shownMusical_ = false;
     std::size_t shownWindow_ = 0;
     double shownWindowStart_ = 0.0;
+    juce::String shownResolution_;
 
     // A drag that selects what to zoom to, in logical pixels, and the fingers of a pinch.
     std::optional<int> dragSource_;
