@@ -49,6 +49,7 @@ Visona is a platform-independent real-time engine for musical audio analysis and
   - `MidiClockTransport` and `ClockTimeMapper`
   - `BandSplitter` and `SweepAnalyzer`
   - snapshot types and bin-to-pixel reduction
+  - the measurement ruler's readout (`Ruler`, D-094)
   - `AnalysisPipeline`, the analysis thread's work without the thread: ring in, snapshots out
 
   Keeping JUCE out makes the core testable on Linux without a GUI, enforces the platform boundary, and lets the core be reused in plugins and on the Raspberry Pi.
@@ -219,6 +220,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Secondary buttons: Diagnostics and Full screen, next to ⚙.
   - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
 - **Zoom on the scope** (D-085): drag to zoom to the selection, scroll or pinch to zoom around the pointer, scroll sideways or Shift-scroll to move the view (D-089), and double-click or double-tap to reset.
+- **Measurement ruler** (D-094): drag with the right button, a two-finger click or Control, or hold a finger still for half a second and drag, to draw a rectangle. While it is held, a readout shows its length as ms, samples, frequency, note and musical length, and the levels at its start and end heights in dBFS, read against the axes as shown, display gain included. It never reads the audio, and it goes away on release.
 - **Responsive chrome** (D-069). The layout reflows in steps:
   - Wide windows put everything on one row.
   - Narrow windows use two rows with abbreviated labels.
