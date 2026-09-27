@@ -26,9 +26,10 @@
 using visona::AnalysisPipeline;
 using visona::AudioInputWriter;
 using visona::AudioRingBuffer;
-using visona::freeRunningWindowFrames;
 using visona::SweepAnalyzer;
 using visona::SweepCell;
+using visona::TransportSpan;
+using visona::TransportState;
 using visona::test::AllocationCounter;
 using visona::test::sine;
 
@@ -53,6 +54,18 @@ void pushAll(AudioInputWriter& writer, const std::vector<std::vector<float>>& ch
 std::vector<std::vector<float>> stereoTestSignal(double sampleRate, std::size_t numFrames)
 {
     return {sine(220.0, sampleRate, 0.5f, numFrames), sine(3'000.0, sampleRate, 0.25f, numFrames)};
+}
+
+/** The span the pipeline gives a free-running sweep that starts at frame `origin`. */
+TransportSpan freeSpan(double origin, double sampleRate, double bpm)
+{
+    constexpr double spanFrames = 0x1p42;
+    TransportSpan span;
+    span.kind = TransportSpan::Kind::musical;
+    span.start = origin;
+    span.end = origin + spanFrames;
+    span.endTick = spanFrames / (60.0 * sampleRate / (24.0 * bpm));
+    return span;
 }
 
 } // namespace
@@ -87,11 +100,13 @@ TEST_CASE("AnalysisPipeline analyzes a stream into the same sweep as the analyze
     AnalysisPipeline pipeline(2);
     pipeline.setStream(&ring, sampleRate);
 
+    // Before any Start, the sweep runs free at 120 BPM in the 1-bar window.
     const auto input = stereoTestSignal(sampleRate, 30'000);
     SweepAnalyzer reference(2);
-    reference.start(freeRunningWindowFrames(sampleRate));
+    reference.startMusical(96.0);
     const std::array<const float*, 2> pointers{input[0].data(), input[1].data()};
-    reference.process(0, pointers, input[0].size());
+    reference.processMusical(0, pointers, input[0].size(),
+                             freeSpan(0.0, sampleRate, visona::defaultFreeBpm));
 
     auto& snapshots = pipeline.snapshots();
     std::size_t framesAnalyzed = 0;
@@ -111,10 +126,19 @@ TEST_CASE("AnalysisPipeline analyzes a stream into the same sweep as the analyze
     const auto& snapshot = snapshots.readBuffer();
     CHECK(snapshot.hasStream);
     CHECK(snapshot.sampleRate == sampleRate);
-    CHECK(snapshot.windowFrames == 96'000);
+    CHECK(snapshot.musical);
+    CHECK(snapshot.transportState == TransportState::freeRunning);
+    CHECK(snapshot.bpm == visona::defaultFreeBpm);
+    CHECK(snapshot.windowTicks == 96.0);
     CHECK(snapshot.nextSampleIndex == 30'000);
     CHECK(snapshot.overruns == 0);
-    CHECK(snapshot.sweep == reference.buffer());
+    // The same content; the pipeline cleared its buffer once more, when the stream started.
+    const auto& expected = reference.buffer();
+    CHECK(snapshot.sweep.head() == expected.head());
+    CHECK(snapshot.sweep.pass() == expected.pass());
+    CHECK(std::ranges::equal(snapshot.sweep.passes(), expected.passes()));
+    for (std::size_t channel = 0; channel < 2; ++channel)
+        CHECK(std::ranges::equal(snapshot.sweep.channel(channel), expected.channel(channel)));
 
     CHECK(pipeline.takePeak(0) == std::ranges::max(input[0]));
     CHECK(pipeline.takePeak(1) == std::ranges::max(input[1]));
@@ -123,7 +147,7 @@ TEST_CASE("AnalysisPipeline analyzes a stream into the same sweep as the analyze
 
 TEST_CASE("AnalysisPipeline shows a dropped block as a gap and counts it", "[analysis]")
 {
-    constexpr double sampleRate = 1'000.0; // a 2 000-frame window: 2 048 bins would not fit
+    constexpr double sampleRate = 1'000.0; // a 1-bar window at 120 BPM is 2 000 frames
     AudioRingBuffer ring(1, 256, 64);
     AudioInputWriter writer(ring);
     writer.route(0, 0);
@@ -175,13 +199,13 @@ TEST_CASE("AnalysisPipeline starts a new, cleared sweep for every stream", "[ana
     CHECK(snapshots.readBuffer().sweep.generation() > firstGeneration);
     CHECK(snapshots.readBuffer().sweep.pass() == 0);
     CHECK(snapshots.readBuffer().sampleRate == 96'000.0);
-    CHECK(snapshots.readBuffer().windowFrames == 192'000);
+    CHECK_FALSE(snapshots.readBuffer().musical);
 
     pipeline.setStream(nullptr, 0.0);
     pipeline.poll();
     REQUIRE(snapshots.fetch());
     CHECK_FALSE(snapshots.readBuffer().hasStream);
-    CHECK(snapshots.readBuffer().windowFrames == 0);
+    CHECK_FALSE(snapshots.readBuffer().musical);
 }
 
 TEST_CASE("AnalysisPipeline does not allocate while it runs", "[analysis][realtime]")
@@ -331,7 +355,6 @@ namespace
 using visona::MidiClockEvent;
 using visona::MidiClockQueue;
 using visona::SweepSnapshot;
-using visona::TransportState;
 
 /**
     A synthetic session: stereo audio blocks stamped from one host clock, MIDI Clock messages
@@ -507,9 +530,10 @@ TEST_CASE("The sweep runs free until the first Start and follows the transport a
     MidiSession session(48'000.0);
     session.run(20'000);
     auto snapshot = session.snapshot();
-    CHECK_FALSE(snapshot.musical);
-    CHECK(snapshot.transportState == TransportState::waiting);
-    CHECK(snapshot.windowFrames == 96'000);
+    CHECK(snapshot.musical);
+    CHECK(snapshot.transportState == TransportState::freeRunning);
+    CHECK(snapshot.bpm == visona::defaultFreeBpm);
+    CHECK(snapshot.windowStartTick == 0.0);
     const auto freeGeneration = snapshot.sweep.generation();
 
     const auto interval = session.framesPerTick(120.0);
@@ -519,11 +543,120 @@ TEST_CASE("The sweep runs free until the first Start and follows the transport a
     snapshot = session.snapshot();
     CHECK(snapshot.musical);
     CHECK(snapshot.transportState == TransportState::running);
-    CHECK(snapshot.windowFrames == 0);
     CHECK(snapshot.sweep.generation() > freeGeneration);
     CHECK(snapshot.sweep.pass() == 1);
     // Start, and the 41 clocks up to where the audio has got.
     CHECK(snapshot.midiEvents == 42);
+}
+
+TEST_CASE("The free tempo is rounded to 0.1 BPM and kept between 40 and 300 BPM", "[free]")
+{
+    CHECK(visona::clampFreeBpm(126.04) == 126.0);
+    CHECK(visona::clampFreeBpm(126.06) == 126.1);
+    CHECK(visona::clampFreeBpm(12.0) == visona::minFreeBpm);
+    CHECK(visona::clampFreeBpm(420.0) == visona::maxFreeBpm);
+    CHECK(visona::clampFreeBpm(std::nan("")) == visona::defaultFreeBpm);
+}
+
+TEST_CASE("The free-running sweep is bars at the free tempo", "[analysis][free]")
+{
+    // 90 BPM at 48 kHz: 32 000 frames per beat and 128 000 per bar.
+    MidiSession session(48'000.0);
+    session.pipeline().setFreeTempo(90.0);
+    constexpr std::uint64_t beatFrames = 32'000;
+    session.run(beatFrames * 6,
+                [](std::uint64_t frame) { return frame % beatFrames == 0 ? 1.0f : 0.0f; });
+
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::freeRunning);
+    CHECK(snapshot.musical);
+    CHECK(snapshot.bpm == 90.0);
+    CHECK(snapshot.windowTicks == 96.0);
+    CHECK(snapshot.windowStartTick == 96.0); // the second bar
+    CHECK(snapshot.sweep.pass() == 2);
+
+    const auto cells = snapshot.sweep.channel(0);
+    const auto binsPerBeat = cells.size() / 4;
+    std::size_t clickBins = 0;
+    for (std::size_t bin = 0; bin < cells.size(); ++bin)
+    {
+        if (cells[bin].isEmpty() || cells[bin].max < 0.5f)
+            continue;
+        ++clickBins;
+        const auto fromBeat = bin % binsPerBeat;
+        CAPTURE(bin);
+        CHECK((fromBeat <= 1 || fromBeat >= binsPerBeat - 1));
+    }
+    CHECK(clickBins >= 4);
+}
+
+TEST_CASE("A new tempo or window starts the free-running sweep over from bar 1", "[analysis][free]")
+{
+    MidiSession session(48'000.0);
+    session.run(300'000);
+    auto snapshot = session.snapshot();
+    REQUIRE(snapshot.windowStartTick > 0.0);
+    auto generation = snapshot.sweep.generation();
+
+    session.pipeline().setFreeTempo(140.0);
+    session.run(320'000);
+    snapshot = session.snapshot();
+    CHECK(snapshot.bpm == 140.0);
+    CHECK(snapshot.sweep.generation() > generation);
+    CHECK(snapshot.sweep.pass() == 1);
+    CHECK(snapshot.windowStartTick == 0.0);
+    generation = snapshot.sweep.generation();
+
+    session.run(600'000);
+    REQUIRE(session.snapshot().windowStartTick > 0.0);
+    session.pipeline().setWindow(0);
+    session.run(610'000);
+    snapshot = session.snapshot();
+    CHECK(snapshot.sweep.generation() > generation);
+    CHECK(snapshot.windowTicks == 24.0);
+    CHECK(snapshot.windowStartTick == 0.0);
+
+    // Out of range, the tempo is clamped.
+    session.pipeline().setFreeTempo(1'000.0);
+    session.run(620'000);
+    CHECK(session.snapshot().bpm == visona::maxFreeBpm);
+}
+
+TEST_CASE("runFree leaves Stopped for a new free-running sweep", "[analysis][free]")
+{
+    MidiSession session(48'000.0);
+    const auto interval = session.framesPerTick(126.0);
+    session.midi(MidiClockEvent::Type::Start, 1'000.0);
+    const auto afterClocks = session.clocks(2'000.0, 150, interval);
+    session.midi(MidiClockEvent::Type::Stop, afterClocks);
+    session.run(static_cast<std::uint64_t>(afterClocks + 4'800.0));
+    auto snapshot = session.snapshot();
+    REQUIRE(snapshot.transportState == TransportState::stopped);
+    CHECK(std::abs(snapshot.bpm - 126.0) < 0.05);
+    const auto generation = snapshot.sweep.generation();
+
+    // The app hands over the last MIDI tempo along with the request.
+    session.pipeline().setFreeTempo(126.0);
+    session.pipeline().runFree();
+    session.run(static_cast<std::uint64_t>(afterClocks + 60'000.0),
+                [](std::uint64_t) { return 0.5f; });
+    snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::freeRunning);
+    CHECK(snapshot.bpm == 126.0);
+    CHECK(snapshot.sweep.generation() > generation);
+    CHECK(snapshot.sweep.pass() == 1);
+    CHECK(snapshot.windowStartTick == 0.0);
+    CHECK_FALSE(snapshot.sweep.channel(0)[snapshot.sweep.head()].isEmpty());
+
+    // A Continue follows MIDI Clock again, from where the song stopped.
+    const auto resume = afterClocks + 70'000.0;
+    session.midi(MidiClockEvent::Type::Continue, resume);
+    session.clocks(resume + 500.0, 12, interval);
+    session.run(static_cast<std::uint64_t>(resume + 500.0 + 10 * interval));
+    snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::running);
+    CHECK(snapshot.nextTick == 150 + 11);
+    CHECK(snapshot.windowStartTick == 96.0);
 }
 
 TEST_CASE("Audio after the latest tick waits in the ring", "[analysis][midi]")

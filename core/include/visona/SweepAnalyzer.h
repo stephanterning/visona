@@ -11,23 +11,18 @@
 namespace visona
 {
 
-/** The window of the free-running sweep, before the first MIDI Clock Start (D-060). */
-inline constexpr double freeRunningWindowSeconds = 2.0;
-
-/** The free-running window in frames at `sampleRate`, at least 1. */
-[[nodiscard]] std::uint64_t freeRunningWindowFrames(double sampleRate) noexcept;
-
 /**
     Writes the full band of every channel into a SweepBuffer, as a sweep across a window. It runs in
     one of two modes.
 
-    Free-running (start(), process()): the window is a fixed number of frames (D-045, D-060). The
+    Frame-based (start(), process()): the window is a fixed number of frames (D-045). The
     frame at stream position s lies at phase φ = frac(s / windowFrames) and goes into bin
     ⌊φ · numBins⌋ of pass ⌊s / windowFrames⌋ + 1. Windows start at every multiple of windowFrames
     from the start of the stream. The arithmetic is exact integer arithmetic.
 
     Musical (startMusical(), processMusical(), freeze()): the window is a number of MIDI Clock
     ticks, and each frame's position in ticks comes from a TransportSpan (architecture.md 3.4).
+    The app's sweep is always musical: it follows MIDI Clock, or runs free at a set tempo (D-090).
     φ = frac(position / windowTicks), so windows start on multiples of the window from bar 1. Passes
     are counted from 1 at startMusical(). After a freeze, a position that does not carry on from
     where the sweep stopped is a relocation: the head jumps there and starts a new pass without
@@ -41,7 +36,7 @@ inline constexpr double freeRunningWindowSeconds = 2.0;
     In both modes the result never depends on how the audio is split into blocks. A jump forward
     in sampleIndex, such as a block the audio ring dropped (D-062), empties the bins of the missing
     frames, so a gap shows as a gap and not as the previous pass (D-067); no line is drawn across
-    a gap, a freeze or a relocation. A free-running jump backwards clears the buffer.
+    a gap, a freeze or a relocation. A frame-based jump backwards clears the buffer.
 
     All storage is allocated in the constructor; nothing else allocates.
 */

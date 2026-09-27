@@ -34,7 +34,7 @@ MidiClockTransport::MidiClockTransport(double sampleRate, TimeSignature timeSign
 void MidiClockTransport::reset(double sampleRate) noexcept
 {
     sampleRate_ = sampleRate;
-    state_ = TransportState::waiting;
+    state_ = TransportState::freeRunning;
     nextTick_ = 0;
     ignoredSpp_ = 0;
     awaitingTick_ = false;
@@ -72,6 +72,18 @@ void MidiClockTransport::handle(MidiClockEvent::Type type, std::uint16_t sppValu
                 std::min<std::int64_t>(sppValue, MidiClockEvent::maxSppValue) * ticksPerMidiBeat;
         return;
     }
+}
+
+void MidiClockTransport::runFree(double sampleTime) noexcept
+{
+    if (state_ != TransportState::stopped && state_ != TransportState::clockLost)
+        return;
+    sampleTime = clampToTimeline(sampleTime);
+    ++startCount_;
+    state_ = TransportState::freeRunning;
+    awaitingTick_ = false;
+    closeOpenAt(sampleTime);
+    pushOpen(TransportSpan::Kind::freeRunning, sampleTime, 0.0);
 }
 
 void MidiClockTransport::advanceTo(double sampleTime) noexcept
@@ -260,8 +272,8 @@ void MidiClockTransport::onContinue(double sampleTime) noexcept
     if (state_ == TransportState::running)
         return;
 
-    // Continuing without a Start leaves the free-running sweep, so the sweep starts over.
-    if (state_ == TransportState::waiting)
+    // Continuing from the free-running sweep leaves it, so the sweep starts over.
+    if (state_ == TransportState::freeRunning)
         ++startCount_;
     state_ = TransportState::running;
     awaitingTick_ = true;

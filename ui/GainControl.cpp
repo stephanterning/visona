@@ -1,6 +1,7 @@
 #include "GainControl.h"
 
 #include "Palette.h"
+#include "StepButton.h"
 
 #include <visona/LaneMapping.h>
 
@@ -12,12 +13,9 @@ namespace visona
 namespace
 {
 
-constexpr float cornerRadius = 6.0f;
 constexpr float labelGap = 10.0f;
 constexpr float dragPixelsPerStep = 6.0f;
 constexpr float smoothWheelPerStep = 0.06f;
-constexpr int repeatDelayMs = 400;
-constexpr int repeatIntervalMs = 70;
 
 juce::FontOptions valueFont(float height)
 {
@@ -26,50 +24,9 @@ juce::FontOptions valueFont(float height)
 
 } // namespace
 
-/** The [−] and [+] buttons. */
-class GainControl::StepButton final : public juce::Button
-{
-public:
-    explicit StepButton(int direction)
-        : juce::Button(direction > 0 ? "Increase gain" : "Decrease gain")
-        , direction_(direction)
-    {
-        setWantsKeyboardFocus(false);
-        setMouseClickGrabsKeyboardFocus(false);
-        setRepeatSpeed(repeatDelayMs, repeatIntervalMs);
-    }
-
-    void paintButton(juce::Graphics& g, bool isHighlighted, bool isDown) override
-    {
-        const auto bounds = getLocalBounds().toFloat();
-        if (isDown || isHighlighted)
-        {
-            g.setColour(isDown ? palette::highlight : palette::surface.brighter(0.08f));
-            g.fillRoundedRectangle(bounds.reduced(1.0f), cornerRadius);
-        }
-
-        const auto centre = bounds.getCentre();
-        const auto arm = std::min(bounds.getWidth(), bounds.getHeight()) * 0.18f;
-        juce::Path path;
-        path.startNewSubPath(centre.x - arm, centre.y);
-        path.lineTo(centre.x + arm, centre.y);
-        if (direction_ > 0)
-        {
-            path.startNewSubPath(centre.x, centre.y - arm);
-            path.lineTo(centre.x, centre.y + arm);
-        }
-        g.setColour(isEnabled() ? palette::text : palette::textDim);
-        g.strokePath(path, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved,
-                                                juce::PathStrokeType::rounded));
-    }
-
-private:
-    int direction_;
-};
-
 GainControl::GainControl()
-    : minus_(std::make_unique<StepButton>(-1))
-    , plus_(std::make_unique<StepButton>(1))
+    : minus_(std::make_unique<StepButton>("Decrease gain", -1))
+    , plus_(std::make_unique<StepButton>("Increase gain", 1))
 {
     setWantsKeyboardFocus(false);
     setMouseClickGrabsKeyboardFocus(false);
@@ -138,7 +95,7 @@ void GainControl::paint(juce::Graphics& g)
 
     const auto control = valueArea_.getUnion(minus_->getBounds()).getUnion(plus_->getBounds());
     g.setColour(palette::surface);
-    g.fillRoundedRectangle(control.toFloat().reduced(0.5f), cornerRadius);
+    g.fillRoundedRectangle(control.toFloat().reduced(0.5f), StepButton::cornerRadius);
 
     g.setColour(palette::text);
     g.setFont(valueFont(fontHeight_ + 1.0f));

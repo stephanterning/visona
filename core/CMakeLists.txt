@@ -33,6 +33,7 @@ add_library(visona_core STATIC
     src/SourceLayout.cpp
     src/SweepAnalyzer.cpp
     src/SweepBuffer.cpp
+    src/SweepWindow.cpp
     src/SweepZoom.cpp
     src/Version.cpp)
 add_library(visona::core ALIAS visona_core)

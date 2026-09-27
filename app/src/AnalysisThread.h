@@ -48,6 +48,18 @@ public:
     }
 
     /** Any thread. */
+    void setFreeTempo(double bpm) noexcept
+    {
+        pipeline_.setFreeTempo(bpm);
+    }
+
+    /** Any thread. */
+    void runFree() noexcept
+    {
+        pipeline_.runFree();
+    }
+
+    /** Any thread. */
     void setMidiOffset(double frames) noexcept
     {
         pipeline_.setMidiOffset(frames);

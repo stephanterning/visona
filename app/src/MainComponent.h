@@ -46,6 +46,10 @@ private:
 
     void setGainDb(int gainDb);
     void setWindow(std::size_t window);
+    void setFreeTempo(double bpm);
+
+    /** Leaves STOPPED or MIDI CLOCK LOST for the free-running sweep, at the last MIDI tempo. */
+    void runFree();
     void showSettings(bool shouldShow);
     void showDiagnostics(bool shouldShow);
     void toggleFullScreen();

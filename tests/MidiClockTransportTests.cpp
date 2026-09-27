@@ -77,10 +77,10 @@ double timeOfTick(const std::vector<TransportSpan>& timeline, double tick)
 
 } // namespace
 
-TEST_CASE("MidiClockTransport starts waiting, with a free-running timeline", "[transport]")
+TEST_CASE("MidiClockTransport starts running free, with a free-running timeline", "[transport]")
 {
     MidiClockTransport transport(rate);
-    CHECK(transport.state() == TransportState::waiting);
+    CHECK(transport.state() == TransportState::freeRunning);
     CHECK(transport.bpm() == 0.0);
     CHECK(transport.nextTick() == 0);
     REQUIRE(transport.numSpans() == 1);
@@ -260,11 +260,11 @@ TEST_CASE("Stop freezes after at most one extrapolated tick, and Continue carrie
     }
 }
 
-TEST_CASE("Clocks while waiting update the tempo only", "[transport]")
+TEST_CASE("Clocks while running free update the tempo only", "[transport]")
 {
     MidiClockTransport transport(rate);
     sendClocks(transport, 0.0, 50, framesPerTick(128.0));
-    CHECK(transport.state() == TransportState::waiting);
+    CHECK(transport.state() == TransportState::freeRunning);
     CHECK(transport.nextTick() == 0);
     CHECK(transport.numSpans() == 1);
     CHECK(std::abs(transport.bpm() - 128.0) < 0.001);
@@ -324,7 +324,7 @@ TEST_CASE("Clock loss is only checked while running", "[transport]")
 {
     MidiClockTransport transport(rate);
     transport.advanceTo(10.0 * rate);
-    CHECK(transport.state() == TransportState::waiting);
+    CHECK(transport.state() == TransportState::freeRunning);
     transport.handle(Type::Start, 0, 0.0);
     sendClocks(transport, 100.0, 5, framesPerTick(120.0));
     transport.handle(Type::Stop, 0, 20'000.0);
@@ -410,6 +410,73 @@ TEST_CASE("Continue without a Start leaves the free-running sweep", "[transport]
     CHECK(timeline.front().kind == Kind::freeRunning);
     CHECK(timeline.back().startTick == 192.0);
     CHECK(timeline.back().startCount == 1);
+}
+
+TEST_CASE("runFree leaves Stopped for the free-running sweep, and Continue follows MIDI again",
+          "[transport]")
+{
+    MidiClockTransport transport(rate);
+    const auto interval = framesPerTick(120.0);
+    transport.handle(Type::Start, 0, 1'000.0);
+    auto time = sendClocks(transport, 2'000.0, 48, interval);
+    transport.handle(Type::Stop, 0, time);
+    REQUIRE(transport.state() == TransportState::stopped);
+    const auto starts = transport.startCount();
+    const auto stoppedAt = transport.nextTick();
+    const auto tempo = transport.bpm();
+
+    transport.runFree(time + 10'000.0);
+    CHECK(transport.state() == TransportState::freeRunning);
+    CHECK(transport.startCount() == starts + 1);
+    CHECK(transport.nextTick() == stoppedAt);
+    CHECK(transport.bpm() == tempo);
+    auto timeline = spans(transport);
+    checkContiguous(timeline);
+    CHECK(timeline.back().kind == Kind::freeRunning);
+    CHECK(timeline.back().start == time + 10'000.0);
+    CHECK(timeline.back().startCount == starts + 1);
+    CHECK(timeline[timeline.size() - 2].kind == Kind::frozen);
+
+    // Continue resumes where the song stopped, as a new sweep.
+    time += 50'000.0;
+    transport.handle(Type::Continue, 0, time);
+    sendClocks(transport, time + 500.0, 3, interval);
+    CHECK(transport.state() == TransportState::running);
+    CHECK(transport.startCount() == starts + 2);
+    CHECK(transport.nextTick() == stoppedAt + 3);
+    timeline = spans(transport);
+    checkContiguous(timeline);
+    CHECK(timeline.back().startCount == starts + 2);
+}
+
+TEST_CASE("runFree leaves clock loss too, and nothing else", "[transport]")
+{
+    MidiClockTransport transport(rate);
+    transport.runFree(100.0);
+    CHECK(transport.state() == TransportState::freeRunning);
+    CHECK(transport.startCount() == 0);
+    CHECK(transport.numSpans() == 1);
+
+    const auto interval = framesPerTick(120.0);
+    transport.handle(Type::Start, 0, 1'000.0);
+    const auto time = sendClocks(transport, 2'000.0, 30, interval);
+    transport.runFree(time);
+    CHECK(transport.state() == TransportState::running);
+    CHECK(transport.startCount() == 1);
+
+    transport.advanceTo(time + rate);
+    REQUIRE(transport.state() == TransportState::clockLost);
+    transport.runFree(time + rate);
+    CHECK(transport.state() == TransportState::freeRunning);
+    CHECK(transport.startCount() == 2);
+    const auto timeline = spans(transport);
+    checkContiguous(timeline);
+    CHECK(timeline.back().kind == Kind::freeRunning);
+
+    // Clocks while running free only feed the tempo.
+    sendClocks(transport, time + 2.0 * rate, 30, interval);
+    CHECK(transport.state() == TransportState::freeRunning);
+    CHECK(std::abs(transport.bpm() - 120.0) < 0.01);
 }
 
 TEST_CASE("Start restarts from bar 1, also while running", "[transport]")

@@ -7,6 +7,8 @@
 namespace visona
 {
 
+class StepButton;
+
 /**
     Display gain as `GAIN [−] +12 dB [+]`, from 0 to +36 dB in 1 dB steps (D-046, D-054). No knob:
     the buttons step it and repeat while held, dragging the value up or right raises it, the scroll
@@ -43,8 +45,6 @@ public:
                         const juce::MouseWheelDetails& wheel) override;
 
 private:
-    class StepButton;
-
     void request(int gainDb);
     [[nodiscard]] int valueWidth() const;
 

@@ -74,6 +74,7 @@ AudioEngine::AudioEngine(Settings& settings)
     , inputChannels_(settings.inputChannels(layout_.totalChannelCount()))
 {
     analysis_.setMidiQueue(&midi_.queue());
+    analysis_.setFreeTempo(settings_.freeTempo());
     deviceManager_.addAudioCallback(this);
     deviceManager_.addChangeListener(this);
 }
@@ -161,6 +162,22 @@ std::uint64_t AudioEngine::analysisBusyNanoseconds() const noexcept
 void AudioEngine::setWindow(std::size_t windowIndex) noexcept
 {
     analysis_.setWindow(windowIndex);
+}
+
+double AudioEngine::freeTempo() const
+{
+    return settings_.freeTempo();
+}
+
+void AudioEngine::setFreeTempo(double bpm)
+{
+    settings_.setFreeTempo(bpm);
+    analysis_.setFreeTempo(settings_.freeTempo());
+}
+
+void AudioEngine::runFree() noexcept
+{
+    analysis_.runFree();
 }
 
 juce::String AudioEngine::midiInput() const
