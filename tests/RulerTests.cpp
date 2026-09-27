@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cmath>
+#include <limits>
 #include <string>
 
 using Catch::Matchers::WithinAbs;
@@ -108,7 +109,7 @@ TEST_CASE("Notes are named as in Live, with middle C as C3", "[ruler]")
     CHECK(visona::formatNote(*visona::noteNameOf(440.0 * std::exp2(-0.6 / 12.0))) == "G#3 +40 ct");
 
     CHECK_FALSE(visona::noteNameOf(0.0).has_value());
-    CHECK_FALSE(visona::noteNameOf(INFINITY).has_value());
+    CHECK_FALSE(visona::noteNameOf(std::numeric_limits<double>::infinity()).has_value());
 }
 
 TEST_CASE("The ruler reads levels off the amplitude scale as shown", "[ruler]")
@@ -218,7 +219,7 @@ TEST_CASE("The readout shows a dash for what it cannot know", "[ruler]")
 
 TEST_CASE("The readout's levels handle the centre line", "[ruler]")
 {
-    const RulerLevel centre{-INFINITY, false};
+    const RulerLevel centre{-std::numeric_limits<double>::infinity(), false};
     const RulerLevel half{-6.02, false};
     auto rows = visona::rulerReadout(oneBarAt120(), 0.5, centre, half);
     CHECK(valueOf(rows, "start") == minus + infinity + " dB");
