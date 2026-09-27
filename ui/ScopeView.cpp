@@ -544,7 +544,11 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
                                        static_cast<juce::uint8>(mix.green * 255.0f + 0.5f),
                                        static_cast<juce::uint8>(mix.blue * 255.0f + 0.5f));
             }
-            fillColumn(column, mapping.rowsOf(span.min, span.max), fill);
+            // PRECISE and DJ fill from the centre line out to the column's signed peaks (D-091).
+            if (span.max > 0.0f)
+                fillColumn(column, mapping.rowsOf(0.0f, span.max), fill);
+            if (span.min < 0.0f)
+                fillColumn(column, mapping.rowsOf(span.min, 0.0f), fill);
         }
     }
 
