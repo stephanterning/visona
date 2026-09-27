@@ -175,7 +175,8 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Small bar numbers sit at the bottom edge; a window that starts between bars is labelled bar.beat (D-080). With a bar or less in view, beats are labelled bar.beat too, and the left edge names the beat the view starts in.
   - The bottom right corner names the finest note value and its length at the current tempo, such as `1/16 · 125 ms` (D-087).
 - **Zoom** (D-085). Presentation only: the view is a part of the window, from an offset for a span, down to 1/32 of it, and may run past the end of the window into its start.
-  - `SweepZoom` in the core holds it and implements zooming around a point and to a selection; `ColumnMapping` maps the view's bins to columns, giving up to two column ranges for a range of bins.
+  - `SweepZoom` in the core holds it and implements zooming around a point and to a selection, and moving the view round past either end of the window (D-089); `ColumnMapping` maps the view's bins to columns, giving up to two column ranges for a range of bins.
+  - Past the end of the window, bar numbers read on into the next window.
   - The head line shows only while the head is in view.
 - **Color tokens.** One central palette holds band, grid, head, lane background, status and error colors. That keeps themes cheap later, without building a theme UI now.
 - **Implementation** (D-054):
@@ -207,14 +208,14 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
   - `STOPPED` shows a freeze indicator and slightly dims the scope.
   - While zoomed, the zoom comes last, such as `ZOOM 4.0× · 1.3–1.4` (D-085).
-- **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom.
+- **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom. Dragging anywhere on it moves the view, round past either end of the window, and a click outside the part in view centres the view there (D-089).
 - **Controls (bottom):** no knobs.
   - WINDOW is an always-visible segmented control.
   - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
   - GAIN is `[−] +12 dB [+]`, from 0 to +36 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB.
   - Secondary buttons: Diagnostics and Full screen, next to ⚙.
   - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
-- **Zoom on the scope** (D-085): drag to zoom to the selection, scroll or pinch to zoom around the pointer, and double-click or double-tap to reset.
+- **Zoom on the scope** (D-085): drag to zoom to the selection, scroll or pinch to zoom around the pointer, scroll sideways or Shift-scroll to move the view (D-089), and double-click or double-tap to reset.
 - **Responsive chrome** (D-069). The layout reflows in steps:
   - Wide windows put everything on one row.
   - Narrow windows use two rows with abbreviated labels.
@@ -284,7 +285,7 @@ Everything below runs in CI on Linux without hardware (D-032).
   - A click per beat peaks at 0, ¼, ½ and ¾ of the window (±1 bin).
   - Window changes, free-running and freeze on Stop.
   - Bin-to-pixel reduction, also for zoomed views that run past the end of the window, checked by brute force against which columns show which bins.
-  - Zooming around a point keeps it in place, stops at 1/32 of the window, and zooming out arrives at the whole window.
+  - Zooming around a point keeps it in place, stops at 1/32 of the window, and zooming out arrives at the whole window. Moving a view wraps round the window's ends and keeps its span.
   - The grid's finest note value for each amount in view, its length at a tempo, and which amplitude references show at each display gain.
 - **Channel-count independence.** The analyzer gives the same per-channel result with 1, 2 and 6 channels (D-049).
 - **Concurrency.** Stress tests for the SPSC ring and triple buffer under TSan.

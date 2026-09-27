@@ -18,6 +18,10 @@ namespace visona
     track with its beats, the part in view highlighted (in two pieces when the view runs past the
     end of the window), the head as a thin accent line, and a button that resets the zoom.
 
+    Dragging anywhere on the strip moves the view with the pointer, past either end of the window
+    and round to its other end, and a click outside the part in view centres the view there
+    (D-089). Both work with a finger as with a mouse.
+
     It repaints only what changes: the head's pixel, or everything on a new zoom or window.
 */
 class ZoomOverview final : public juce::Component, public juce::TooltipClient
@@ -44,11 +48,16 @@ public:
     /** Called when the reset button is pressed or the strip is double-clicked. */
     std::function<void()> onReset;
 
+    /** Called with the new view when a drag or a click on the strip moves it. */
+    std::function<void(SweepZoom)> onPan;
+
     void paint(juce::Graphics& g) override;
     void resized() override;
     void mouseMove(const juce::MouseEvent& event) override;
     void mouseExit(const juce::MouseEvent& event) override;
     void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
     juce::String getTooltip() override;
 
@@ -65,6 +74,10 @@ private:
     };
 
     [[nodiscard]] float xOf(double position) const noexcept;
+
+    /** The window position under `x`, clamped to the window. */
+    [[nodiscard]] double positionOf(float x) const noexcept;
+    [[nodiscard]] bool isInView(double position) const noexcept;
     [[nodiscard]] juce::Rectangle<int> headArea(float x) const noexcept;
     void setResetHighlighted(bool highlighted);
 
@@ -75,6 +88,12 @@ private:
     juce::Rectangle<float> track_;
     juce::Rectangle<int> resetButton_;
     bool resetHighlighted_ = false;
+
+    // A press on the track, and whether it has turned into a drag.
+    int pressSource_ = -1;
+    float pressX_ = 0.0f;
+    SweepZoom pressZoom_;
+    bool dragging_ = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ZoomOverview)
 };

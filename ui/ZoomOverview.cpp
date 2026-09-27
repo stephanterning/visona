@@ -26,6 +26,9 @@ constexpr float buttonRadius = 4.0f;
 constexpr float crossInset = 0.32f;
 constexpr float crossThickness = 1.5f;
 
+/** A press that moves less than this many logical pixels is a click. */
+constexpr float dragThreshold = 3.0f;
+
 constexpr int ticksPerSixteenth = 6;
 
 /** A position this close above a boundary counts as on it, despite rounding. */
@@ -107,11 +110,10 @@ int ZoomOverview::preferredHeight() const noexcept
 
 juce::String ZoomOverview::describe(SweepZoom zoom, const SweepSnapshot& snapshot)
 {
-    // A view that runs past the end of the window ends in the window's start.
+    // A view that runs past the end of the window reads on into the next one, such as 1.4–2.1 in a
+    // 1-bar window.
     const auto start = zoom.offset;
-    auto end = zoom.offset + zoom.span;
-    if (end > 1.0 + boundaryTolerance)
-        end -= 1.0;
+    const auto end = zoom.offset + zoom.span;
 
     const auto ticksPerBar = snapshot.timeSignature.ticksPerBar();
     const auto ticksPerBeat = snapshot.timeSignature.ticksPerBeat();
@@ -206,7 +208,10 @@ void ZoomOverview::resized()
 
 void ZoomOverview::mouseMove(const juce::MouseEvent& event)
 {
-    setResetHighlighted(resetButton_.contains(event.getPosition()));
+    const bool onButton = resetButton_.contains(event.getPosition());
+    setResetHighlighted(onButton);
+    setMouseCursor(onButton ? juce::MouseCursor::NormalCursor
+                            : juce::MouseCursor::LeftRightResizeCursor);
 }
 
 void ZoomOverview::mouseExit(const juce::MouseEvent&)
@@ -216,8 +221,42 @@ void ZoomOverview::mouseExit(const juce::MouseEvent&)
 
 void ZoomOverview::mouseDown(const juce::MouseEvent& event)
 {
-    if (resetButton_.contains(event.getPosition()) && onReset)
-        onReset();
+    if (resetButton_.contains(event.getPosition()))
+    {
+        if (onReset)
+            onReset();
+        return;
+    }
+    if (pressSource_ >= 0)
+        return;
+    pressSource_ = event.source.getIndex();
+    pressX_ = event.position.x;
+    pressZoom_ = zoom_;
+    dragging_ = false;
+}
+
+void ZoomOverview::mouseDrag(const juce::MouseEvent& event)
+{
+    if (event.source.getIndex() != pressSource_ || track_.getWidth() <= 0.0f)
+        return;
+    const auto distance = event.position.x - pressX_;
+    if (!dragging_ && std::abs(distance) < dragThreshold)
+        return;
+    dragging_ = true;
+    if (onPan)
+        onPan(pressZoom_.panned(static_cast<double>(distance / track_.getWidth())));
+}
+
+void ZoomOverview::mouseUp(const juce::MouseEvent& event)
+{
+    if (event.source.getIndex() != pressSource_)
+        return;
+    pressSource_ = -1;
+    if (dragging_)
+        return;
+    const auto position = positionOf(event.position.x);
+    if (!isInView(position) && onPan)
+        onPan(zoom_.centredOn(position));
 }
 
 void ZoomOverview::mouseDoubleClick(const juce::MouseEvent& event)
@@ -230,12 +269,25 @@ juce::String ZoomOverview::getTooltip()
 {
     return resetButton_.contains(getMouseXYRelative())
                ? "Reset zoom (Esc, or double-click the scope)"
-               : "The part of the window in view";
+               : "Drag to move the view, or click to centre it";
 }
 
 float ZoomOverview::xOf(double position) const noexcept
 {
     return track_.getX() + static_cast<float>(position) * track_.getWidth();
+}
+
+double ZoomOverview::positionOf(float x) const noexcept
+{
+    if (track_.getWidth() <= 0.0f)
+        return 0.0;
+    return std::clamp(static_cast<double>((x - track_.getX()) / track_.getWidth()), 0.0, 1.0);
+}
+
+bool ZoomOverview::isInView(double position) const noexcept
+{
+    const auto fromStart = position - zoom_.offset;
+    return fromStart - std::floor(fromStart) <= zoom_.span;
 }
 
 juce::Rectangle<int> ZoomOverview::headArea(float x) const noexcept
