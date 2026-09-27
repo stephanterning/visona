@@ -38,9 +38,11 @@ constexpr float pinnedLabelClearance = 48.0f;
 
 // Zoom input (D-085). A drag shorter than minSelectionWidth logical pixels is a click. A scroll of
 // one unit of MouseWheelDetails zooms by 2^wheelZoomRate: a notch of a mouse wheel on macOS is
-// about 1.25 times. A pinch starts measuring once the fingers are minPinchDistance apart.
+// about 1.25 times. Scrolling one unit sideways moves the view by wheelPanRate views. A pinch
+// starts measuring once the fingers are minPinchDistance apart.
 constexpr float minSelectionWidth = 8.0f;
 constexpr double wheelZoomRate = 8.0;
+constexpr double wheelPanRate = 2.0;
 constexpr float minPinchDistance = 24.0f;
 constexpr float selectionFillAlpha = 0.14f;
 constexpr float selectionEdgeAlpha = 0.6f;
@@ -695,15 +697,18 @@ void ScopeView::drawBarNumbers(juce::Graphics& g) const
     const bool beats = mapping_.isZoomed() && snapshot.windowTicks * mapping_.span() <= ticksPerBar;
     const auto firstBeat = (ticksPerBeat - startTick % ticksPerBeat) % ticksPerBeat;
     auto firstX = static_cast<float>(getWidth());
-    for (auto tick = firstBeat; static_cast<double>(tick) < snapshot.windowTicks;
-         tick += ticksPerBeat)
+    const auto windowTicks = std::llround(snapshot.windowTicks);
+    for (auto tick = firstBeat; tick < windowTicks; tick += ticksPerBeat)
     {
-        const auto absolute = startTick + tick;
+        const auto position = static_cast<double>(tick) / snapshot.windowTicks;
+        const auto column = mapping_.columnOf(position);
+        if (column < 0.0)
+            continue;
+        // Past the end of the window, a view that carries on at its start shows the next window,
+        // so the numbers read on: 12.4, then 13 (D-089).
+        const auto absolute = startTick + tick + (position < mapping_.offset() ? windowTicks : 0);
         const bool bar = absolute % ticksPerBar == 0;
         if (!bar && tick != 0 && !beats)
-            continue;
-        const auto column = mapping_.columnOf(static_cast<double>(tick) / snapshot.windowTicks);
-        if (column < 0.0)
             continue;
         const auto x = static_cast<float>(column) / scale_;
         label(x, bar ? juce::String(absolute / ticksPerBar + 1) : barBeat(absolute));
@@ -855,6 +860,17 @@ void ScopeView::mouseDoubleClick(const juce::MouseEvent&)
 
 void ScopeView::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
+    // Sideways scrolling, or Shift with a plain wheel, moves a zoomed view (D-089). It follows the
+    // system's scrolling direction, like any content scrolled sideways.
+    const bool shift = event.mods.isShiftDown();
+    if (shift || std::abs(wheel.deltaX) > std::abs(wheel.deltaY))
+    {
+        const auto sideways = static_cast<double>(
+            shift && juce::exactlyEqual(wheel.deltaX, 0.0f) ? wheel.deltaY : wheel.deltaX);
+        setZoom(zoom_.panned(-sideways * wheelPanRate * zoom_.span));
+        return;
+    }
+
     // Up zooms in, whichever way the system scrolls content.
     const auto delta = static_cast<double>(wheel.isReversed ? -wheel.deltaY : wheel.deltaY);
     if (juce::exactlyEqual(delta, 0.0))
