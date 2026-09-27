@@ -11,7 +11,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - Step 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
 - MIDI Clock sync, steps 6 and 7, comes before frequency coloring, step 5 (D-072).
 - Steps 6, 7 and 7b (MIDI Clock transport, beat-synced sweep and horizontal zoom) are merged ([#12](https://github.com/stephanterning/visona/pull/12)) (D-082).
-- After testing step 7b, the maintainer asked for refinements that are not steps of their own: the grid and reference lines (D-087, D-088), moving the zoom (D-089) and `FREE` with manual BPM (D-090).
+- After testing step 7b, the maintainer asked for refinements that are not steps of their own: the grid and reference lines (D-087, D-088), moving the zoom (D-089) and `FREE` with manual BPM (D-090). Later he asked for a measurement ruler (D-094).
 
 ## 1. MVP 1.0
 

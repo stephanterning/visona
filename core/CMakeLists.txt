@@ -13,6 +13,7 @@ add_library(visona_core STATIC
     include/visona/LaneMapping.h
     include/visona/MidiClockEvent.h
     include/visona/MidiClockTransport.h
+    include/visona/Ruler.h
     include/visona/ScopeGrid.h
     include/visona/SourceLayout.h
     include/visona/SpscQueue.h
@@ -33,6 +34,7 @@ add_library(visona_core STATIC
     src/ColumnReduction.cpp
     src/LaneMapping.cpp
     src/MidiClockTransport.cpp
+    src/Ruler.cpp
     src/ScopeGrid.cpp
     src/SourceLayout.cpp
     src/SweepAnalyzer.cpp
