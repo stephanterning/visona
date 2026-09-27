@@ -3,24 +3,18 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include <array>
 #include <cmath>
 #include <limits>
 #include <string>
 
-using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinRel;
-using visona::RulerLane;
-using visona::RulerLevel;
 using visona::RulerTimeAxis;
 
 namespace
 {
 
 const std::string minus = "\xe2\x88\x92";
-const std::string infinity = "\xe2\x88\x9e";
 const std::string dash = "\xe2\x80\x94";
-const std::string below = " \xe2\x96\xbe";
 const std::string dot = " \xc2\xb7 ";
 
 RulerTimeAxis oneBarAt120()
@@ -112,51 +106,6 @@ TEST_CASE("Notes are named as in Live, with middle C as C3", "[ruler]")
     CHECK_FALSE(visona::noteNameOf(std::numeric_limits<double>::infinity()).has_value());
 }
 
-TEST_CASE("The ruler reads levels off the amplitude scale as shown", "[ruler]")
-{
-    const std::array lane{RulerLane{0.0, 200.0}};
-
-    CHECK_THAT(visona::rulerLevelAt(0.0, lane, 1.0f)->db, WithinAbs(0.0, 1e-9));
-    CHECK_THAT(visona::rulerLevelAt(50.0, lane, 1.0f)->db, WithinAbs(-6.0206, 1e-4));
-    CHECK_FALSE(visona::rulerLevelAt(50.0, lane, 1.0f)->belowCentre);
-
-    // Below the centre line the scale is mirrored, as the reference lines are.
-    const auto lower = visona::rulerLevelAt(150.0, lane, 1.0f);
-    CHECK_THAT(lower->db, WithinAbs(-6.0206, 1e-4));
-    CHECK(lower->belowCentre);
-
-    CHECK(std::isinf(visona::rulerLevelAt(100.0, lane, 1.0f)->db));
-
-    // With +12 dB of display gain, the lane's edge is -12 dBFS, where the reference line says.
-    const auto gain = std::pow(10.0f, 12.0f / 20.0f);
-    CHECK_THAT(visona::rulerLevelAt(0.0, lane, gain)->db, WithinAbs(-12.0, 1e-4));
-    CHECK_THAT(visona::rulerLevelAt(50.0, lane, gain)->db, WithinAbs(-18.0206, 1e-4));
-}
-
-TEST_CASE("The ruler reads each height in the lane it lies in", "[ruler]")
-{
-    const std::array lanes{RulerLane{0.0, 100.0}, RulerLane{104.0, 100.0}};
-
-    // The centre of the lower lane.
-    CHECK(std::isinf(visona::rulerLevelAt(154.0, lanes, 1.0f)->db));
-    // Halfway up the lower lane's upper half.
-    CHECK_THAT(visona::rulerLevelAt(129.0, lanes, 1.0f)->db, WithinAbs(-6.0206, 1e-4));
-
-    // On the divider, the nearest lane's edge.
-    const auto upperEdge = visona::rulerLevelAt(101.0, lanes, 1.0f);
-    CHECK_THAT(upperEdge->db, WithinAbs(0.0, 1e-9));
-    CHECK(upperEdge->belowCentre);
-    const auto lowerEdge = visona::rulerLevelAt(103.5, lanes, 1.0f);
-    CHECK_THAT(lowerEdge->db, WithinAbs(0.0, 1e-9));
-    CHECK_FALSE(lowerEdge->belowCentre);
-
-    // Past the scope's edges, the outer lanes' edges.
-    CHECK_THAT(visona::rulerLevelAt(-20.0, lanes, 1.0f)->db, WithinAbs(0.0, 1e-9));
-    CHECK_THAT(visona::rulerLevelAt(400.0, lanes, 1.0f)->db, WithinAbs(0.0, 1e-9));
-
-    CHECK_FALSE(visona::rulerLevelAt(10.0, {}, 1.0f).has_value());
-}
-
 TEST_CASE("The musical length names note values and bars", "[ruler]")
 {
     const visona::TimeSignature fourFour;
@@ -179,58 +128,33 @@ TEST_CASE("The musical length names note values and bars", "[ruler]")
 
 TEST_CASE("The readout lists the ruler's values", "[ruler]")
 {
-    const RulerLevel start{-7.3219, false};
-    const RulerLevel end{-4.6519, true};
-    const auto rows = visona::rulerReadout(oneBarAt120(), 1.0 / 16.0, start, end);
+    const auto rows = visona::rulerReadout(oneBarAt120(), 1.0 / 16.0);
 
-    REQUIRE(rows.size() == 8);
+    REQUIRE(rows.size() == 5);
     CHECK(rows[0].first == "ms");
     CHECK(valueOf(rows, "ms") == "125.00");
     CHECK(valueOf(rows, "samples") == "12000");
     CHECK(valueOf(rows, "frequency") == "8.00 Hz");
     CHECK(valueOf(rows, "note") == "C" + minus + "2 " + minus + "38 ct");
     CHECK(valueOf(rows, "length") == "0.25 beats" + dot + "1/16");
-    CHECK(valueOf(rows, "start") == minus + "7.32 dB");
-    CHECK(valueOf(rows, "end") == minus + "4.65 dB" + below);
-    CHECK(valueOf(rows, "delta") == "+2.67 dB");
 }
 
 TEST_CASE("The readout shows a dash for what it cannot know", "[ruler]")
 {
     auto axis = oneBarAt120();
     axis.sampleRate = 0.0;
-    auto rows = visona::rulerReadout(axis, 0.5, std::nullopt, std::nullopt);
+    auto rows = visona::rulerReadout(axis, 0.5);
     CHECK(valueOf(rows, "ms") == "1000.00");
     CHECK(valueOf(rows, "samples") == dash);
-    CHECK(valueOf(rows, "start") == dash);
-    CHECK(valueOf(rows, "delta") == dash);
 
     axis.bpm = 0.0;
-    rows = visona::rulerReadout(axis, 0.5, std::nullopt, std::nullopt);
+    rows = visona::rulerReadout(axis, 0.5);
     for (const auto& label : {"ms", "samples", "frequency", "note", "length"})
         CHECK(valueOf(rows, label) == dash);
 
     // A ruler with no width has a length but no frequency.
-    rows = visona::rulerReadout(oneBarAt120(), 0.0, std::nullopt, std::nullopt);
+    rows = visona::rulerReadout(oneBarAt120(), 0.0);
     CHECK(valueOf(rows, "ms") == "0.00");
     CHECK(valueOf(rows, "frequency") == dash);
     CHECK(valueOf(rows, "note") == dash);
-}
-
-TEST_CASE("The readout's levels handle the centre line", "[ruler]")
-{
-    const RulerLevel centre{-std::numeric_limits<double>::infinity(), false};
-    const RulerLevel half{-6.02, false};
-    auto rows = visona::rulerReadout(oneBarAt120(), 0.5, centre, half);
-    CHECK(valueOf(rows, "start") == minus + infinity + " dB");
-    CHECK(valueOf(rows, "delta") == "+" + infinity + " dB");
-
-    rows = visona::rulerReadout(oneBarAt120(), 0.5, half, centre);
-    CHECK(valueOf(rows, "delta") == minus + infinity + " dB");
-
-    rows = visona::rulerReadout(oneBarAt120(), 0.5, centre, centre);
-    CHECK(valueOf(rows, "delta") == "0.00 dB");
-
-    rows = visona::rulerReadout(oneBarAt120(), 0.5, half, half);
-    CHECK(valueOf(rows, "delta") == "0.00 dB");
 }

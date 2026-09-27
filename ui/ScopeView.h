@@ -53,10 +53,8 @@ namespace visona
     The measurement ruler (D-094) is a rectangle drawn by dragging with the right button, a
     two-finger click or Control, or on a touchscreen by holding a finger still for half a second
     and then dragging. It lives only while the button or finger is held. It is read against the
-    axes as shown, never the audio: its width gives ms, samples, frequency, note and musical
-    length from the window, zoom and tempo, and the heights where it started and where the
-    pointer is give levels in dBFS on the amplitude scale, display gain included. It may span
-    both lanes.
+    time axis as shown, never the audio: its width gives ms, samples, frequency, note and musical
+    length from the window, zoom and tempo. It may span both lanes.
 
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
     vertical image tiles. Frames follow the display's vertical blank, capped at 60 per second, and

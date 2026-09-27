@@ -1,6 +1,5 @@
 #include "visona/Ruler.h"
 
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -14,9 +13,7 @@ namespace
 
 // UTF-8, as the UI draws them.
 constexpr const char* minusSign = "\xe2\x88\x92";
-constexpr const char* infinitySign = "\xe2\x88\x9e";
 constexpr const char* dash = "\xe2\x80\x94";
-constexpr const char* belowCentreMark = " \xe2\x96\xbe";
 constexpr const char* middleDot = " \xc2\xb7 ";
 
 /** Within this fraction of a length, it counts as a whole note value or whole bars. */
@@ -37,28 +34,6 @@ std::string formatNumber(double value, int decimals, bool withSign = false)
     if (value < 0.0)
         return minusSign + digits;
     return withSign ? "+" + digits : digits;
-}
-
-std::string formatLevel(const RulerLevel& level)
-{
-    auto text = std::isfinite(level.db) ? formatNumber(level.db, 2) + " dB"
-                                        : std::string(minusSign) + infinitySign + " dB";
-    if (level.belowCentre)
-        text += belowCentreMark;
-    return text;
-}
-
-std::string formatDelta(const RulerLevel& start, const RulerLevel& end)
-{
-    const bool startFinite = std::isfinite(start.db);
-    const bool endFinite = std::isfinite(end.db);
-    if (!startFinite && !endFinite)
-        return formatNumber(0.0, 2) + " dB";
-    if (!startFinite)
-        return std::string("+") + infinitySign + " dB";
-    if (!endFinite)
-        return std::string(minusSign) + infinitySign + " dB";
-    return formatNumber(end.db - start.db, 2, true) + " dB";
 }
 
 bool isNear(double value, double whole) noexcept
@@ -110,38 +85,6 @@ std::string formatNote(const NoteName& note)
     return names[static_cast<std::size_t>(note.pitchClass % 12)] + octave + " " + cents + " ct";
 }
 
-std::optional<RulerLevel> rulerLevelAt(double y, std::span<const RulerLane> lanes,
-                                       float gain) noexcept
-{
-    if (lanes.empty() || !std::isfinite(y))
-        return std::nullopt;
-
-    // The lane y lies in, or the one whose edge is nearest.
-    const RulerLane* nearest = nullptr;
-    auto nearestDistance = std::numeric_limits<double>::infinity();
-    for (const auto& lane : lanes)
-    {
-        const auto bottom = lane.top + lane.height;
-        const auto distance = y < lane.top ? lane.top - y : (y > bottom ? y - bottom : 0.0);
-        if (distance < nearestDistance)
-        {
-            nearest = &lane;
-            nearestDistance = distance;
-        }
-    }
-    const auto halfHeight = nearest->height * 0.5;
-    const auto clamped = std::clamp(y, nearest->top, nearest->top + nearest->height);
-    const auto scale = gain > 0.0f ? static_cast<double>(gain) : 1.0;
-    const auto value =
-        halfHeight > 0.0 ? (nearest->top + halfHeight - clamped) / (scale * halfHeight) : 0.0;
-
-    RulerLevel level;
-    level.belowCentre = value < 0.0;
-    level.db = value == 0.0 ? -std::numeric_limits<double>::infinity()
-                            : 20.0 * std::log10(std::abs(value));
-    return level;
-}
-
 std::string formatMusicalLength(double ticks, const TimeSignature& timeSignature)
 {
     const auto ticksPerBeat = timeSignature.ticksPerBeat();
@@ -168,11 +111,10 @@ std::string formatMusicalLength(double ticks, const TimeSignature& timeSignature
     return text;
 }
 
-std::vector<RulerRow> rulerReadout(const RulerTimeAxis& axis, double viewFraction,
-                                   std::optional<RulerLevel> start, std::optional<RulerLevel> end)
+std::vector<RulerRow> rulerReadout(const RulerTimeAxis& axis, double viewFraction)
 {
     std::vector<RulerRow> rows;
-    rows.reserve(8);
+    rows.reserve(5);
 
     const auto time = rulerTimeOf(axis, viewFraction);
     const auto note = time ? noteNameOf(time->hertz) : std::nullopt;
@@ -185,10 +127,6 @@ std::vector<RulerRow> rulerReadout(const RulerTimeAxis& axis, double viewFractio
                                        : dash);
     rows.emplace_back("note", note ? formatNote(*note) : dash);
     rows.emplace_back("length", time ? formatMusicalLength(time->ticks, axis.timeSignature) : dash);
-
-    rows.emplace_back("start", start ? formatLevel(*start) : dash);
-    rows.emplace_back("end", end ? formatLevel(*end) : dash);
-    rows.emplace_back("delta", start && end ? formatDelta(*start, *end) : dash);
     return rows;
 }
 

@@ -1037,16 +1037,7 @@ std::vector<RulerRow> ScopeView::rulerRows() const
     axis.timeSignature = snapshot.timeSignature;
     const auto width = static_cast<double>(std::max(1, getWidth()));
     const auto fraction = static_cast<double>(std::abs(rulerEnd_.x - rulerStart_.x)) / width;
-
-    // Lanes are in physical pixels.
-    std::vector<RulerLane> lanes;
-    lanes.reserve(lanes_.size());
-    for (const auto& lane : lanes_)
-        lanes.push_back({static_cast<double>(lane.top), static_cast<double>(lane.height)});
-    const auto gain = DisplayGain::toLinear(gainDb_);
-    const auto levelAt = [&](float y)
-    { return rulerLevelAt(static_cast<double>(y * scale_), lanes, gain); };
-    return rulerReadout(axis, fraction, levelAt(rulerStart_.y), levelAt(rulerEnd_.y));
+    return rulerReadout(axis, fraction);
 }
 
 juce::Rectangle<float> ScopeView::readoutArea(const std::vector<RulerRow>& rows) const

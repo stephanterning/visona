@@ -3,7 +3,6 @@
 #include <visona/TimeSignature.h>
 
 #include <optional>
-#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -12,9 +11,8 @@ namespace visona
 {
 
 /**
-    The measurement ruler (D-094): a rectangle drawn on the scope, read against the axes as shown.
-    Its width is read against the time axis and its top and bottom edges against the amplitude
-    scale. It never looks at the audio or the waveform.
+    The measurement ruler (D-094): a rectangle drawn on the scope, whose width is read against the
+    time axis as shown. It never looks at the audio or the waveform.
 */
 
 /** The time axis as shown: the window, how much of it is in view, and the tempo it runs at. */
@@ -62,31 +60,6 @@ struct NoteName
 /** Such as "G#-2 +22 ct". */
 [[nodiscard]] std::string formatNote(const NoteName& note);
 
-/** One lane as the ruler reads it, in any vertical unit: rows from `top` for `height`. */
-struct RulerLane
-{
-    double top = 0.0;
-    double height = 1.0;
-};
-
-/** A level read off the amplitude scale. */
-struct RulerLevel
-{
-    /** dBFS of the level's magnitude, minus infinity on the centre line. */
-    double db = 0.0;
-    /** Whether the position is below the lane's centre line. */
-    bool belowCentre = false;
-};
-
-/**
-    The level at height `y` on the amplitude scale as shown, with `gain` the linear display gain:
-    the value that would be drawn there, as the reference lines label it (D-088). `y` is read in
-    the lane it lies in; between lanes, or outside all of them, at the nearest lane's edge.
-    Nothing without lanes.
-*/
-[[nodiscard]] std::optional<RulerLevel> rulerLevelAt(double y, std::span<const RulerLane> lanes,
-                                                     float gain) noexcept;
-
 /**
     The musical length of `ticks`, such as "0.75 beat · 3/16" or "4.00 beats · 1 bar": the number
     of beats, and the note value or whole bars it is within 2 % of, if any. Note values go down to
@@ -97,13 +70,8 @@ struct RulerLevel
 /** One row of the ruler's readout: a label and its value. */
 using RulerRow = std::pair<std::string, std::string>;
 
-/**
-    The readout of a ruler `viewFraction` of the view wide, from `start` to `end`: ms, samples,
-    frequency, note, musical length, and the start, end and delta levels. Values that cannot be
-   known show a dash.
-*/
-[[nodiscard]] std::vector<RulerRow> rulerReadout(const RulerTimeAxis& axis, double viewFraction,
-                                                 std::optional<RulerLevel> start,
-                                                 std::optional<RulerLevel> end);
+/** The readout of a ruler `viewFraction` of the view wide: ms, samples, frequency, note and
+    musical length. Values that cannot be known show a dash. */
+[[nodiscard]] std::vector<RulerRow> rulerReadout(const RulerTimeAxis& axis, double viewFraction);
 
 } // namespace visona

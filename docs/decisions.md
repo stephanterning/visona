@@ -372,12 +372,12 @@ A lightweight log of decisions and open questions. The architecture is described
   - Teal, like Mega Scope, is the default, and cyan, blue, violet, pink, amber, yellow and grey the others: calm but clear on black. Green is left out, since it is the head's colour.
   - The colour is a row of swatches in the settings panel, and is saved.
   - It only colours the waveform. A colour for the UI's own components may come later.
-- **D-094 — A measurement ruler: drag with the right button to draw a rectangle, read against the axes as shown.** `Active`
+- **D-094 — A measurement ruler: drag with the right button to draw a rectangle, whose width is read against the time axis as shown.** `Active`
   - The maintainer asked for it, modelled on Oszillos Mega Scope's measure overlay. It is a ruler, not an analysis: the values never depend on the audio or the waveform drawn, and it may be drawn anywhere, across both lanes.
   - Dragging with the right button, a two-finger click on a trackpad or Control-click draws the rectangle; a left drag still zooms (D-085). On a touchscreen, which has no right button (D-025), a finger held still for half a second, within 8 pixels, and then dragged draws it. The rectangle and a readout beside the pointer exist only while the button or finger is held, and go away on release. Nothing is kept, and it does not snap.
   - The width is read against the time axis as shown, from the window, the zoom and the tempo of the sweep: the free tempo in `FREE`, MIDI Clock's estimate otherwise. The readout shows `ms`, `samples`, `frequency` (1 / the length), `note` and `length`. The values follow the tempo and the zoom live while the ruler is held.
   - Notes are named as in Ableton Live and Mega Scope, with middle C as C3 and A3 at 440 Hz, plus cents, such as `G#-2 +23 ct`. The length is in beats, with the note value down to sixty-fourths, or whole bars, that it is within 2 % of, such as `0.75 beats · 3/16`.
-  - The heights where the drag started and where the pointer is are read against the amplitude scale as shown, display gain included, as the reference lines label it (D-088): `start`, `end` and `delta` in dBFS, so at +12 dB of gain a lane's edge reads −12 dBFS. Each height is read in the lane it lies in, and on the divider or past the scope's edge at the nearest lane's edge. The centre line reads −∞ dB, and below it the scale is mirrored, marked `▾`.
+  - The readout has no levels for now. Mega Scope also shows start, end and delta dB from the rectangle's height; the maintainer asked to leave them out until further notice.
   - Precision is one pixel: at 120 BPM and 96 kHz on a scope about 1,500 logical pixels wide, about 1.3 ms at 1 bar unzoomed and 0.04 ms at 32×. With MIDI Clock the tempo estimate adds a small error, and a tempo change within the window is read at the current tempo.
   - The calculations are in the core (`Ruler.h`) and tested there; `ScopeView` draws the rectangle and the readout.
 
