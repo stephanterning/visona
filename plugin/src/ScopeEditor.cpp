@@ -66,10 +66,10 @@ ScopeEditor::ScopeEditor(PluginAnalysisThread& analysis, const SourceLayout& lay
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
-    controlBar_.tempo().setEditable(false);
+    controlBar_.setTempoVisible(false);
+    controlBar_.setFullScreenVisible(false);
     controlBar_.onSettings = [this] { showAppearance(!appearancePanel_.isVisible()); };
     controlBar_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
-    controlBar_.onFullScreen = nullptr;
 
     scope_.onTransportChange = [this]
     {
@@ -186,7 +186,11 @@ void ScopeEditor::timerCallback()
 
 void ScopeEditor::setGainDb(int gainDb)
 {
+    gainDb = DisplayGain::clampDb(gainDb);
+    if (gainDb == state_.gainDb)
+        return;
     scope_.setGainDb(gainDb);
+    controlBar_.gain().setGainDb(gainDb);
     state_.gainDb = gainDb;
     notifyStateChange();
     updateStatus();
@@ -244,7 +248,6 @@ void ScopeEditor::showDiagnostics(bool shouldShow)
 void ScopeEditor::updateStatus()
 {
     const auto& snapshot = scope_.snapshot();
-    controlBar_.tempo().setBpm(snapshot.bpm);
 
     StatusBar::Values values;
     if (snapshot.bpm > 0.0)
