@@ -4,7 +4,7 @@ This guide prepares a **Raspberry Pi 4** with a **7" display**, **WiFi**, **SSH*
 
 For compiling and running Visona on the Pi, see [pi-build.md](pi-build.md).
 
-Kiosk mode (autostart, fullscreen on boot) is **not** implemented yet. After this guide you can SSH from the Mac, build Visona once, and launch it from the desktop or over SSH with `DISPLAY` set.
+After this guide you can build Visona and optionally enable kiosk autostart with [pi-kiosk.md](pi-kiosk.md).
 
 ## What you need
 
@@ -129,7 +129,7 @@ Diagnostics in Visona: press **D** (needs a keyboard once, or map touch to keybo
 
 ## What is not ready yet
 
-- **Autostart / fullscreen on boot** — planned for the Pi appliance milestone; not in the current Pi port.
+- **Autostart / fullscreen on boot** — see [pi-kiosk.md](pi-kiosk.md).
 - **Auto-select Babyface** — same as macOS MVP: last saved device is restored; if missing at startup, Visona shows **NO AUDIO INPUT** (D-064).
 - **Headless-only** — Visona needs X11/XWayland; the 7" HDMI desktop session is the right test setup.
 
@@ -147,4 +147,4 @@ Diagnostics in Visona: press **D** (needs a keyboard once, or map touch to keybo
 
 1. Confirm waveform and MIDI sync on Pi match your Mac PoC.
 2. Report CPU use (diagnostics overlay) at 48 kHz and your typical window size.
-3. When the Pi port merges, we can add **kiosk autostart** so power-on goes straight to fullscreen Visona without SSH.
+3. Enable **kiosk autostart** with `./scripts/pi/install-kiosk.sh --enable-autologin` (see [pi-kiosk.md](pi-kiosk.md)).

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Launches Visona in kiosk mode and disables screen blanking on X11.
+set -euo pipefail
+
+if [[ -z "${DISPLAY:-}" ]]; then
+    export DISPLAY=:0
+fi
+
+if command -v xset >/dev/null 2>&1; then
+    xset -dpms || true
+    xset s off || true
+    xset s noblank || true
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+BIN="${VISONA_BIN:-${REPO_ROOT}/build/pi/app/Visona_artefacts/Release/Visona}"
+
+if [[ ! -x "${BIN}" ]]; then
+    echo "Visona binary not found or not executable: ${BIN}" >&2
+    echo "Build first: cmake --preset pi && cmake --build --preset pi" >&2
+    exit 1
+fi
+
+exec "${BIN}" --kiosk "$@"

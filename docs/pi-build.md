@@ -2,7 +2,7 @@
 
 Visona runs on **Raspberry Pi OS 64-bit** (Bookworm or later) as a native Linux ARM64 app using JUCE's ALSA backend. The target interface is a **RME Babyface Pro FS** in USB Class Compliant mode (no RME Linux drivers).
 
-This document covers a developer build and manual smoke test. Kiosk mode, autostart, and fullscreen deployment are not part of this port yet.
+This document covers a developer build and manual smoke test. For boot-to-fullscreen kiosk setup, see [pi-kiosk.md](pi-kiosk.md).
 
 ## Prerequisites
 
@@ -141,7 +141,7 @@ Press **D** to toggle the diagnostics overlay (block size, ring overruns, alloca
 | **Wayland-native** | JUCE on Linux targets X11. Running under XWayland on Pi desktop sessions is expected; a pure Wayland kiosk setup is future work. |
 | **Device timestamps** | ALSA callbacks do not supply per-block host timestamps like CoreAudio. Visona falls back to `std::chrono::steady_clock` on Linux (see `app/src/HostTime.h`). MIDI/audio alignment may differ slightly from macOS until offset tuning is verified on Pi hardware. |
 | **Hotplug / reconnect** | Same as macOS MVP: no hotplug or automatic reconnect (D-033). |
-| **Kiosk / autostart** | Not implemented in this port. |
+| **Kiosk / autostart** | See [pi-kiosk.md](pi-kiosk.md). Requires desktop autologin plus `install-kiosk.sh`. |
 
 ## Troubleshooting
 
