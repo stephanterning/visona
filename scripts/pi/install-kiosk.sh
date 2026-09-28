@@ -52,6 +52,22 @@ EOF
 
 chmod 644 "${DESKTOP_FILE}"
 
+# Raspberry Pi OS Bookworm/Trixie (labwc) draws the menubar with wf-panel-pi, which stays
+# above XWayland windows. Comment out its autostart entry so the panel does not respawn.
+LABWC_AUTOSTART="/etc/xdg/labwc/autostart"
+LABWC_BACKUP="${LABWC_AUTOSTART}.visona-kiosk.bak"
+if [[ -f "${LABWC_AUTOSTART}" ]] && grep -q 'wf-panel-pi' "${LABWC_AUTOSTART}"; then
+    if [[ ! -f "${LABWC_BACKUP}" ]]; then
+        echo "Backing up ${LABWC_AUTOSTART} to ${LABWC_BACKUP}"
+        sudo cp "${LABWC_AUTOSTART}" "${LABWC_BACKUP}"
+    fi
+    if grep -q '^[^#].*wf-panel-pi' "${LABWC_AUTOSTART}"; then
+        echo "Disabling wf-panel-pi autostart in ${LABWC_AUTOSTART}"
+        sudo sed -i '/wf-panel-pi/s/^/#/' "${LABWC_AUTOSTART}"
+    fi
+    killall wf-panel-pi 2>/dev/null || true
+fi
+
 echo "Installed ${DESKTOP_FILE}"
 echo "Wrapper: ${WRAPPER}"
 echo "Binary:  ${BIN}"

@@ -79,6 +79,14 @@ If the saved device is missing at startup, Visona shows **NO AUDIO INPUT** until
 rm ~/.config/autostart/visona-kiosk.desktop
 ```
 
+Restore the Pi menubar if `install-kiosk.sh` disabled it:
+
+```sh
+sudo cp /etc/xdg/labwc/autostart.visona-kiosk.bak /etc/xdg/labwc/autostart
+killall wf-panel-pi 2>/dev/null || true
+/usr/bin/lwrespawn /usr/bin/wf-panel-pi &
+```
+
 ## Troubleshooting
 
 | Problem | What to try |
@@ -86,6 +94,8 @@ rm ~/.config/autostart/visona-kiosk.desktop
 | Black screen after login | Log in via SSH, run `./scripts/pi/visona-kiosk.sh` and read errors; check `DISPLAY=:0`. |
 | Visona does not start at login | Confirm `~/.config/autostart/visona-kiosk.desktop` exists; log out and in (not just reboot to text console). |
 | Screen goes blank | Wrapper runs `xset`; install `x11-xserver-utils` if missing: `sudo apt install x11-xserver-utils`. |
+| System menubar still visible | On Bookworm/Trixie (labwc) the panel is `wf-panel-pi`. Run `./scripts/pi/install-kiosk.sh` (disables panel autostart) or comment out the `wf-panel-pi` line in `/etc/xdg/labwc/autostart`, then reboot. |
+| `server does not have extension for -dpms` | Harmless on Wayland/XWayland; screen blanking is handled elsewhere. |
 | Window not fullscreen | Rebuild after updating `cursor/pi-kiosk-autostart-149a`; kiosk uses the full display, not JUCE's Linux work-area fullscreen. |
 | Quit without a close button | From SSH: `pkill Visona`. Kiosk mode has no window chrome. |
 | Wrong audio device | Open Settings once with keyboard/touch, save Babyface, restart. |

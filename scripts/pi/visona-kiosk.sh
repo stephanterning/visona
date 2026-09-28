@@ -13,12 +13,16 @@ if command -v xset >/dev/null 2>&1; then
 fi
 
 # Hide the desktop panel so Visona can cover the whole display (best effort per Pi OS flavour).
+# Bookworm/Trixie labwc uses wf-panel-pi; older LXDE uses lxpanel. install-kiosk.sh disables
+# wf-panel-pi autostart; this kills any panel still running before launch.
 if command -v lxpanelctl >/dev/null 2>&1; then
     lxpanelctl hide || true
 fi
-if pgrep -x wf-panel >/dev/null 2>&1; then
-    pkill -x wf-panel || true
+if command -v wfpanelctl >/dev/null 2>&1; then
+    wfpanelctl hide 2>/dev/null || true
 fi
+killall wf-panel-pi 2>/dev/null || true
+pkill -x wf-panel 2>/dev/null || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
