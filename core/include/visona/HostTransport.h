@@ -14,10 +14,12 @@ namespace visona
 /**
     A transport driven by a DAW host playhead (D-012 HostTransport).
 
-    The analysis thread calls syncTo() with the playhead at the end of the audio that has arrived.
-    It builds closed musical spans between successive playhead samples while the host is playing,
-    and frozen spans while stopped. There is no free-running or clock-loss state: when the host
-    plays, the sweep follows its tempo and position, including time signature changes.
+    The analysis thread calls syncTo() with every playhead the host reports, in order, each with
+    the sample it belongs to. While the host plays, the audio between two playheads is a musical
+    span from one position to the next, and the audio after the newest playhead is pending: it
+    waits for the next one. While the host is stopped the timeline is frozen. A playhead that is
+    not where the previous one leads, such as at a loop or a jump, starts the sweep over; the audio
+    before it keeps going from the previous position. There is no free-running or clock-loss state.
 
     One thread only. Storage is allocated in the constructor; nothing else allocates.
 */
@@ -41,8 +43,8 @@ public:
     void reset(double sampleRate) noexcept;
 
     /**
-        Updates the timeline to `sampleTime` using the host playhead. Ignored when `playhead.valid`
-        is false.
+        Adds the host playhead at `sampleTime` to the timeline. Ignored when `playhead.valid` is
+        false.
     */
     void syncTo(double sampleTime, const Playhead& playhead) noexcept;
 
@@ -84,6 +86,12 @@ public:
         return spanCount_;
     }
 
+    /** The most spans the timeline holds; beyond that the oldest ones are forgotten. */
+    [[nodiscard]] std::size_t spanCapacity() const noexcept
+    {
+        return spans_.size();
+    }
+
     [[nodiscard]] const TransportSpan& span(std::size_t index) const noexcept;
 
     /** The span that holds `sampleTime`, after dropping every span that ends before it. */
@@ -93,7 +101,8 @@ private:
     [[nodiscard]] TransportSpan& openSpan() noexcept;
     void pushOpen(TransportSpan::Kind kind, double start, double startTick) noexcept;
     void closeOpenAt(double sampleTime) noexcept;
-    void pushMusical(double start, double startTick, double end, double endTick) noexcept;
+    /** Turns the pending span into a musical one that ends at `sampleTime` and `endTick`. */
+    void endPendingAt(double sampleTime, double endTick) noexcept;
     [[nodiscard]] double framesPerTick() const noexcept;
     [[nodiscard]] double clampToTimeline(double sampleTime) const noexcept;
     [[nodiscard]] double tickFromPpq(double ppq) const noexcept;
@@ -106,9 +115,9 @@ private:
     std::int64_t nextTick_ = 0;
     std::uint64_t startCount_ = 0;
 
+    /** The newest playhead: its sample and its position in ticks. */
     double anchorSample_ = 0.0;
     double anchorTick_ = 0.0;
-    bool hasAnchor_ = false;
 
     std::vector<TransportSpan> spans_;
     std::size_t oldestSpan_ = 0;

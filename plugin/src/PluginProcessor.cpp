@@ -23,16 +23,15 @@ std::size_t ringCapacityFrames(double sampleRate, int bufferSize)
 } // namespace
 
 PluginProcessor::PluginProcessor()
-    : juce::AudioProcessor(
-          BusesProperties()
-              .withInput("Input", juce::AudioChannelSet::stereo(), true)
-              .withInput("Sidechain", juce::AudioChannelSet::mono(), false)
-              .withOutput("Output", juce::AudioChannelSet::stereo(), true))
+    : juce::AudioProcessor(BusesProperties()
+                               .withInput("Input", juce::AudioChannelSet::stereo(), true)
+                               .withInput("Sidechain", juce::AudioChannelSet::mono(), false)
+                               .withOutput("Output", juce::AudioChannelSet::stereo(), true))
     , analysis_(layout_.totalChannelCount())
 {
     instanceState_.waveformMode = globalDefaults_.waveformMode();
-    instanceState_.waveformColour = globalDefaults_.waveformColour(
-        palette::waveformColours.size(), palette::defaultWaveformColour);
+    instanceState_.waveformColour = globalDefaults_.waveformColour(palette::waveformColours.size(),
+                                                                   palette::defaultWaveformColour);
 }
 
 PluginProcessor::~PluginProcessor() = default;
@@ -91,18 +90,19 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiB
     juce::ScopedNoDenormals noDenormals;
 
     const auto mainInput = getBusBuffer(buffer, true, 0);
+    const auto numSamples = static_cast<std::uint32_t>(mainInput.getNumSamples());
     for (int channel = 0; channel < mainInput.getNumChannels(); ++channel)
         channelPointers_[static_cast<std::size_t>(channel)] = mainInput.getReadPointer(channel);
 
-    if (writer_ != nullptr)
-        writer_->write(channelPointers_, static_cast<std::uint32_t>(mainInput.getNumSamples()), 0);
-
-    const auto numSamples = static_cast<std::uint32_t>(mainInput.getNumSamples());
-    streamSample_ += numSamples;
-
+    // The host reports the playhead at the block's first frame.
     const auto playhead = readPlayhead(static_cast<int>(numSamples));
     if (writer_ != nullptr)
-        analysis_.setPlayhead(static_cast<double>(writer_->nextSampleIndex()), playhead);
+    {
+        const auto blockStartSample = writer_->nextSampleIndex();
+        writer_->write(channelPointers_, numSamples, 0);
+        analysis_.pushPlayhead(blockStartSample, playhead);
+    }
+    streamSample_ += numSamples;
 
     sidechainInputEnabled_ = false;
     if (getBus(true, 1) != nullptr && getBus(true, 1)->isEnabled())
@@ -112,11 +112,11 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiB
         {
             sidechainInputEnabled_ = true;
             sidechainSync_.setSidechainEnabled(true);
-            sidechainSync_.processBlock(
-                {sidechainInput.getReadPointer(0),
-                 static_cast<std::size_t>(sidechainInput.getNumSamples())},
-                streamSample_, numSamples, playhead.ppqPosition, playhead.bpm,
-                playhead.timeSignature, sampleRate_, playhead.isPlaying);
+            sidechainSync_.processBlock({sidechainInput.getReadPointer(0),
+                                         static_cast<std::size_t>(sidechainInput.getNumSamples())},
+                                        streamSample_, numSamples, playhead.ppqPosition,
+                                        playhead.bpm, playhead.timeSignature, sampleRate_,
+                                        playhead.isPlaying);
         }
     }
 
@@ -151,9 +151,9 @@ HostTransport::Playhead PluginProcessor::readPlayhead(int numSamples) const noex
             else
                 playhead.timeSignature = lastKnownTimeSignature_;
 
-            playhead.valid = playhead.bpm > 0.0 &&
-                             (position->getPpqPosition().hasValue() ||
-                              position->getBpm().hasValue() || position->getIsPlaying());
+            playhead.valid =
+                playhead.bpm > 0.0 && (position->getPpqPosition().hasValue() ||
+                                       position->getBpm().hasValue() || position->getIsPlaying());
 
             if (playhead.valid)
             {

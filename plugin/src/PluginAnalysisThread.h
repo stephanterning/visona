@@ -25,9 +25,10 @@ public:
 
     void setStream(AudioRingBuffer* ring, double sampleRate);
 
-    void setPlayhead(double sampleTime, const HostTransport::Playhead& playhead) noexcept
+    void pushPlayhead(std::uint64_t blockStartSample,
+                      const HostTransport::Playhead& playhead) noexcept
     {
-        pipeline_.setPlayhead(sampleTime, playhead);
+        pipeline_.pushPlayhead(blockStartSample, playhead);
     }
 
     void setWindow(std::size_t windowIndex) noexcept

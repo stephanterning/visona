@@ -3,6 +3,7 @@
 #include <visona/AudioRingBuffer.h>
 #include <visona/HostTransport.h>
 #include <visona/MidiClockTransport.h>
+#include <visona/SpscQueue.h>
 #include <visona/SweepAnalyzer.h>
 #include <visona/SweepSnapshot.h>
 #include <visona/TripleBuffer.h>
@@ -15,12 +16,19 @@
 namespace visona
 {
 
+/** A host playhead and the stream index of the frame it belongs to. */
+struct TimedPlayhead
+{
+    std::uint64_t sampleIndex = 0;
+    HostTransport::Playhead playhead;
+};
+
 /**
     The analysis thread's work for a plugin, driven by a host playhead instead of MIDI Clock.
 
     Same threading rules as AnalysisPipeline: setStream() and poll() run under one lock on the
-    analysis side; setWindow(), setBandSplitting() and takePeak() may run from any thread.
-    Host playhead samples are written from the audio thread and read in poll().
+    analysis side; setWindow(), setBandSplitting(), setAnalysisOffset() and takePeak() may run from
+    any thread. The audio thread hands over the playhead of every block with pushPlayhead().
 */
 class HostAnalysisPipeline
 {
@@ -45,14 +53,17 @@ public:
     void setBandSplitting(bool enabled) noexcept;
 
     /**
-        Audio thread. Stores the host playhead at the end of the block just written. `sampleTime` is
-        the stream frame index after the block.
+        Audio thread. Queues the host playhead of a block. Hosts report the playhead at a block's
+        first frame, so `blockStartSample` is the stream index of that frame.
     */
-    void setPlayhead(double sampleTime, const HostTransport::Playhead& playhead) noexcept;
+    void pushPlayhead(std::uint64_t blockStartSample,
+                      const HostTransport::Playhead& playhead) noexcept;
 
     /**
-        Any thread. Frames subtracted from audio sample indices when mapping to the host grid
-        (sidechain-measured latency). Ignored unless sidechain sync is locked.
+        Any thread. How many frames the audio reaching the plugin lags its playhead, as measured
+        with Visona Sync. Ableton Live, for one, reports the same playhead to every plugin on a
+        track, so the audio after a plugin with latency arrives late. A positive offset draws the
+        audio that much earlier. A new offset restarts the sweep.
     */
     void setAnalysisOffset(double frames) noexcept;
 
@@ -67,16 +78,18 @@ public:
     [[nodiscard]] float takePeak(std::size_t channel) noexcept;
 
 private:
+    void applyOffset() noexcept;
+    void syncPlayheads() noexcept;
     void analyze(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
-                 const TransportSpan& span, double analysisOffset) noexcept;
-    void followStart(std::uint64_t startCount, std::uint64_t sampleIndex) noexcept;
+                 const TransportSpan& span) noexcept;
+    void followStart(std::uint64_t startCount) noexcept;
     [[nodiscard]] double windowTicks() const noexcept;
     void publish() noexcept;
-    [[nodiscard]] HostTransport::Playhead playheadForPoll() const noexcept;
 
     SweepAnalyzer analyzer_;
     TripleBuffer<SweepSnapshot> snapshots_;
     HostTransport transport_;
+    SpscQueue<TimedPlayhead> playheads_;
 
     AudioRingBuffer* ring_ = nullptr;
     std::uint64_t streamId_ = 0;
@@ -88,20 +101,13 @@ private:
     std::atomic<bool> bandSplitting_{false};
     std::size_t window_;
 
-    std::atomic<bool> playheadValid_{false};
-    std::atomic<bool> playheadPlaying_{false};
-    std::atomic<double> playheadSample_{0.0};
-    std::atomic<double> playheadPpq_{0.0};
-    std::atomic<double> playheadBpm_{0.0};
-    std::atomic<int> playheadNumerator_{4};
-    std::atomic<int> playheadDenominator_{4};
-    std::atomic<double> analysisOffset_{0.0};
+    std::atomic<double> requestedOffset_{0.0};
+    /** The offset the timeline was built with, in whole frames. */
+    double offset_ = 0.0;
 
-    /** Updated when the host sends a valid playhead; used when it drops out briefly. */
-    double lastKnownBpm_ = 0.0;
-    double lastKnownPpq_ = 0.0;
-    bool lastKnownPlaying_ = false;
-    TimeSignature lastKnownTimeSignature_{};
+    /** The newest valid playhead, to go on from across blocks where the host reports none. */
+    bool hasLastPlayhead_ = false;
+    TimedPlayhead lastPlayhead_;
 
     bool followsStart_ = false;
     std::uint64_t followedStart_ = 0;
