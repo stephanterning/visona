@@ -57,9 +57,8 @@ private:
         float peak = 0.0f;
     };
 
-    [[nodiscard]] PeakHit findBarPeak(std::span<const float> sidechain,
-                                      std::uint64_t blockStartSample,
-                                      double searchCenterSample, int searchHalfWidth) const noexcept;
+    [[nodiscard]] PeakHit findStrongestPeak(std::span<const float> sidechain,
+                                            std::uint64_t blockStartSample) const noexcept;
 
     SidechainSyncState state_ = SidechainSyncState::off;
     double offsetFrames_ = 0.0;

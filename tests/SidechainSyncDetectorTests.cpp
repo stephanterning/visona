@@ -2,6 +2,9 @@
 #include <visona/SidechainSyncDetector.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+using Catch::Matchers::WithinAbs;
 
 using visona::SidechainSyncDetector;
 using visona::SidechainSyncState;
@@ -72,6 +75,34 @@ TEST_CASE("SidechainSyncDetector locks with PDC-like sidechain delay", "[sync]")
 
     CHECK(detector.state() == SidechainSyncState::locked);
     CHECK(detector.offsetFrames() == sidechainDelay);
+}
+
+TEST_CASE("SidechainSyncDetector locks when impulse arrives in a later block", "[sync]")
+{
+    constexpr double sampleRate = 48'000.0;
+    constexpr double bpm = 120.0;
+    constexpr std::uint32_t blockSize = 1024;
+    const auto framesPerBar = static_cast<std::uint32_t>(sampleRate * 2.0);
+    const TimeSignature timeSignature{4, 4};
+    constexpr std::uint32_t sidechainDelay = 600;
+
+    SidechainSyncDetector detector;
+    detector.setSidechainEnabled(true);
+
+    const std::uint64_t barTwoStart = framesPerBar;
+    const std::uint64_t blockStart = barTwoStart + 512;
+    const std::uint64_t streamSample = blockStart + blockSize;
+    const auto ppqAtBlockStart =
+        8.0 + static_cast<double>(blockStart - barTwoStart) / (sampleRate * 60.0 / bpm);
+
+    auto samples = blockWithImpulse(blockSize, sidechainDelay);
+    detector.processBlock(samples, streamSample, blockSize, ppqAtBlockStart, bpm,
+                          timeSignature, sampleRate, true);
+
+    CHECK(detector.state() == SidechainSyncState::locked);
+    const auto expectedOffset =
+        static_cast<double>(blockStart + sidechainDelay) - static_cast<double>(barTwoStart);
+    CHECK_THAT(detector.offsetFrames(), WithinAbs(expectedOffset, 1.0));
 }
 
 TEST_CASE("SidechainSyncDetector stays locked when a bar is missed", "[sync]")

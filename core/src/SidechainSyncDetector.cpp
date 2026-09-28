@@ -3,7 +3,6 @@
 #include <visona/BarImpulseScheduler.h>
 
 #include <cmath>
-#include <vector>
 
 namespace visona
 {
@@ -11,8 +10,24 @@ namespace visona
 namespace
 {
 
-constexpr float minPeak = 0.08f;
-constexpr int searchHalfWidth = 4096;
+constexpr float minSyncPeak = 0.30f;
+constexpr float maxSyncPeak = 0.70f;
+
+double samplesPerQuarterNote(double bpm, double sampleRate) noexcept
+{
+    return sampleRate * 60.0 / std::max(bpm, 1.0e-9);
+}
+
+double quarterNotesPerBar(TimeSignature timeSignature) noexcept
+{
+    return static_cast<double>(timeSignature.numerator) * 4.0 /
+           static_cast<double>(timeSignature.denominator);
+}
+
+double maxOffsetFrames(double bpm, TimeSignature timeSignature, double sampleRate) noexcept
+{
+    return quarterNotesPerBar(timeSignature) * samplesPerQuarterNote(bpm, sampleRate);
+}
 
 } // namespace
 
@@ -34,34 +49,21 @@ void SidechainSyncDetector::setSidechainEnabled(bool enabled) noexcept
         state_ = SidechainSyncState::waiting;
 }
 
-SidechainSyncDetector::PeakHit SidechainSyncDetector::findBarPeak(
-    std::span<const float> sidechain, std::uint64_t blockStartSample,
-    double searchCenterSample, int searchHalfWidthSamples) const noexcept
+SidechainSyncDetector::PeakHit SidechainSyncDetector::findStrongestPeak(
+    std::span<const float> sidechain, std::uint64_t blockStartSample) const noexcept
 {
     PeakHit hit;
-    if (sidechain.empty() || searchHalfWidthSamples <= 0)
-        return hit;
-
-    const auto searchCenter = static_cast<std::int64_t>(std::llround(searchCenterSample));
-    const auto windowStart = searchCenter - searchHalfWidthSamples;
-    const auto windowEnd = searchCenter + searchHalfWidthSamples;
-
     for (std::size_t index = 0; index < sidechain.size(); ++index)
     {
-        const auto sampleIndex =
-            static_cast<std::int64_t>(blockStartSample + static_cast<std::uint64_t>(index));
-        if (sampleIndex < windowStart || sampleIndex > windowEnd)
-            continue;
-
         const auto value = std::abs(sidechain[index]);
-        if (value < minPeak || value <= hit.peak)
+        if (value <= hit.peak)
             continue;
 
         hit.peak = value;
-        hit.sampleIndex = sampleIndex;
+        hit.sampleIndex =
+            static_cast<std::int64_t>(blockStartSample + static_cast<std::uint64_t>(index));
         hit.found = true;
     }
-
     return hit;
 }
 
@@ -78,32 +80,31 @@ void SidechainSyncDetector::processBlock(std::span<const float> sidechain,
         return;
 
     const auto blockStartSample = blockEndSample - numFrames;
-    std::vector<std::uint32_t> boundaries;
-    BarImpulseScheduler::impulsesInBlock(blockStartSample, numFrames, ppqAtBlockStart, bpm,
-                                         timeSignature, sampleRate, boundaries);
-    if (boundaries.empty())
+    const auto hit = findStrongestPeak(sidechain, blockStartSample);
+    if (!hit.found || hit.peak < minSyncPeak || hit.peak > maxSyncPeak)
         return;
 
-    for (const auto offset : boundaries)
-    {
-        const auto expectedBoundary =
-            static_cast<double>(blockStartSample + static_cast<std::uint64_t>(offset));
-        const auto searchCenter = state_ == SidechainSyncState::locked
-                                      ? expectedBoundary + offsetFrames_
-                                      : expectedBoundary;
-        const auto hit =
-            findBarPeak(sidechain, blockStartSample, searchCenter, searchHalfWidth);
-        if (!hit.found)
-            continue;
+    const auto samplesPerQuarter = samplesPerQuarterNote(bpm, sampleRate);
+    const auto barLength = quarterNotesPerBar(timeSignature);
+    const auto peakPpq =
+        ppqAtBlockStart +
+        (static_cast<double>(hit.sampleIndex) - static_cast<double>(blockStartSample)) /
+            samplesPerQuarter;
+    const auto nearestBar =
+        static_cast<std::int64_t>(std::floor(peakPpq / barLength + 1.0e-9));
+    const auto barPpq = static_cast<double>(nearestBar) * barLength;
+    const auto expectedBoundary = BarImpulseScheduler::sampleIndexOfBarBoundary(
+        ppqAtBlockStart, blockStartSample, barPpq, bpm, sampleRate);
+    const auto measuredOffset = static_cast<double>(hit.sampleIndex) - expectedBoundary;
+    if (std::abs(measuredOffset) > maxOffsetFrames(bpm, timeSignature, sampleRate))
+        return;
 
-        const auto measuredOffset = static_cast<double>(hit.sampleIndex) - expectedBoundary;
-        if (state_ == SidechainSyncState::locked)
-            offsetFrames_ = 0.9 * offsetFrames_ + 0.1 * measuredOffset;
-        else
-            offsetFrames_ = measuredOffset;
+    if (state_ == SidechainSyncState::locked)
+        offsetFrames_ = 0.9 * offsetFrames_ + 0.1 * measuredOffset;
+    else
+        offsetFrames_ = measuredOffset;
 
-        state_ = SidechainSyncState::locked;
-    }
+    state_ = SidechainSyncState::locked;
 }
 
 } // namespace visona
