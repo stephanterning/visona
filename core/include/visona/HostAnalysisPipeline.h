@@ -66,6 +66,7 @@ private:
     void followStart(std::uint64_t startCount, std::uint64_t sampleIndex) noexcept;
     [[nodiscard]] double windowTicks() const noexcept;
     void publish() noexcept;
+    [[nodiscard]] HostTransport::Playhead playheadForPoll() const noexcept;
 
     SweepAnalyzer analyzer_;
     TripleBuffer<SweepSnapshot> snapshots_;
@@ -88,6 +89,12 @@ private:
     std::atomic<double> playheadBpm_{0.0};
     std::atomic<int> playheadNumerator_{4};
     std::atomic<int> playheadDenominator_{4};
+
+    /** Updated when the host sends a valid playhead; used when it drops out briefly. */
+    double lastKnownBpm_ = 0.0;
+    double lastKnownPpq_ = 0.0;
+    bool lastKnownPlaying_ = false;
+    TimeSignature lastKnownTimeSignature_{};
 
     bool followsStart_ = false;
     std::uint64_t followedStart_ = 0;

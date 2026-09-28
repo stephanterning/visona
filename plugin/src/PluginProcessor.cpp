@@ -84,16 +84,31 @@ HostTransport::Playhead PluginProcessor::readPlayhead(int numSamples) const noex
     {
         if (auto position = head->getPosition())
         {
-            playhead.valid = position->getPpqPosition().hasValue() && position->getBpm().hasValue();
             playhead.isPlaying = position->getIsPlaying();
             if (position->getPpqPosition())
                 playhead.ppqPosition = *position->getPpqPosition();
+            else
+                playhead.ppqPosition = lastKnownPpq_;
             if (position->getBpm())
                 playhead.bpm = *position->getBpm();
+            else
+                playhead.bpm = lastKnownBpm_;
             if (position->getTimeSignature())
+                playhead.timeSignature = {position->getTimeSignature()->numerator,
+                                          position->getTimeSignature()->denominator};
+            else
+                playhead.timeSignature = lastKnownTimeSignature_;
+
+            playhead.valid = playhead.bpm > 0.0 &&
+                             (position->getPpqPosition().hasValue() ||
+                              position->getBpm().hasValue() || position->getIsPlaying());
+
+            if (playhead.valid)
             {
-                playhead.timeSignature.numerator = position->getTimeSignature()->numerator;
-                playhead.timeSignature.denominator = position->getTimeSignature()->denominator;
+                lastKnownBpm_ = playhead.bpm;
+                lastKnownPpq_ = playhead.ppqPosition;
+                lastKnownPlaying_ = playhead.isPlaying;
+                lastKnownTimeSignature_ = playhead.timeSignature;
             }
         }
     }

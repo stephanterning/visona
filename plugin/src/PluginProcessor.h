@@ -75,6 +75,11 @@ private:
     std::unique_ptr<AudioInputWriter> writer_;
     std::vector<const float*> channelPointers_;
     double sampleRate_ = 0.0;
+
+    mutable double lastKnownBpm_ = 120.0;
+    mutable double lastKnownPpq_ = 0.0;
+    mutable bool lastKnownPlaying_ = false;
+    mutable TimeSignature lastKnownTimeSignature_{};
 };
 
 } // namespace visona

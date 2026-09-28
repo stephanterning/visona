@@ -12,6 +12,9 @@ namespace visona
 namespace
 {
 
+/** Keeps each poll() short so prepareToPlay/releaseResources do not block the host for long. */
+constexpr std::size_t maxFramesPerPoll = 4'096;
+
 SweepSnapshot emptySnapshot(std::size_t numChannels, std::size_t numBins)
 {
     SweepSnapshot snapshot;
@@ -55,6 +58,10 @@ void HostAnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) n
     transport_.reset(sampleRate_);
     followsStart_ = false;
     playheadValid_.store(false, std::memory_order_relaxed);
+    lastKnownBpm_ = 0.0;
+    lastKnownPpq_ = 0.0;
+    lastKnownPlaying_ = false;
+    lastKnownTimeSignature_ = {};
     changed_ = true;
 }
 
@@ -81,6 +88,33 @@ void HostAnalysisPipeline::setPlayhead(double sampleTime,
     playheadDenominator_.store(playhead.timeSignature.denominator, std::memory_order_relaxed);
 }
 
+HostTransport::Playhead HostAnalysisPipeline::playheadForPoll() const noexcept
+{
+    HostTransport::Playhead playhead;
+    playhead.valid = playheadValid_.load(std::memory_order_relaxed);
+    playhead.isPlaying = playheadPlaying_.load(std::memory_order_relaxed);
+    playhead.ppqPosition = playheadPpq_.load(std::memory_order_relaxed);
+    playhead.bpm = playheadBpm_.load(std::memory_order_relaxed);
+    playhead.timeSignature.numerator = playheadNumerator_.load(std::memory_order_relaxed);
+    playhead.timeSignature.denominator = playheadDenominator_.load(std::memory_order_relaxed);
+
+    if (playhead.valid)
+        return playhead;
+
+    if (lastKnownBpm_ <= 0.0 || sampleRate_ <= 0.0 || ring_ == nullptr)
+        return playhead;
+
+    const auto newest = static_cast<double>(ring_->newestFrameEnd());
+    playhead.valid = true;
+    playhead.isPlaying = lastKnownPlaying_;
+    playhead.bpm = lastKnownBpm_;
+    playhead.timeSignature = lastKnownTimeSignature_;
+    playhead.ppqPosition =
+        lastKnownPpq_ + (newest - playheadSample_.load(std::memory_order_relaxed)) / sampleRate_ *
+                            (lastKnownBpm_ / 60.0);
+    return playhead;
+}
+
 std::size_t HostAnalysisPipeline::poll() noexcept
 {
     if (const auto window = requestedWindow_.load(std::memory_order_relaxed); window != window_)
@@ -101,13 +135,14 @@ std::size_t HostAnalysisPipeline::poll() noexcept
     std::size_t framesAnalyzed = 0;
     if (ring_ != nullptr)
     {
-        HostTransport::Playhead playhead;
-        playhead.valid = playheadValid_.load(std::memory_order_relaxed);
-        playhead.isPlaying = playheadPlaying_.load(std::memory_order_relaxed);
-        playhead.ppqPosition = playheadPpq_.load(std::memory_order_relaxed);
-        playhead.bpm = playheadBpm_.load(std::memory_order_relaxed);
-        playhead.timeSignature.numerator = playheadNumerator_.load(std::memory_order_relaxed);
-        playhead.timeSignature.denominator = playheadDenominator_.load(std::memory_order_relaxed);
+        auto playhead = playheadForPoll();
+        if (playheadValid_.load(std::memory_order_relaxed))
+        {
+            lastKnownBpm_ = playhead.bpm;
+            lastKnownPpq_ = playhead.ppqPosition;
+            lastKnownPlaying_ = playhead.isPlaying;
+            lastKnownTimeSignature_ = playhead.timeSignature;
+        }
 
         const auto newest = static_cast<double>(ring_->newestFrameEnd());
         transport_.syncTo(newest, playhead);
@@ -115,6 +150,9 @@ std::size_t HostAnalysisPipeline::poll() noexcept
 
         while (const auto region = ring_->peek())
         {
+            if (framesAnalyzed >= maxFramesPerPoll)
+                break;
+
             const auto first = region->sampleIndex();
             const auto& span = transport_.spanAt(static_cast<double>(first));
             if (span.kind == TransportSpan::Kind::pending)
@@ -124,6 +162,9 @@ std::size_t HostAnalysisPipeline::poll() noexcept
                 numFrames =
                     std::min(numFrames, static_cast<std::size_t>(std::ceil(span.end) -
                                                                  static_cast<double>(first)));
+            numFrames = std::min(numFrames, maxFramesPerPoll - framesAnalyzed);
+            if (numFrames == 0)
+                break;
             analyze(*region, numFrames, span);
             nextSampleIndex_ = first + numFrames;
             framesAnalyzed += numFrames;
