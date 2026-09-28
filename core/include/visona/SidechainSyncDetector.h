@@ -32,10 +32,10 @@ public:
 
     /**
         Processes one sidechain block. `blockEndSample` is the stream index after this block;
-        `ppqAtBlockEnd` is the host PPQ there.
+        `ppqAtBlockStart` is the host PPQ at the first frame of this block.
     */
     void processBlock(std::span<const float> sidechain, std::uint64_t blockEndSample,
-                     std::uint32_t numFrames, double ppqAtBlockEnd, double bpm,
+                     std::uint32_t numFrames, double ppqAtBlockStart, double bpm,
                      TimeSignature timeSignature, double sampleRate, bool hostPlaying) noexcept;
 
     [[nodiscard]] SidechainSyncState state() const noexcept

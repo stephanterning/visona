@@ -151,7 +151,7 @@ bool SidechainSyncDetector::peakLooksLikeImpulse(const PeakHit& hit,
 
 void SidechainSyncDetector::processBlock(std::span<const float> sidechain,
                                          std::uint64_t blockEndSample, std::uint32_t numFrames,
-                                         double ppqAtBlockEnd, double bpm,
+                                         double ppqAtBlockStart, double bpm,
                                          TimeSignature timeSignature, double sampleRate,
                                          bool hostPlaying) noexcept
 {
@@ -166,7 +166,7 @@ void SidechainSyncDetector::processBlock(std::span<const float> sidechain,
 
     const auto blockStartSample = blockEndSample - numFrames;
     std::vector<std::uint32_t> boundaries;
-    BarImpulseScheduler::impulsesInBlock(blockStartSample, numFrames, ppqAtBlockEnd, bpm,
+    BarImpulseScheduler::impulsesInBlock(blockStartSample, numFrames, ppqAtBlockStart, bpm,
                                          timeSignature, sampleRate, boundaries);
     if (boundaries.empty())
         return;

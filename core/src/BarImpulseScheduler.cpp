@@ -32,7 +32,7 @@ double BarImpulseScheduler::sampleIndexOfBarBoundary(double ppqAtReference,
 }
 
 void BarImpulseScheduler::impulsesInBlock(std::uint64_t blockStartSample,
-                                          std::uint32_t numFrames, double ppqAtBlockEnd,
+                                          std::uint32_t numFrames, double ppqAtBlockStart,
                                           double bpm, TimeSignature timeSignature,
                                           double sampleRate, std::vector<std::uint32_t>& offsetsOut)
 {
@@ -40,8 +40,8 @@ void BarImpulseScheduler::impulsesInBlock(std::uint64_t blockStartSample,
         return;
 
     const auto blockEndSample = blockStartSample + numFrames;
-    const auto ppqAtBlockStart =
-        ppqAtBlockEnd - static_cast<double>(numFrames) / samplesPerQuarterNote(bpm, sampleRate);
+    const auto ppqAtBlockEnd =
+        ppqAtBlockStart + static_cast<double>(numFrames) / samplesPerQuarterNote(bpm, sampleRate);
     const auto barLength = quarterNotesPerBar(timeSignature);
 
     const auto firstBar =
@@ -52,8 +52,8 @@ void BarImpulseScheduler::impulsesInBlock(std::uint64_t blockStartSample,
     for (auto bar = firstBar; bar <= lastBar; ++bar)
     {
         const auto barPpq = static_cast<double>(bar) * barLength;
-        const auto sample = sampleIndexOfBarBoundary(ppqAtBlockEnd, blockEndSample, barPpq, bpm,
-                                                     sampleRate);
+        const auto sample = sampleIndexOfBarBoundary(ppqAtBlockStart, blockStartSample, barPpq,
+                                                     bpm, sampleRate);
         if (sample < static_cast<double>(blockStartSample) ||
             sample >= static_cast<double>(blockEndSample))
             continue;

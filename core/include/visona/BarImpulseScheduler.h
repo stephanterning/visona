@@ -22,10 +22,12 @@ class BarImpulseScheduler
 public:
     /**
         Appends sample offsets within `[0, numFrames)` where a bar impulse should fire.
-        `ppqAtBlockEnd` is the host PPQ at the frame after this block.
+        `ppqAtBlockStart` is the host PPQ at the first frame of this block. Ableton Live
+        reports playhead PPQ at block start; anchoring placement there keeps impulses on the
+        arrangement grid instead of one buffer late.
     */
     static void impulsesInBlock(std::uint64_t blockStartSample, std::uint32_t numFrames,
-                                double ppqAtBlockEnd, double bpm, TimeSignature timeSignature,
+                                double ppqAtBlockStart, double bpm, TimeSignature timeSignature,
                                 double sampleRate, std::vector<std::uint32_t>& offsetsOut);
 
     /** The stream sample index of the bar boundary for `ppq`. */
