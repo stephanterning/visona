@@ -95,15 +95,16 @@ aconnect -l
 Follow [pi-build.md](pi-build.md):
 
 1. Install `apt` packages listed there (build tools + JUCE/X11 deps).
-2. Clone the repo and check out the branch with the Pi preset (e.g. `cursor/pi-port-149a` until merged):
+2. Clone the repo on `main` (the `pi` preset is merged there):
 
    ```sh
    git clone https://github.com/stephanterning/visona.git
    cd visona
-   git checkout cursor/pi-port-149a
    cmake --preset pi
    cmake --build --preset pi
    ```
+
+   For kiosk autostart, check out [`cursor/pi-kiosk-autostart-149a`](pi-kiosk.md) until that pull request is merged.
 
 3. Run from a **desktop session** on the Pi (local terminal or SSH with display forwarding is awkward; prefer the 7" screen):
 

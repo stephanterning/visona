@@ -14,15 +14,20 @@ Autologin (boot straight to desktop without a login prompt) is optional and conf
 
 ## One-time setup
 
-After building on the Pi:
+Kiosk autostart is on branch **`cursor/pi-kiosk-autostart-149a`** until its pull request merges to `main`.
+
+On the Pi, after the base `pi` build from [pi-build.md](pi-build.md):
 
 ```sh
 cd ~/visona
-git pull
-cmake --build --preset pi   # if not already built
+git fetch origin
+git checkout cursor/pi-kiosk-autostart-149a
+cmake --build --preset pi
 ./scripts/pi/install-kiosk.sh --enable-autologin
 sudo reboot
 ```
+
+If you already built on `main`, the rebuild step picks up the new `--kiosk` flag in `Main.cpp`.
 
 Without autologin (you still log in once at the desk, then Visona starts):
 
