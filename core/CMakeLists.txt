@@ -9,6 +9,8 @@ add_library(visona_core STATIC
     include/visona/BlockTiming.h
     include/visona/CacheLine.h
     include/visona/ClockTimeMapper.h
+    include/visona/HostAnalysisPipeline.h
+    include/visona/HostTransport.h
     include/visona/ColumnReduction.h
     include/visona/LaneMapping.h
     include/visona/MidiClockEvent.h
@@ -31,6 +33,8 @@ add_library(visona_core STATIC
     src/AudioRingBuffer.cpp
     src/BandSplitter.cpp
     src/ClockTimeMapper.cpp
+    src/HostAnalysisPipeline.cpp
+    src/HostTransport.cpp
     src/ColumnReduction.cpp
     src/LaneMapping.cpp
     src/MidiClockTransport.cpp
@@ -49,3 +53,7 @@ target_include_directories(visona_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inclu
 target_compile_features(visona_core PUBLIC cxx_std_20)
 target_compile_definitions(visona_core PRIVATE VISONA_VERSION_STRING="${PROJECT_VERSION}")
 target_link_libraries(visona_core PRIVATE visona::warnings)
+
+if(VISONA_BUILD_PLUGIN)
+    set_target_properties(visona_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()

@@ -1,7 +1,7 @@
-# JUCE components. They are compiled into the app target rather than a library of their own,
-# because each binary must compile the JUCE modules exactly once.
+# JUCE components compiled into each binary target (app and/or plugin), because each binary
+# must compile the JUCE modules exactly once.
 
-target_sources(Visona PRIVATE
+set(visona_ui_sources
     AudioSettings.h
     Banner.cpp
     Banner.h
@@ -35,3 +35,10 @@ target_sources(Visona PRIVATE
     WindowControl.h
     ZoomOverview.cpp
     ZoomOverview.h)
+
+foreach(visona_ui_target IN ITEMS Visona VisonaPlugin)
+    if(TARGET ${visona_ui_target})
+        target_sources(${visona_ui_target} PRIVATE ${visona_ui_sources})
+        target_include_directories(${visona_ui_target} PRIVATE "${PROJECT_SOURCE_DIR}")
+    endif()
+endforeach()

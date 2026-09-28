@@ -23,6 +23,7 @@ else()
 endif()
 
 option(VISONA_BUILD_APP "Build the JUCE app (downloads JUCE)" ${visona_build_app_default})
+option(VISONA_BUILD_PLUGIN "Build the VST3/AU/CLAP plugin (downloads JUCE)" OFF)
 option(VISONA_BUILD_TESTS "Build the core unit tests (downloads Catch2)" ON)
 option(VISONA_WARNINGS_AS_ERRORS "Treat warnings in Visona's own non-JUCE code as errors" ON)
 set(VISONA_SANITIZERS "" CACHE STRING
@@ -51,7 +52,18 @@ if(VISONA_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+if(VISONA_BUILD_APP OR VISONA_BUILD_PLUGIN)
+    include(cmake/JuceSetup.cmake)
+endif()
+
 if(VISONA_BUILD_APP)
     add_subdirectory(app)
+endif()
+
+if(VISONA_BUILD_PLUGIN)
+    add_subdirectory(plugin)
+endif()
+
+if(VISONA_BUILD_APP OR VISONA_BUILD_PLUGIN)
     add_subdirectory(ui)
 endif()

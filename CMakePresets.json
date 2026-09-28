@@ -18,20 +18,32 @@
     },
     {
       "name": "xcode",
-      "displayName": "macOS: app and tests, Xcode project",
+      "displayName": "macOS: app, VST3 plugin and tests, Xcode project",
       "inherits": ["base", "macos-only"],
       "generator": "Xcode",
       "cacheVariables": {
-        "VISONA_BUILD_APP": "ON"
+        "VISONA_BUILD_APP": "ON",
+        "VISONA_BUILD_PLUGIN": "ON"
       }
     },
     {
       "name": "macos",
-      "displayName": "macOS: app and tests, Ninja, Release",
+      "displayName": "macOS: app, VST3 plugin and tests, Ninja, Release",
       "inherits": ["base", "macos-only"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "VISONA_BUILD_APP": "ON"
+        "VISONA_BUILD_APP": "ON",
+        "VISONA_BUILD_PLUGIN": "ON"
+      }
+    },
+    {
+      "name": "macos-plugin",
+      "displayName": "macOS: VST3 plugin and tests only, Ninja, Release",
+      "inherits": ["base", "macos-only"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VISONA_BUILD_APP": "OFF",
+        "VISONA_BUILD_PLUGIN": "ON"
       }
     },
     {
@@ -98,6 +110,7 @@
   "buildPresets": [
     { "name": "xcode", "configurePreset": "xcode", "configuration": "Debug" },
     { "name": "macos", "configurePreset": "macos" },
+    { "name": "macos-plugin", "configurePreset": "macos-plugin" },
     { "name": "core-gcc", "configurePreset": "core-gcc" },
     { "name": "core-clang", "configurePreset": "core-clang" },
     { "name": "core-sanitize", "configurePreset": "core-sanitize" },
@@ -113,6 +126,7 @@
     },
     { "name": "xcode", "inherits": "base", "configurePreset": "xcode", "configuration": "Debug" },
     { "name": "macos", "inherits": "base", "configurePreset": "macos" },
+    { "name": "macos-plugin", "inherits": "base", "configurePreset": "macos-plugin" },
     { "name": "core-gcc", "inherits": "base", "configurePreset": "core-gcc" },
     { "name": "core-clang", "inherits": "base", "configurePreset": "core-clang" },
     {

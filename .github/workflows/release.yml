@@ -41,6 +41,14 @@ jobs:
       - name: Package app
         run: ditto -c -k --keepParent "$APP_BUNDLE" Visona-macos-arm64.zip
 
+      - name: Check and package VST3 plugin
+        env:
+          VST3_BUNDLE: build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3
+        run: |
+          test -d "$VST3_BUNDLE"
+          codesign --force --sign - --timestamp=none --deep "$VST3_BUNDLE"
+          ditto -c -k --keepParent "$VST3_BUNDLE" Visona-vst3-macos-arm64.zip
+
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v7
         with:
@@ -49,11 +57,21 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      - name: Upload macOS VST3 artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Visona-vst3-macos-arm64
+          path: Visona-vst3-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Upload to release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: Visona-macos-arm64.zip
+          files: |
+            Visona-macos-arm64.zip
+            Visona-vst3-macos-arm64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

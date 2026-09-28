@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Visona is a beat-synced stereo oscilloscope for music production and, long-term, a modular, cross-platform real-time audio-monitoring platform. It is written in C++ with JUCE. The macOS standalone app comes first; a Raspberry Pi appliance and VST3/AU plugins come later.
+Visona is a beat-synced stereo oscilloscope for music production and, long-term, a modular, cross-platform real-time audio-monitoring platform. It is written in C++ with JUCE. The macOS standalone app and VST3 plugin are the current focus; AU, CLAP and the Raspberry Pi appliance follow.
 
 ## Language rule: English only
 
@@ -21,7 +21,8 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 
 - `core/`: plain C++20 library with no JUCE dependency. Warnings are errors.
 - `app/`: the JUCE app, "Visona": audio device, audio callback, settings and wiring. Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
-- `ui/`: JUCE components, compiled into the app target.
+- `plugin/`: the JUCE plugin (VST3 first): pass-through stereo effect with host transport. Built when `VISONA_BUILD_PLUGIN` is ON (included in the `macos` and `xcode` presets).
+- `ui/`: JUCE components, compiled into the app and plugin targets.
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
 
 The audio callback must not allocate, lock, wait or log. Debug builds of the app count allocations made in it (`app/src/RealtimeAllocationCheck.h`), and the diagnostics overlay (press D) shows the count, which must stay at 0.
@@ -46,14 +47,17 @@ If CMake reports "No CMAKE_C_COMPILER could be found", Xcode is not set up yet. 
 Presets are in `CMakePresets.json`; build trees go to `build/<preset>/`.
 
 ```sh
-# macOS: Xcode project with the app and tests
+# macOS: Xcode project with the app, VST3 plugin and tests
 cmake --preset xcode && open build/xcode/Visona.xcodeproj
 
-# macOS: command-line build of the app, then run the tests
+# macOS: command-line build of the app and VST3 plugin, then run the tests
 cmake --preset macos && cmake --build --preset macos && ctest --preset macos
+
+# macOS: VST3 plugin and tests only
+cmake --preset macos-plugin && cmake --build --preset macos-plugin && ctest --preset macos-plugin
 
 # Any platform: core and tests only, without JUCE (as in Linux CI)
 cmake --preset core-gcc && cmake --build --preset core-gcc && ctest --preset core-gcc
 ```
 
-`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app and Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually.
+`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app, macOS VST3 plugin and Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually.

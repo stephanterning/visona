@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- VST3 plugin for macOS arm64: pass-through stereo effect with host transport, slim editor and per-instance appearance state.
+- `HostTransport` and `HostAnalysisPipeline` in `core/` for DAW playhead sync.
+- Release workflow publishes `Visona-vst3-macos-arm64.zip`.
+
 ## [0.1.0-alpha.1] - 2026-09-28
 
 ### Added
