@@ -4,7 +4,7 @@ This guide prepares a **Raspberry Pi 4** with a **7" display**, **WiFi**, **SSH*
 
 For compiling and running Visona on the Pi, see [pi-build.md](pi-build.md).
 
-After this guide you can build Visona and optionally enable kiosk autostart with [pi-kiosk.md](pi-kiosk.md).
+After this guide you can install or build Visona and optionally enable kiosk autostart with [pi-kiosk.md](pi-kiosk.md).
 
 ## What you need
 
@@ -90,29 +90,29 @@ You should see a USB audio device (often named **Babyface** or similar). List MI
 aconnect -l
 ```
 
-## Step 5 — Build dependencies and Visona
+## Step 5 — Install or build Visona
 
-Follow [pi-build.md](pi-build.md):
+**Release tarball (recommended).** Download `Visona-linux-arm64-pi.tar.gz` from [GitHub Releases](https://github.com/stephanterning/visona/releases) and unpack it on the Pi:
 
-1. Install `apt` packages listed there (build tools + JUCE/X11 deps).
-2. Clone the repo on `main` (the `pi` preset is merged there):
+```sh
+mkdir -p ~/visona && tar xzf Visona-linux-arm64-pi.tar.gz -C ~/visona
+```
 
-   ```sh
-   git clone https://github.com/stephanterning/visona.git
-   cd visona
-   cmake --preset pi
-   cmake --build --preset pi
-   ```
+The runtime libraries it needs (ALSA, FreeType, Fontconfig, X11) come with the Raspberry Pi OS desktop.
 
-   For kiosk autostart, check out [`cursor/pi-kiosk-autostart-149a`](pi-kiosk.md) until that pull request is merged.
+**Source build.** Follow [pi-build.md](pi-build.md): install the `apt` packages listed there (build tools + JUCE/X11 deps), then:
 
-3. Run from a **desktop session** on the Pi (local terminal or SSH with display forwarding is awkward; prefer the 7" screen):
+```sh
+git clone https://github.com/stephanterning/visona.git
+cd visona
+cmake --preset pi
+cmake --build --preset pi
+```
 
-   ```sh
-   ./build/pi/app/Visona_artefacts/Release/Visona
-   ```
+Then:
 
-4. In **Settings**, choose the Babyface ALSA device and the correct input channels (e.g. ADAT/SPDIF). Select the MIDI port if you use MIDI Clock.
+1. Run from a **desktop session** on the Pi (local terminal or SSH with display forwarding is awkward; prefer the 7" screen): `~/visona/Visona` from the tarball, or `./build/pi/app/Visona_artefacts/Release/Visona` from a source build.
+2. In **Settings**, choose the Babyface ALSA device and the correct input channels (e.g. ADAT/SPDIF). Select the MIDI port if you use MIDI Clock.
 
 Settings are stored under `~/.config/Visona/`.
 
@@ -142,7 +142,7 @@ Diagnostics in Visona: press **D** (needs a keyboard once, or map touch to keybo
 | SSH permission denied | Re-flash with correct public key or password auth |
 | Babyface not in `arecord -l` | CC mode (SELECT+DIM), powered hub, different USB port |
 | Silence in Visona | `audio` group, correct ALSA device in Settings, routing set on Mac/CC |
-| Build fails on Pi | See [pi-build.md](pi-build.md) troubleshooting; first build can take 30+ minutes |
+| Build fails on Pi | See [pi-build.md](pi-build.md) troubleshooting; the first build can take 45–90 minutes on a Pi 4 |
 
 ## Next steps after this guide
 

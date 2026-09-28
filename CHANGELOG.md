@@ -13,6 +13,10 @@ All notable changes to this project are documented here. The format is based on
 - Sidechain input on the Visona plugin. With Visona Sync on it, Visona measures how late the audio arrives after plugins with latency, shows it in the status bar (such as `SC +98.7 ms`) and draws the audio on the grid.
 - Release workflow publishes `Visona-vst3-macos-arm64.zip` and `Visona-sync-vst3-macos-arm64.zip`.
 
+### Fixed
+
+- The Pi kiosk scripts find the `Visona` binary in the unpacked release tarball, not only in a source build.
+
 ### Known limitations (alpha)
 
 - Plugins are VST3 for macOS Apple Silicon only, ad-hoc signed. AU and CLAP are not included yet.

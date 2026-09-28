@@ -27,11 +27,16 @@ pkill -x wf-panel 2>/dev/null || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-BIN="${VISONA_BIN:-${REPO_ROOT}/build/pi/app/Visona_artefacts/Release/Visona}"
+# The release tarball has the binary next to scripts/; a source build has it under build/pi.
+if [[ -z "${VISONA_BIN:-}" && -x "${REPO_ROOT}/Visona" ]]; then
+    BIN="${REPO_ROOT}/Visona"
+else
+    BIN="${VISONA_BIN:-${REPO_ROOT}/build/pi/app/Visona_artefacts/Release/Visona}"
+fi
 
 if [[ ! -x "${BIN}" ]]; then
     echo "Visona binary not found or not executable: ${BIN}" >&2
-    echo "Build first: cmake --preset pi && cmake --build --preset pi" >&2
+    echo "Unpack the release tarball here, or build: cmake --preset pi && cmake --build --preset pi" >&2
     exit 1
 fi
 

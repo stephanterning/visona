@@ -21,7 +21,7 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 
 - `core/`: plain C++20 library with no JUCE dependency. Warnings are errors.
 - `app/`: the JUCE app, "Visona": audio device, audio callback, settings and wiring. Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
-- `plugin/`: the JUCE plugin (VST3 first): pass-through stereo effect with host transport. Built when `VISONA_BUILD_PLUGIN` is ON (included in the `macos` and `xcode` presets).
+- `plugin/`: the JUCE plugins (VST3 first): Visona, a pass-through stereo effect with host transport and an optional sidechain, and Visona Sync, an instrument that writes a bar impulse for that sidechain. Built when `VISONA_BUILD_PLUGIN` is ON (included in the `macos`, `macos-plugin` and `xcode` presets).
 - `ui/`: JUCE components, compiled into the app and plugin targets.
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
 
@@ -60,4 +60,4 @@ cmake --preset macos-plugin && cmake --build --preset macos-plugin && ctest --pr
 cmake --preset core-gcc && cmake --build --preset core-gcc && ctest --preset core-gcc
 ```
 
-`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app, macOS VST3 plugin and Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually.
+`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app, the macOS VST3 plugins (Visona and Visona Sync) and the Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually, so nothing checks that the JUCE targets compile on macOS before then.

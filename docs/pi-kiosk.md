@@ -2,7 +2,7 @@
 
 This guide makes a Raspberry Pi boot into the desktop and start **Visona fullscreen** without SSH or a manual launch.
 
-Requires a built Pi binary — see [pi-build.md](pi-build.md) and [pi-setup.md](pi-setup.md).
+Requires Visona on the Pi: either the unpacked `Visona-linux-arm64-pi.tar.gz` from [GitHub Releases](https://github.com/stephanterning/visona/releases), which holds the binary and these scripts, or a source build — see [pi-build.md](pi-build.md) and [pi-setup.md](pi-setup.md).
 
 ## What gets installed
 
@@ -14,20 +14,24 @@ Autologin (boot straight to desktop without a login prompt) is optional and conf
 
 ## One-time setup
 
-Kiosk autostart is on branch **`cursor/pi-kiosk-autostart-149a`** until its pull request merges to `main`.
-
-On the Pi, after the base `pi` build from [pi-build.md](pi-build.md):
+From the release tarball:
 
 ```sh
+mkdir -p ~/visona && tar xzf Visona-linux-arm64-pi.tar.gz -C ~/visona
 cd ~/visona
-git fetch origin
-git checkout cursor/pi-kiosk-autostart-149a
-cmake --build --preset pi
 ./scripts/pi/install-kiosk.sh --enable-autologin
 sudo reboot
 ```
 
-If you already built on `main`, the rebuild step picks up the new `--kiosk` flag in `Main.cpp`.
+From a source build, after the `pi` build from [pi-build.md](pi-build.md):
+
+```sh
+cd ~/visona
+./scripts/pi/install-kiosk.sh --enable-autologin
+sudo reboot
+```
+
+The scripts use the `Visona` binary next to `scripts/` when there is one, as in the tarball, and otherwise `build/pi/app/Visona_artefacts/Release/Visona`.
 
 Without autologin (you still log in once at the desk, then Visona starts):
 
@@ -57,11 +61,7 @@ sudo raspi-config nonint do_boot_behaviour B4
 ./scripts/pi/visona-kiosk.sh
 ```
 
-Or:
-
-```sh
-./build/pi/app/Visona_artefacts/Release/Visona --kiosk
-```
+Or run the binary directly: `./Visona --kiosk` from the tarball, or `./build/pi/app/Visona_artefacts/Release/Visona --kiosk` from a source build.
 
 ## Babyface at startup
 
@@ -94,9 +94,9 @@ killall wf-panel-pi 2>/dev/null || true
 | Black screen after login | Log in via SSH, run `./scripts/pi/visona-kiosk.sh` and read errors; check `DISPLAY=:0`. |
 | Visona does not start at login | Confirm `~/.config/autostart/visona-kiosk.desktop` exists; log out and in (not just reboot to text console). |
 | Screen goes blank | Wrapper runs `xset`; install `x11-xserver-utils` if missing: `sudo apt install x11-xserver-utils`. |
-| System menubar still visible | Rebuild after `git pull` — kiosk uses `setFullScreen(true)` on Linux so labwc hides the panel. If an old binary still shows the bar, press **f** or the fullscreen button once to confirm, then rebuild. As a fallback, `./scripts/pi/install-kiosk.sh` disables `wf-panel-pi` autostart. |
+| System menubar still visible | Kiosk uses `setFullScreen(true)` on Linux so labwc hides the panel. Press **f** or the fullscreen button once to check, and update to the latest release or rebuild after `git pull`. As a fallback, `./scripts/pi/install-kiosk.sh` disables `wf-panel-pi` autostart. |
 | `server does not have extension for -dpms` | Harmless on Wayland/XWayland; screen blanking is handled elsewhere. |
-| Window not fullscreen | Rebuild after updating `cursor/pi-kiosk-autostart-149a`; kiosk uses the full display, not JUCE's Linux work-area fullscreen. |
+| Window not fullscreen | Update to the latest release or rebuild after `git pull`; kiosk uses the full display, not JUCE's Linux work-area fullscreen. |
 | Quit without a close button | From SSH: `pkill Visona`. Kiosk mode has no window chrome. |
 | Wrong audio device | Open Settings once with keyboard/touch, save Babyface, restart. |
 

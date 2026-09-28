@@ -13,7 +13,8 @@ Usage: install-kiosk.sh [--enable-autologin]
 Installs ~/.config/autostart/visona-kiosk.desktop so Visona starts at login.
 Optionally enables desktop autologin via raspi-config (requires sudo).
 
-Run from the repository root after building with the pi preset.
+Run from the unpacked release tarball, or from the repository root after
+building with the pi preset.
 EOF
             exit 0
             ;;
@@ -27,10 +28,16 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 WRAPPER="${REPO_ROOT}/scripts/pi/visona-kiosk.sh"
-BIN="${REPO_ROOT}/build/pi/app/Visona_artefacts/Release/Visona"
+# The release tarball has the binary next to scripts/; a source build has it under build/pi.
+if [[ -x "${REPO_ROOT}/Visona" ]]; then
+    BIN="${REPO_ROOT}/Visona"
+else
+    BIN="${REPO_ROOT}/build/pi/app/Visona_artefacts/Release/Visona"
+fi
 
 if [[ ! -x "${BIN}" ]]; then
-    echo "Build Visona first: cmake --preset pi && cmake --build --preset pi" >&2
+    echo "Visona not found. Unpack the release tarball here, or build first:" >&2
+    echo "  cmake --preset pi && cmake --build --preset pi" >&2
     exit 1
 fi
 
