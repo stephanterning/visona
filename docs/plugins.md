@@ -11,12 +11,13 @@ Visona is available as a **pass-through stereo effect** for use inside a DAW. Au
 | **AU** | Planned | Same four-character codes |
 | **CLAP** | Planned | Same four-character codes |
 
-Release builds are published as `Visona-vst3-macos-arm64.zip` on [GitHub Releases](https://github.com/stephanterning/visona/releases). Copy `Visona.vst3` into `~/Library/Audio/Plug-Ins/VST3/` and rescan in your DAW.
+Release builds are published on [GitHub Releases](https://github.com/stephanterning/visona/releases) as `Visona-vst3-macos-arm64.zip` (`Visona.vst3`) and `Visona-sync-vst3-macos-arm64.zip` (`Visona Sync.vst3`). Copy the bundles into `~/Library/Audio/Plug-Ins/VST3/` and rescan in your DAW.
 
-Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag if macOS blocks the bundle:
+Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag if macOS blocks a bundle:
 
 ```sh
 xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
+xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
 ```
 
 ## Transport

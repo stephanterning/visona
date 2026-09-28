@@ -12,6 +12,7 @@ Pre-built binaries are published on **[GitHub Releases](https://github.com/steph
 | --- | --- | --- |
 | **macOS** | Apple Silicon, macOS 14 or later | `Visona-macos-arm64.zip` — unzip and open `Visona.app` |
 | **macOS VST3** | Apple Silicon, macOS 14 or later | `Visona-vst3-macos-arm64.zip` — copy `Visona.vst3` to `~/Library/Audio/Plug-Ins/VST3/` ([plugin guide](docs/plugins.md)) |
+| **macOS VST3, Visona Sync** | Apple Silicon, macOS 14 or later | `Visona-sync-vst3-macos-arm64.zip` — copy `Visona Sync.vst3` to the same folder ([sidechain sync](docs/plugins.md#sidechain-sync-visona-sync)) |
 | **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64 | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
 
 Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove the quarantine flag:
@@ -20,7 +21,7 @@ Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove th
 xattr -cr /path/to/Visona.app
 ```
 
-The **VST3 plugin** (pass-through stereo effect, host transport) ships alongside the standalone app on macOS. AU and CLAP are planned next. See [docs/plugins.md](docs/plugins.md).
+The **VST3 plugin** (pass-through stereo effect, host transport) ships alongside the standalone app on macOS. **Visona Sync**, a companion instrument, puts a bar impulse on the plugin's sidechain so Visona can measure how late audio arrives after plugins with latency in Ableton Live, and draw it on the grid. AU and CLAP are planned next. See [docs/plugins.md](docs/plugins.md).
 
 ## What you get
 
