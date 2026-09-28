@@ -27,12 +27,16 @@ The standalone app still uses MIDI Clock and manual FREE tempo.
 
 ## Sidechain sync (Visona Sync)
 
-**Visona Sync** is a host-synced instrument that outputs a −6 dBFS impulse at the start of each bar. Route its audio to the **sidechain input** on **Visona** so the scope can align audio to the grid when track latency compensation is incomplete.
+Ableton Live reports the same playhead to every plugin on a track, including a plugin placed after plugins with latency, such as a lookahead limiter or a linear-phase EQ. The audio reaching Visona is then late by their latency, and the waveform lands that much after the grid. **Visona Sync** measures that latency.
+
+Visona Sync is a host-synced instrument that writes a −6 dBFS impulse at the start of every bar. Live aligns a sidechain with the main input of the plugin it feeds, so the impulse reaches Visona exactly as late as the audio. Visona measures how far after its playhead's bar line the impulse arrives, and draws the audio that much earlier.
 
 1. Add **Visona Sync** on an instrument track (no MIDI clip needed).
-2. Enable **Visona** sidechain input in Live and route the Sync track to it.
-3. Press Play — after a few bars the status bar shows **SC SYNC** when bar impulses are recognised.
-4. If the sidechain signal does not look like Visona Sync, Visona shows **SC ?** and ignores it.
+2. In **Visona**, choose the Sync track as the sidechain input (**Post FX**).
+3. Press Play. From the first bar line the status bar shows **SC** and the measured latency, such as **SC +98.7 ms**. The diagnostics overlay (**D**) shows it in samples, next to the sidechain level. **SC ...** means the sidechain input is on but no impulse has arrived yet.
+4. Visona keeps the latency it measured. When plugins with latency are added or removed before Visona, the new value takes over after two bars, and the sweep starts over.
+
+The sidechain signal is not validated yet: any peak above −20 dBFS counts as a bar impulse, so route nothing but Visona Sync to it. If **Reduced Latency When Monitoring** is on in Live's Options menu, keep the Sync track unarmed, because Live skips delay compensation for monitored tracks.
 
 ## Editor
 
