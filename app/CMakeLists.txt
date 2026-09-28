@@ -5,17 +5,23 @@ FetchContent_Declare(JUCE
     URL_HASH SHA256=16d01c27e8327f3644306cc5c223aa6e21af1cc1ec62faa709fc0dced57d208a)
 FetchContent_MakeAvailable(JUCE)
 
-# Without the microphone permission, macOS delivers silence from every audio input.
-juce_add_gui_app(Visona
+set(visona_app_options
     PRODUCT_NAME "Visona"
     VERSION "${PROJECT_VERSION}"
     COMPANY_NAME "Visona"
     BUNDLE_ID "io.github.stephanterning.visona"
-    MICROPHONE_PERMISSION_ENABLED TRUE
-    MICROPHONE_PERMISSION_TEXT
-        "Visona displays the audio arriving at your audio interface's inputs. It does not record or store it."
     NEEDS_CURL FALSE
     NEEDS_WEB_BROWSER FALSE)
+
+# Without the microphone permission, macOS delivers silence from every audio input.
+if(APPLE)
+    list(APPEND visona_app_options
+        MICROPHONE_PERMISSION_ENABLED TRUE
+        MICROPHONE_PERMISSION_TEXT
+            "Visona displays the audio arriving at your audio interface's inputs. It does not record or store it.")
+endif()
+
+juce_add_gui_app(Visona ${visona_app_options})
 
 target_sources(Visona PRIVATE
     src/AnalysisThread.cpp

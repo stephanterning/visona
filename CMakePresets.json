@@ -79,6 +79,20 @@
         "VISONA_BUILD_APP": "OFF",
         "VISONA_SANITIZERS": "thread"
       }
+    },
+    {
+      "name": "pi",
+      "displayName": "Linux ARM64 app and tests (Raspberry Pi OS), GCC, Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "VISONA_BUILD_APP": "ON"
+      },
+      "environment": {
+        "CMAKE_BUILD_PARALLEL_LEVEL": "1"
+      }
     }
   ],
   "buildPresets": [
@@ -87,7 +101,8 @@
     { "name": "core-gcc", "configurePreset": "core-gcc" },
     { "name": "core-clang", "configurePreset": "core-clang" },
     { "name": "core-sanitize", "configurePreset": "core-sanitize" },
-    { "name": "core-tsan", "configurePreset": "core-tsan" }
+    { "name": "core-tsan", "configurePreset": "core-tsan" },
+    { "name": "pi", "configurePreset": "pi", "jobs": 1 }
   ],
   "testPresets": [
     {
@@ -116,6 +131,7 @@
       "environment": {
         "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1"
       }
-    }
+    },
+    { "name": "pi", "inherits": "base", "configurePreset": "pi" }
   ]
 }

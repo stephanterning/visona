@@ -17,6 +17,8 @@ endif()
 if(APPLE)
     set(visona_build_app_default ON)
 else()
+    # Linux app builds (for example the `pi` preset on Raspberry Pi OS) opt in with
+    # -DVISONA_BUILD_APP=ON or a preset that sets it.
     set(visona_build_app_default OFF)
 endif()
 
