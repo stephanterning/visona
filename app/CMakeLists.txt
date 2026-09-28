@@ -49,13 +49,18 @@ target_compile_definitions(Visona PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Visona,JUCE_PRODUCT_NAME>"
     $<$<CONFIG:Debug>:VISONA_REALTIME_ALLOCATION_CHECK=1>)
 
-target_link_libraries(Visona PRIVATE
-    visona::core
+set(visona_juce_link_libs
     juce::juce_audio_devices
     juce::juce_gui_basics
     juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+
+# LTO makes the final link very slow on Raspberry Pi (often 20+ minutes with swap).
+if(APPLE)
+    list(APPEND visona_juce_link_libs juce::juce_recommended_lto_flags)
+endif()
+
+target_link_libraries(Visona PRIVATE visona::core ${visona_juce_link_libs})
 
 # Ad-hoc signing is enough for local use; the app is neither notarised nor distributed.
 if(APPLE)

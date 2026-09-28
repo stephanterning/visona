@@ -66,6 +66,7 @@ Before the first build:
 2. **Close** other apps on the Pi (browser, IDE) while building.
 
 3. The `pi` preset sets **`CMAKE_BUILD_PARALLEL_LEVEL=1`** and **`jobs: 1`** so configure and build run one compile at a time. The first full build can still take **45–90 minutes** on a Pi 4.
+4. **LTO is off on Linux** so the final link finishes in a few minutes instead of 20–45 minutes on a 1 GB Pi.
 
 The `libcurl` / `webkit2gtk` / `gtk` messages during configure are expected: Visona disables curl and the embedded browser, so those packages are not required.
 
@@ -146,6 +147,7 @@ Press **D** to toggle the diagnostics overlay (block size, ring overruns, alloca
 ## Troubleshooting
 
 - **`g++: fatal error: Killed signal terminated program cc1plus`** — Out of memory. Add swap (see above), run `rm -rf build/pi`, then `cmake --preset pi && cmake --build --preset pi` again. If it still fails, reboot and build from SSH with the desktop closed.
+- **Link step stuck at `Linking CXX executable .../Visona` for many minutes** — With LTO and 1 GB RAM this can take 20–45 minutes and look frozen. Run `top` and look for `ld` or `g++` using CPU; if active, wait. Current Linux builds disable LTO; after `git pull`, run `cmake --preset pi` again (reconfigures) then `cmake --build --preset pi` — the link should finish in a few minutes.
 - **`cannot find -lstdc++`** — Install `build-essential` and use the `pi` preset (GCC). If the default `c++` symlink points at Clang, ensure the matching `libstdc++-*-dev` package is installed or keep `CMAKE_CXX_COMPILER=g++` as the preset does.
 - **`X11/extensions/XInput2.h: No such file or directory`** — Install `libxi-dev`.
 - **No audio input / silence** — Check group membership (`audio`), cable and gain at the interface, and that the correct ALSA device is selected in Settings.

@@ -59,7 +59,7 @@ public:
             {
                 if (auto* const display =
                         juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
-                    setBounds(display->totalArea);
+                    setBounds(display->logicalBounds.toNearestInt());
                 setAlwaysOnTop(true);
                 toFront(true);
             });
