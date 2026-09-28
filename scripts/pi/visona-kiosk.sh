@@ -21,6 +21,7 @@ fi
 if command -v wfpanelctl >/dev/null 2>&1; then
     wfpanelctl hide 2>/dev/null || true
 fi
+pkill -f 'lwrespawn /usr/bin/wf-panel-pi' 2>/dev/null || true
 killall wf-panel-pi 2>/dev/null || true
 pkill -x wf-panel 2>/dev/null || true
 

@@ -65,6 +65,7 @@ if [[ -f "${LABWC_AUTOSTART}" ]] && grep -q 'wf-panel-pi' "${LABWC_AUTOSTART}"; 
         echo "Disabling wf-panel-pi autostart in ${LABWC_AUTOSTART}"
         sudo sed -i '/wf-panel-pi/s/^/#/' "${LABWC_AUTOSTART}"
     fi
+    pkill -f 'lwrespawn /usr/bin/wf-panel-pi' 2>/dev/null || true
     killall wf-panel-pi 2>/dev/null || true
 fi
 

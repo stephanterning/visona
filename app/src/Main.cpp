@@ -53,15 +53,20 @@ public:
 
         if (kiosk)
         {
-            // JUCE's setFullScreen() on Linux uses the desktop work area (below the panel).
-            // Cover the whole display, including the Pi taskbar, with a borderless window.
             juce::MessageManager::callAsync([this]
             {
+#if JUCE_LINUX
+                // Raspberry Pi OS (labwc) hides wf-panel-pi when the compositor gets a real
+                // fullscreen request. Borderless + always-on-top leaves the panel visible.
+                setFullScreen(true);
+#else
+                // Cover the whole display with a borderless window (macOS menu bar excluded).
                 if (auto* const display =
                         juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
                     setBounds(display->logicalBounds.toNearestInt());
                 setAlwaysOnTop(true);
                 toFront(true);
+#endif
             });
         }
 
