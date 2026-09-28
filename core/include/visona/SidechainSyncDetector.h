@@ -58,7 +58,7 @@ private:
 
     [[nodiscard]] PeakHit findBarPeak(std::span<const float> sidechain,
                                       std::uint64_t blockStartSample,
-                                      double expectedBoundarySample) const noexcept;
+                                      double searchCenterSample, int searchHalfWidth) const noexcept;
 
     [[nodiscard]] bool peakLooksLikeImpulse(const PeakHit& hit,
                                             std::span<const float> sidechain,

@@ -282,8 +282,12 @@ void ScopeEditor::updateStatus()
             "Sidechain input is enabled, but the signal does not look like Visona Sync bar "
             "impulses. Sync is ignored.";
         break;
-    case SidechainSyncState::off:
     case SidechainSyncState::waiting:
+        values.sidechainSync = "SC …";
+        values.sidechainSyncTooltip =
+            "Sidechain sync is listening for Visona Sync bar impulses.";
+        break;
+    case SidechainSyncState::off:
         break;
     }
 

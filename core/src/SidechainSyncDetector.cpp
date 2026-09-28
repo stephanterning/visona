@@ -12,21 +12,29 @@ namespace visona
 namespace
 {
 
-constexpr float minPeak = 0.18f;
-constexpr float maxPeak = 0.85f;
-constexpr int localSearchHalfWidth = 64;
+constexpr float minPeak = 0.12f;
+constexpr float maxPeak = 1.0f;
+constexpr int acquisitionSearchHalfWidth = 4096;
+constexpr int lockedSearchHalfWidth = 256;
 constexpr int maxImpulseWidth = 12;
-constexpr float minProminenceRatio = 4.0f;
+constexpr float minProminenceRatio = 2.5f;
 constexpr int barsToLock = 3;
 constexpr int missedBarsToUnlock = 4;
-constexpr int maxPeaksPerBlock = 1;
+constexpr int missedBarsToInvalidate = 8;
+constexpr int maxPeaksPerWindow = 1;
 constexpr double maxOffsetJumpFrames = 8'192.0;
 
-int countProminentPeaks(std::span<const float> sidechain) noexcept
+int countProminentPeaks(std::span<const float> sidechain, std::uint64_t blockStartSample,
+                        std::int64_t windowStart, std::int64_t windowEnd) noexcept
 {
     int peaks = 0;
     for (std::size_t index = 0; index < sidechain.size(); ++index)
     {
+        const auto sampleIndex =
+            static_cast<std::int64_t>(blockStartSample + static_cast<std::uint64_t>(index));
+        if (sampleIndex < windowStart || sampleIndex > windowEnd)
+            continue;
+
         const auto value = std::abs(sidechain[index]);
         if (value < minPeak)
             continue;
@@ -65,15 +73,15 @@ void SidechainSyncDetector::setSidechainEnabled(bool enabled) noexcept
 
 SidechainSyncDetector::PeakHit SidechainSyncDetector::findBarPeak(
     std::span<const float> sidechain, std::uint64_t blockStartSample,
-    double expectedBoundarySample) const noexcept
+    double searchCenterSample, int searchHalfWidth) const noexcept
 {
     PeakHit hit;
-    if (sidechain.empty())
+    if (sidechain.empty() || searchHalfWidth <= 0)
         return hit;
 
-    const auto expected = static_cast<std::int64_t>(std::llround(expectedBoundarySample));
-    const auto windowStart = expected - localSearchHalfWidth;
-    const auto windowEnd = expected + localSearchHalfWidth;
+    const auto searchCenter = static_cast<std::int64_t>(std::llround(searchCenterSample));
+    const auto windowStart = searchCenter - searchHalfWidth;
+    const auto windowEnd = searchCenter + searchHalfWidth;
 
     float secondPeak = 0.0f;
     double sumSquares = 0.0;
@@ -117,7 +125,7 @@ SidechainSyncDetector::PeakHit SidechainSyncDetector::findBarPeak(
         hit.found = false;
         return hit;
     }
-    if (secondPeak > 0.0f && hit.peak < secondPeak * 1.8f)
+    if (secondPeak > 0.0f && hit.peak < secondPeak * 1.5f)
     {
         hit.found = false;
         return hit;
@@ -171,27 +179,40 @@ void SidechainSyncDetector::processBlock(std::span<const float> sidechain,
     if (boundaries.empty())
         return;
 
-    if (countProminentPeaks(sidechain) > maxPeaksPerBlock)
-    {
-        ++missedBars_;
-        consecutiveMatches_ = 0;
-        if (state_ == SidechainSyncState::locked && missedBars_ >= missedBarsToUnlock)
-        {
-            state_ = SidechainSyncState::invalid;
-            offsetFrames_ = 0.0;
-        }
-        else if (state_ == SidechainSyncState::waiting && missedBars_ >= barsToLock)
-        {
-            state_ = SidechainSyncState::invalid;
-        }
-        return;
-    }
-
     for (const auto offset : boundaries)
     {
         const auto expectedBoundary =
             static_cast<double>(blockStartSample + static_cast<std::uint64_t>(offset));
-        const auto hit = findBarPeak(sidechain, blockStartSample, expectedBoundary);
+        const auto searchHalfWidth = state_ == SidechainSyncState::locked ? lockedSearchHalfWidth
+                                                                          : acquisitionSearchHalfWidth;
+        const auto searchCenter =
+            state_ == SidechainSyncState::locked ? expectedBoundary + offsetFrames_
+                                                 : expectedBoundary;
+        const auto windowStart = static_cast<std::int64_t>(std::llround(searchCenter)) -
+                                 searchHalfWidth;
+        const auto windowEnd = static_cast<std::int64_t>(std::llround(searchCenter)) +
+                               searchHalfWidth;
+
+        if (countProminentPeaks(sidechain, blockStartSample, windowStart, windowEnd) >
+            maxPeaksPerWindow)
+        {
+            ++missedBars_;
+            consecutiveMatches_ = 0;
+            if (state_ == SidechainSyncState::locked && missedBars_ >= missedBarsToUnlock)
+            {
+                state_ = SidechainSyncState::invalid;
+                offsetFrames_ = 0.0;
+            }
+            else if (state_ == SidechainSyncState::waiting &&
+                     missedBars_ >= missedBarsToInvalidate)
+            {
+                state_ = SidechainSyncState::invalid;
+            }
+            continue;
+        }
+
+        const auto hit =
+            findBarPeak(sidechain, blockStartSample, searchCenter, searchHalfWidth);
         if (!peakLooksLikeImpulse(hit, sidechain, blockStartSample))
         {
             ++missedBars_;
@@ -201,7 +222,8 @@ void SidechainSyncDetector::processBlock(std::span<const float> sidechain,
                 state_ = SidechainSyncState::invalid;
                 offsetFrames_ = 0.0;
             }
-            else if (state_ == SidechainSyncState::waiting && missedBars_ >= barsToLock)
+            else if (state_ == SidechainSyncState::waiting &&
+                     missedBars_ >= missedBarsToInvalidate)
             {
                 state_ = SidechainSyncState::invalid;
             }
