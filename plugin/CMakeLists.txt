@@ -58,12 +58,12 @@ juce_add_plugin(VisonaSyncPlugin
     PRODUCT_NAME "Visona Sync"
     BUNDLE_ID "io.github.stephanterning.visona.sync"
     IS_SYNTH TRUE
-    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD TRUE
-    VST3_CATEGORIES Instrument Synth)
+    VST3_CATEGORIES Instrument Generator)
 
 target_sources(VisonaSyncPlugin PRIVATE
     src/SyncEditor.cpp

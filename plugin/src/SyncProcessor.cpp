@@ -8,8 +8,11 @@ namespace visona
 {
 
 SyncProcessor::SyncProcessor()
-    : juce::AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(),
-                                                        true))
+    : juce::AudioProcessor(
+          BusesProperties()
+              // Ableton Live rejects VST3 plugins with no input bus declared (ABLDEV-00057).
+              .withInput("Input", juce::AudioChannelSet::stereo(), false)
+              .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
 }
 
@@ -110,7 +113,7 @@ const juce::String SyncProcessor::getName() const
 
 bool SyncProcessor::acceptsMidi() const
 {
-    return false;
+    return true;
 }
 
 bool SyncProcessor::producesMidi() const
@@ -162,6 +165,22 @@ void SyncProcessor::getStateInformation(juce::MemoryBlock& destData)
 void SyncProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
     juce::ignoreUnused(data, sizeInBytes);
+}
+
+bool SyncProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+{
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+
+    if (layouts.inputBuses.size() > 0)
+    {
+        const auto& input = layouts.getMainInputChannelSet();
+        if (input != juce::AudioChannelSet::disabled() &&
+            input != juce::AudioChannelSet::stereo())
+            return false;
+    }
+
+    return true;
 }
 
 } // namespace visona

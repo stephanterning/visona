@@ -35,6 +35,8 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
+
     [[nodiscard]] HostTransport::Playhead lastPlayhead() const noexcept
     {
         return lastPlayhead_;
