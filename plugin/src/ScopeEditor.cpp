@@ -282,7 +282,7 @@ void ScopeEditor::updateStatus()
             "Sidechain sync is enabled but no bar impulse has been detected yet.";
         break;
     case SidechainSyncState::waiting:
-        values.sidechainSync = "SC …";
+        values.sidechainSync = "SC ...";
         values.sidechainSyncTooltip =
             "Sidechain sync is listening for Visona Sync bar impulses.";
         break;

@@ -43,10 +43,10 @@ void SyncEditor::timerCallback()
     juce::String text = "Waiting for host transport";
     if (playhead.valid)
     {
-        text = playhead.isPlaying ? "HOST RUN — bar impulses at −6 dBFS"
+        text = playhead.isPlaying ? "HOST RUN - bar impulses at -6 dBFS"
                                   : "STOPPED";
         if (playhead.bpm > 0.0)
-            text += " · " + juce::String(playhead.bpm, 1) + " BPM";
+            text += " | " + juce::String(playhead.bpm, 1) + " BPM";
     }
     status_.setText(text, juce::dontSendNotification);
 }
