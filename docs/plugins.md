@@ -56,3 +56,15 @@ cmake --preset macos-plugin && cmake --build --preset macos-plugin
 3. Stop — the view freezes with **STOPPED**.
 4. Move the playhead and press Continue — the scope should show the new position.
 5. Try 120, 126 and 174 BPM.
+
+### If the scope stops or Live feels sluggish
+
+Before removing or re-adding the plugin, note:
+
+- Status line: **HOST RUN** or **STOPPED**
+- Diagnostics overlay (**D**): sample rate, ring overruns, analysis load
+- Whether Live's transport is playing
+- Whether audio still passes through when the UI stops updating
+- Whether the Mac became sluggish before or after the waveform stopped
+
+Quit Live fully and restart if needed. Do **not** delete `~/Library/Preferences/Ableton` — that folder holds Live's preferences and authorization. If a full Live reset is ever required, follow [Ableton's documented procedure](https://help.ableton.com/hc/en-us/articles/209070849) and back up first.
