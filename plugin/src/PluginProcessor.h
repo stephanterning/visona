@@ -79,6 +79,24 @@ public:
         return syncOffsetFrames_.load(std::memory_order_relaxed);
     }
 
+    /** Any thread. The peak level of the latest bar impulse, as a gain. */
+    [[nodiscard]] float sidechainImpulsePeak() const noexcept
+    {
+        return syncImpulsePeak_.load(std::memory_order_relaxed);
+    }
+
+    /** Any thread. The highest sidechain sample since the previous call. */
+    [[nodiscard]] float takeSidechainPeak() noexcept
+    {
+        return sidechainPeak_.exchange(0.0f, std::memory_order_relaxed);
+    }
+
+    /** Any thread. Frames in the latest block the host processed. */
+    [[nodiscard]] std::uint32_t lastBlockSize() const noexcept
+    {
+        return lastBlockSize_.load(std::memory_order_relaxed);
+    }
+
 private:
     [[nodiscard]] HostTransport::Playhead readPlayhead() const noexcept;
     void updateSidechainSync(juce::AudioBuffer<float>& buffer,
@@ -97,6 +115,9 @@ private:
 
     std::atomic<SidechainSyncState> syncState_{SidechainSyncState::off};
     std::atomic<double> syncOffsetFrames_{0.0};
+    std::atomic<float> syncImpulsePeak_{0.0f};
+    std::atomic<float> sidechainPeak_{0.0f};
+    std::atomic<std::uint32_t> lastBlockSize_{0};
 
     mutable double lastKnownBpm_ = 120.0;
     mutable double lastKnownPpq_ = 0.0;

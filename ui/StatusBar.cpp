@@ -71,9 +71,7 @@ void StatusBar::paint(juce::Graphics& g)
     const std::array<Item, 7> items{{
         {values_.bpm, "999.9 BPM", true, palette::text},
         {values_.state, "", true, values_.stateIsError ? palette::error : palette::text},
-        {values_.sidechainSync,
-         "SC SYNC",
-         true,
+        {values_.sidechainSync, "SC +999.9 ms", true,
          values_.sidechainSyncIsError ? palette::error : palette::level},
         {values_.sampleRate, "192 kHz", false, palette::level},
         {values_.window, "4 BARS", false, palette::level},

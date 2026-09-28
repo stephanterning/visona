@@ -5,6 +5,8 @@
 
 #include <visona/SweepWindow.h>
 
+#include <algorithm>
+#include <cmath>
 #include <span>
 
 namespace visona
@@ -96,6 +98,7 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiB
     const auto numSamples = static_cast<std::uint32_t>(mainInput.getNumSamples());
     for (int channel = 0; channel < mainInput.getNumChannels(); ++channel)
         channelPointers_[static_cast<std::size_t>(channel)] = mainInput.getReadPointer(channel);
+    lastBlockSize_.store(numSamples, std::memory_order_relaxed);
 
     // The host reports the playhead at the block's first frame.
     const auto playhead = readPlayhead();
@@ -121,6 +124,15 @@ void PluginProcessor::updateSidechainSync(juce::AudioBuffer<float>& buffer,
     {
         const std::span<const float> samples{sidechain.getReadPointer(0),
                                              static_cast<std::size_t>(sidechain.getNumSamples())};
+        float peak = 0.0f;
+        for (const auto sample : samples)
+            peak = std::max(peak, std::abs(sample));
+        auto held = sidechainPeak_.load(std::memory_order_relaxed);
+        while (peak > held &&
+               !sidechainPeak_.compare_exchange_weak(held, peak, std::memory_order_relaxed))
+        {
+        }
+
         sidechainSync_.processBlock(samples, playhead.ppqPosition, playhead.bpm,
                                     playhead.timeSignature, sampleRate_,
                                     playhead.valid && playhead.isPlaying);
@@ -131,6 +143,7 @@ void PluginProcessor::updateSidechainSync(juce::AudioBuffer<float>& buffer,
                                                                     : 0.0);
     syncState_.store(state, std::memory_order_relaxed);
     syncOffsetFrames_.store(sidechainSync_.offsetFrames(), std::memory_order_relaxed);
+    syncImpulsePeak_.store(sidechainSync_.impulsePeak(), std::memory_order_relaxed);
 }
 
 HostTransport::Playhead PluginProcessor::readPlayhead() const noexcept
