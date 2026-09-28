@@ -66,7 +66,27 @@ void ControlBar::setStep(ChromeStep step)
         button->setFontHeight(metrics.fontHeight);
     }
     diagnostics_.setVisible(showsSecondaryControls());
-    fullScreen_.setVisible(showsSecondaryControls());
+    fullScreen_.setVisible(showsSecondaryControls() && fullScreenVisible_);
+    resized();
+    repaint();
+}
+
+void ControlBar::setTempoVisible(bool visible)
+{
+    if (tempoVisible_ == visible)
+        return;
+    tempoVisible_ = visible;
+    tempo_.setVisible(visible);
+    resized();
+    repaint();
+}
+
+void ControlBar::setFullScreenVisible(bool visible)
+{
+    if (fullScreenVisible_ == visible)
+        return;
+    fullScreenVisible_ = visible;
+    fullScreen_.setVisible(showsSecondaryControls() && fullScreenVisible_);
     resized();
     repaint();
 }
@@ -102,6 +122,8 @@ void ControlBar::resized()
     const std::array<juce::Component*, 4> controls{&window_, &tempo_, &gain_, &waveform_};
     for (std::size_t group = 0; group < controls.size(); ++group)
     {
+        if (widths[group] == 0)
+            continue;
         auto& row = rows[static_cast<std::size_t>(placement.rows[group])];
         controls[group]->setBounds(row.removeFromLeft(std::min(widths[group], area.getWidth())));
         row.removeFromLeft(metrics.gap * 2);
@@ -125,7 +147,7 @@ std::array<int, 5> ControlBar::groupWidths() const
         if (button->isVisible())
             buttons += button->preferredWidth(metrics.controlHeight) + metrics.gap;
     return {window_.preferredWidth(metrics.controlHeight),
-            tempo_.preferredWidth(metrics.controlHeight),
+            tempoVisible_ ? tempo_.preferredWidth(metrics.controlHeight) : 0,
             gain_.preferredWidth(metrics.controlHeight),
             waveform_.preferredWidth(metrics.controlHeight), buttons};
 }
@@ -139,6 +161,11 @@ ControlBar::Placement ControlBar::place(int width) const
     auto used = 0;
     for (std::size_t group = 0; group < widths.size(); ++group)
     {
+        if (widths[group] == 0)
+        {
+            placement.rows[group] = 0;
+            continue;
+        }
         const auto needed = (used > 0 ? metrics.gap * 2 : 0) + widths[group];
         if (used > 0 && used + needed > available)
         {

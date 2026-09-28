@@ -56,6 +56,12 @@ public:
     void setToggles(bool diagnostics, bool fullScreen, bool settings);
     void setStep(ChromeStep step);
 
+    /** Hides the tempo group (for example in a plugin where the host sets BPM). */
+    void setTempoVisible(bool visible);
+
+    /** Hides the full-screen button (for example in a plugin editor window). */
+    void setFullScreenVisible(bool visible);
+
     /** Whether the diagnostics and full-screen buttons are shown here rather than in settings. */
     [[nodiscard]] bool showsSecondaryControls() const noexcept
     {
@@ -88,6 +94,8 @@ private:
     ChromeButton settings_{"Settings", ChromeButton::Icon::settings};
 
     ChromeStep step_ = ChromeStep::wide;
+    bool tempoVisible_ = true;
+    bool fullScreenVisible_ = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ControlBar)
 };
