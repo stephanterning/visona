@@ -15,6 +15,9 @@ namespace
 /** Keeps each poll() short so prepareToPlay/releaseResources do not block the host for long. */
 constexpr std::size_t maxFramesPerPoll = 4'096;
 
+/** Blocks whose playheads can wait for the analysis thread: several seconds of small blocks. */
+constexpr std::size_t playheadQueueCapacity = 1'024;
+
 SweepSnapshot emptySnapshot(std::size_t numChannels, std::size_t numBins)
 {
     SweepSnapshot snapshot;
@@ -37,6 +40,7 @@ HostAnalysisPipeline::HostAnalysisPipeline(std::size_t numChannels, std::size_t 
     : analyzer_(numChannels, numBins)
     , snapshots_(emptySnapshot(numChannels, numBins))
     , transport_(0.0)
+    , playheads_(playheadQueueCapacity)
     , requestedWindow_(defaultSweepWindow)
     , window_(defaultSweepWindow)
     , channels_(numChannels, nullptr)
@@ -56,12 +60,14 @@ void HostAnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) n
     analyzer_.start(0);
     analyzer_.setBandSplitting(false, 0.0);
     transport_.reset(sampleRate_);
+    // The host does not process audio while it changes the stream, so the queue holds only
+    // playheads of the old stream.
+    while (playheads_.tryPop())
+    {
+    }
+    hasLastPlayhead_ = false;
+    offset_ = std::round(requestedOffset_.load(std::memory_order_relaxed));
     followsStart_ = false;
-    playheadValid_.store(false, std::memory_order_relaxed);
-    lastKnownBpm_ = 0.0;
-    lastKnownPpq_ = 0.0;
-    lastKnownPlaying_ = false;
-    lastKnownTimeSignature_ = {};
     changed_ = true;
 }
 
@@ -76,43 +82,15 @@ void HostAnalysisPipeline::setBandSplitting(bool enabled) noexcept
     bandSplitting_.store(enabled, std::memory_order_relaxed);
 }
 
-void HostAnalysisPipeline::setPlayhead(double sampleTime,
-                                       const HostTransport::Playhead& playhead) noexcept
+void HostAnalysisPipeline::pushPlayhead(std::uint64_t blockStartSample,
+                                        const HostTransport::Playhead& playhead) noexcept
 {
-    playheadValid_.store(playhead.valid, std::memory_order_relaxed);
-    playheadPlaying_.store(playhead.isPlaying, std::memory_order_relaxed);
-    playheadSample_.store(sampleTime, std::memory_order_relaxed);
-    playheadPpq_.store(playhead.ppqPosition, std::memory_order_relaxed);
-    playheadBpm_.store(playhead.bpm, std::memory_order_relaxed);
-    playheadNumerator_.store(playhead.timeSignature.numerator, std::memory_order_relaxed);
-    playheadDenominator_.store(playhead.timeSignature.denominator, std::memory_order_relaxed);
+    playheads_.tryPush({blockStartSample, playhead});
 }
 
-HostTransport::Playhead HostAnalysisPipeline::playheadForPoll() const noexcept
+void HostAnalysisPipeline::setAnalysisOffset(double frames) noexcept
 {
-    HostTransport::Playhead playhead;
-    playhead.valid = playheadValid_.load(std::memory_order_relaxed);
-    playhead.isPlaying = playheadPlaying_.load(std::memory_order_relaxed);
-    playhead.ppqPosition = playheadPpq_.load(std::memory_order_relaxed);
-    playhead.bpm = playheadBpm_.load(std::memory_order_relaxed);
-    playhead.timeSignature.numerator = playheadNumerator_.load(std::memory_order_relaxed);
-    playhead.timeSignature.denominator = playheadDenominator_.load(std::memory_order_relaxed);
-
-    if (playhead.valid)
-        return playhead;
-
-    if (lastKnownBpm_ <= 0.0 || sampleRate_ <= 0.0 || ring_ == nullptr)
-        return playhead;
-
-    const auto newest = static_cast<double>(ring_->newestFrameEnd());
-    playhead.valid = true;
-    playhead.isPlaying = lastKnownPlaying_;
-    playhead.bpm = lastKnownBpm_;
-    playhead.timeSignature = lastKnownTimeSignature_;
-    playhead.ppqPosition =
-        lastKnownPpq_ + (newest - playheadSample_.load(std::memory_order_relaxed)) / sampleRate_ *
-                            (lastKnownBpm_ / 60.0);
-    return playhead;
+    requestedOffset_.store(frames, std::memory_order_relaxed);
 }
 
 std::size_t HostAnalysisPipeline::poll() noexcept
@@ -135,18 +113,8 @@ std::size_t HostAnalysisPipeline::poll() noexcept
     std::size_t framesAnalyzed = 0;
     if (ring_ != nullptr)
     {
-        auto playhead = playheadForPoll();
-        if (playheadValid_.load(std::memory_order_relaxed))
-        {
-            lastKnownBpm_ = playhead.bpm;
-            lastKnownPpq_ = playhead.ppqPosition;
-            lastKnownPlaying_ = playhead.isPlaying;
-            lastKnownTimeSignature_ = playhead.timeSignature;
-        }
-
-        const auto newest = static_cast<double>(ring_->newestFrameEnd());
-        transport_.syncTo(newest, playhead);
-        transport_.advanceTo(newest);
+        applyOffset();
+        syncPlayheads();
 
         while (const auto region = ring_->peek())
         {
@@ -155,16 +123,14 @@ std::size_t HostAnalysisPipeline::poll() noexcept
 
             const auto first = region->sampleIndex();
             const auto& span = transport_.spanAt(static_cast<double>(first));
+            // Audio after the newest playhead waits for the next one.
             if (span.kind == TransportSpan::Kind::pending)
                 break;
-            auto numFrames = region->numFrames();
+            auto numFrames = std::min(region->numFrames(), maxFramesPerPoll - framesAnalyzed);
+            // spanAt() only returns a closed span that ends after `first`.
             if (!span.isOpen())
-                numFrames =
-                    std::min(numFrames, static_cast<std::size_t>(std::ceil(span.end) -
-                                                                 static_cast<double>(first)));
-            numFrames = std::min(numFrames, maxFramesPerPoll - framesAnalyzed);
-            if (numFrames == 0)
-                break;
+                numFrames = std::min(numFrames, static_cast<std::size_t>(std::ceil(
+                                                    span.end - static_cast<double>(first))));
             analyze(*region, numFrames, span);
             nextSampleIndex_ = first + numFrames;
             framesAnalyzed += numFrames;
@@ -185,8 +151,56 @@ float HostAnalysisPipeline::takePeak(std::size_t channel) noexcept
     return peaks_[channel].exchange(0.0f, std::memory_order_relaxed);
 }
 
-void HostAnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region,
-                                   std::size_t numFrames, const TransportSpan& span) noexcept
+void HostAnalysisPipeline::applyOffset() noexcept
+{
+    const auto requested = std::round(requestedOffset_.load(std::memory_order_relaxed));
+    if (requested == offset_)
+        return;
+    offset_ = requested;
+    // Moving the timeline under audio that is already drawn would draw a stretch twice or leave a
+    // gap, so the timeline starts over from the next playhead.
+    transport_.reset(sampleRate_);
+    followsStart_ = false;
+    changed_ = true;
+}
+
+void HostAnalysisPipeline::syncPlayheads() noexcept
+{
+    // Playheads wait in the queue rather than push spans the audio still needs out of the
+    // timeline.
+    while (transport_.numSpans() + 2 < transport_.spanCapacity())
+    {
+        const auto next = playheads_.tryPop();
+        if (!next)
+            return;
+
+        auto playhead = next->playhead;
+        if (playhead.valid)
+        {
+            hasLastPlayhead_ = true;
+            lastPlayhead_ = *next;
+        }
+        else if (hasLastPlayhead_ && lastPlayhead_.playhead.bpm > 0.0 && sampleRate_ > 0.0)
+        {
+            // A block without a playhead goes on from the last one.
+            playhead = lastPlayhead_.playhead;
+            if (playhead.isPlaying)
+                playhead.ppqPosition +=
+                    static_cast<double>(next->sampleIndex - lastPlayhead_.sampleIndex) /
+                    sampleRate_ * playhead.bpm / 60.0;
+        }
+        else
+        {
+            continue;
+        }
+
+        // The audio of this playhead reaches the plugin `offset_` frames later.
+        transport_.syncTo(static_cast<double>(next->sampleIndex) + offset_, playhead);
+    }
+}
+
+void HostAnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
+                                   const TransportSpan& span) noexcept
 {
     for (std::size_t channel = 0; channel < channels_.size(); ++channel)
     {
@@ -202,11 +216,11 @@ void HostAnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region,
     switch (span.kind)
     {
     case TransportSpan::Kind::musical:
-        followStart(span.startCount, region.sampleIndex());
+        followStart(span.startCount);
         analyzer_.processMusical(region.sampleIndex(), channels_, numFrames, span);
         return;
     case TransportSpan::Kind::frozen:
-        followStart(span.startCount, region.sampleIndex());
+        followStart(span.startCount);
         analyzer_.freeze();
         return;
     case TransportSpan::Kind::freeRunning:
@@ -215,8 +229,7 @@ void HostAnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region,
     }
 }
 
-void HostAnalysisPipeline::followStart(std::uint64_t startCount,
-                                       std::uint64_t sampleIndex) noexcept
+void HostAnalysisPipeline::followStart(std::uint64_t startCount) noexcept
 {
     if (followsStart_ && startCount == followedStart_)
         return;
@@ -224,7 +237,6 @@ void HostAnalysisPipeline::followStart(std::uint64_t startCount,
     followedStart_ = startCount;
     analyzer_.startMusical(windowTicks());
     changed_ = true;
-    (void)sampleIndex;
 }
 
 double HostAnalysisPipeline::windowTicks() const noexcept

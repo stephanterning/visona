@@ -6,16 +6,18 @@ Visona is available as a **pass-through stereo effect** for use inside a DAW. Au
 
 | Format | Status | Identifier |
 | --- | --- | --- |
-| **VST3** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Visn` — browser shows **Stephan Terning → Visona** |
+| **VST3 — Visona** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Visn` — browser shows **Stephan Terning → Visona** |
+| **VST3 — Visona Sync** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Sync` — **Stephan Terning → Visona Sync** |
 | **AU** | Planned | Same four-character codes |
 | **CLAP** | Planned | Same four-character codes |
 
-Release builds are published as `Visona-vst3-macos-arm64.zip` on [GitHub Releases](https://github.com/stephanterning/visona/releases). Copy `Visona.vst3` into `~/Library/Audio/Plug-Ins/VST3/` and rescan in your DAW.
+Release builds are published on [GitHub Releases](https://github.com/stephanterning/visona/releases) as `Visona-vst3-macos-arm64.zip` (`Visona.vst3`) and `Visona-sync-vst3-macos-arm64.zip` (`Visona Sync.vst3`). Copy the bundles into `~/Library/Audio/Plug-Ins/VST3/` and rescan in your DAW.
 
-Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag if macOS blocks the bundle:
+Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag if macOS blocks a bundle:
 
 ```sh
 xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
+xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
 ```
 
 ## Transport
@@ -23,6 +25,19 @@ xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
 The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW. There is no MIDI Clock input and no FREE mode in the plugin editor.
 
 The standalone app still uses MIDI Clock and manual FREE tempo.
+
+## Sidechain sync (Visona Sync)
+
+Ableton Live reports the same playhead to every plugin on a track, including a plugin placed after plugins with latency, such as a lookahead limiter or a linear-phase EQ. The audio reaching Visona is then late by their latency, and the waveform lands that much after the grid. **Visona Sync** measures that latency.
+
+Visona Sync is a host-synced instrument that writes a −6 dBFS impulse at the start of every bar. Live aligns a sidechain with the main input of the plugin it feeds, so the impulse reaches Visona exactly as late as the audio. Visona measures how far after its playhead's bar line the impulse arrives, and draws the audio that much earlier.
+
+1. Add **Visona Sync** on an instrument track (no MIDI clip needed).
+2. In **Visona**, choose the Sync track as the sidechain input (**Post FX**).
+3. Press Play. From the first bar line the status bar shows **SC** and the measured latency, such as **SC +98.7 ms**. The diagnostics overlay (**D**) shows it in samples, next to the sidechain level. **SC ...** means the sidechain input is on but no impulse has arrived yet.
+4. Visona keeps the latency it measured. When plugins with latency are added or removed before Visona, the new value takes over after two bars, and the sweep starts over.
+
+The sidechain signal is not validated yet: any peak above −20 dBFS counts as a bar impulse, so route nothing but Visona Sync to it. If **Reduced Latency When Monitoring** is on in Live's Options menu, keep the Sync track unarmed, because Live skips delay compensation for monitored tracks.
 
 ## Editor
 
@@ -41,7 +56,10 @@ Waveform mode and colour are saved **per plugin instance** in the DAW project. G
 cmake --preset macos && cmake --build --preset macos
 ```
 
-The VST3 bundle is at `build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3`.
+The VST3 bundles are at:
+
+- `build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3`
+- `build/macos/plugin/VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3`
 
 Plugin-only build:
 

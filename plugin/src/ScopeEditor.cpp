@@ -28,17 +28,32 @@ juce::String formatSampleRate(double sampleRate)
     return juce::String(kilohertz, whole ? 0 : 1) + " kHz";
 }
 
+/** A signed offset in milliseconds with a real minus sign, such as "+98.7 ms". */
+juce::String formatOffset(double frames, double sampleRate)
+{
+    const auto ms = sampleRate > 0.0 ? std::round(frames * 10'000.0 / sampleRate) / 10.0 : 0.0;
+    const auto sign = ms < 0.0 ? juce::String::fromUTF8("\xe2\x88\x92") : juce::String("+");
+    return sign + juce::String(std::abs(ms), 1) + " ms";
+}
+
+juce::String formatPeak(float peak)
+{
+    if (peak <= 0.0f)
+        return "-inf dBFS";
+    return juce::String(20.0f * std::log10(peak), 1) + " dBFS";
+}
+
 } // namespace
 
-ScopeEditor::ScopeEditor(PluginAnalysisThread& analysis, const SourceLayout& layout,
-                         PluginInstanceState& state, PluginGlobalDefaults& defaults)
-    : analysis_(analysis)
-    , layout_(layout)
-    , state_(state)
-    , defaults_(defaults)
-    , scope_(analysis.snapshots(), layout)
-    , window_(state.window)
-    , peaks_(layout.totalChannelCount(), 0.0f)
+ScopeEditor::ScopeEditor(PluginProcessor& processor)
+    : processor_(processor)
+    , analysis_(processor.analysis())
+    , layout_(processor.layout())
+    , state_(processor.instanceState())
+    , defaults_(processor.globalDefaults())
+    , scope_(analysis_.snapshots(), layout_)
+    , window_(state_.window)
+    , peaks_(layout_.totalChannelCount(), 0.0f)
 {
     setOpaque(true);
     lookAndFeel_.setColourScheme(palette::widgetColours());
@@ -266,6 +281,29 @@ void ScopeEditor::updateStatus()
         values.state = "HOST";
         break;
     }
+
+    switch (processor_.sidechainSyncState())
+    {
+    case SidechainSyncState::locked:
+    {
+        const auto frames = processor_.sidechainSyncOffsetFrames();
+        const auto offset = formatOffset(frames, snapshot.sampleRate);
+        values.sidechainSync = "SC " + offset;
+        values.sidechainSyncTooltip =
+            "Visona Sync on the sidechain: the audio here arrives " + offset + " (" +
+            juce::String(juce::roundToInt(frames)) +
+            " samples) after the host playhead, so Visona draws it that much earlier.";
+        break;
+    }
+    case SidechainSyncState::waiting:
+        values.sidechainSync = "SC ...";
+        values.sidechainSyncTooltip = "The sidechain input is on. Waiting for a bar impulse from "
+                                      "Visona Sync while the host plays.";
+        break;
+    case SidechainSyncState::off:
+        break;
+    }
+
     if (snapshot.hasStream && snapshot.sampleRate > 0.0)
         values.sampleRate = formatSampleRate(snapshot.sampleRate);
     values.window = WindowControl::describe(window_);
@@ -316,6 +354,26 @@ void ScopeEditor::updateDiagnostics()
     values.nextTick = snapshot.nextTick;
     values.timeSignature = snapshot.timeSignature;
     values.bpm = snapshot.bpm;
+    values.blockSize = processor_.lastBlockSize();
+    if (snapshot.sampleRate > 0.0)
+        values.streamSeconds = static_cast<double>(snapshot.nextSampleIndex) / snapshot.sampleRate;
+
+    const auto sidechainPeak = processor_.takeSidechainPeak();
+    switch (processor_.sidechainSyncState())
+    {
+    case SidechainSyncState::off:
+        values.sidechainSync = "off: no sidechain input";
+        break;
+    case SidechainSyncState::waiting:
+        values.sidechainSync = "waiting, sidechain at " + formatPeak(sidechainPeak);
+        break;
+    case SidechainSyncState::locked:
+        values.sidechainSync =
+            formatOffset(processor_.sidechainSyncOffsetFrames(), snapshot.sampleRate) + " (" +
+            juce::String(juce::roundToInt(processor_.sidechainSyncOffsetFrames())) +
+            " frames), impulse " + formatPeak(processor_.sidechainImpulsePeak());
+        break;
+    }
     diagnostics_.update(values, elapsed);
 }
 

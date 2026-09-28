@@ -10,6 +10,9 @@ namespace visona
 namespace
 {
 
+/** A playhead further than this from where the previous one leads is a relocation. */
+constexpr double relocationTicks = 1.0;
+
 std::size_t checkedCapacity(std::size_t spanCapacity)
 {
     if (spanCapacity < 2)
@@ -36,7 +39,6 @@ void HostTransport::reset(double sampleRate) noexcept
     startCount_ = 0;
     anchorSample_ = 0.0;
     anchorTick_ = 0.0;
-    hasAnchor_ = false;
     oldestSpan_ = 0;
     spanCount_ = 0;
     pushOpen(TransportSpan::Kind::frozen, 0.0, 0.0);
@@ -55,45 +57,36 @@ void HostTransport::syncTo(double sampleTime, const Playhead& playhead) noexcept
     const auto tick = tickFromPpq(playhead.ppqPosition);
     nextTick_ = static_cast<std::int64_t>(std::llround(tick));
 
-    if (playhead.isPlaying)
+    const bool wasRunning = state_ == TransportState::running;
+    bool relocated = false;
+    if (wasRunning && sampleTime > anchorSample_)
     {
-        if (state_ != TransportState::running)
-        {
-            ++startCount_;
-            state_ = TransportState::running;
-            if (hasAnchor_ && sampleTime > anchorSample_)
-                pushMusical(anchorSample_, anchorTick_, sampleTime, tick);
-            else
-            {
-                closeOpenAt(sampleTime);
-                pushMusical(sampleTime, tick, sampleTime + 1.0, tick + 1.0);
-            }
-        }
-        else if (hasAnchor_ && sampleTime > anchorSample_)
-        {
-            const auto expected =
-                anchorTick_ + (sampleTime - anchorSample_) / framesPerTick();
-            if (std::abs(tick - expected) > 1.0)
-            {
-                ++startCount_;
-                pushMusical(anchorSample_, anchorTick_, sampleTime, tick);
-            }
-            else
-                pushMusical(anchorSample_, anchorTick_, sampleTime, tick);
-        }
-        else if (!hasAnchor_)
-            pushMusical(sampleTime, tick, sampleTime + 1.0, tick + 1.0);
-
-        anchorSample_ = sampleTime;
-        anchorTick_ = tick;
-        hasAnchor_ = true;
-        return;
+        const auto frames = framesPerTick();
+        const auto expected =
+            frames > 0.0 ? anchorTick_ + (sampleTime - anchorSample_) / frames : tick;
+        relocated = std::abs(tick - expected) > relocationTicks;
+        // The audio since the previous playhead keeps going from it; a jump happens here.
+        endPendingAt(sampleTime, relocated ? expected : tick);
     }
 
-    if (state_ == TransportState::running && hasAnchor_ && sampleTime > anchorSample_)
-        pushMusical(anchorSample_, anchorTick_, sampleTime, tick);
-
-    if (state_ == TransportState::running)
+    if (playhead.isPlaying)
+    {
+        if (!wasRunning || relocated)
+            ++startCount_;
+        state_ = TransportState::running;
+        if (auto& open = openSpan(); open.kind == TransportSpan::Kind::pending)
+        {
+            open.startTick = tick;
+            open.endTick = tick;
+            open.startCount = startCount_;
+        }
+        else
+        {
+            closeOpenAt(sampleTime);
+            pushOpen(TransportSpan::Kind::pending, sampleTime, tick);
+        }
+    }
+    else if (wasRunning)
     {
         state_ = TransportState::stopped;
         closeOpenAt(sampleTime);
@@ -102,12 +95,9 @@ void HostTransport::syncTo(double sampleTime, const Playhead& playhead) noexcept
 
     anchorSample_ = sampleTime;
     anchorTick_ = tick;
-    hasAnchor_ = true;
 }
 
-void HostTransport::advanceTo(double /*sampleTime*/) noexcept
-{
-}
+void HostTransport::advanceTo(double /*sampleTime*/) noexcept {}
 
 const TransportSpan& HostTransport::span(std::size_t index) const noexcept
 {
@@ -154,28 +144,22 @@ void HostTransport::closeOpenAt(double sampleTime) noexcept
     --spanCount_;
 }
 
-void HostTransport::pushMusical(double start, double startTick, double end, double endTick) noexcept
+void HostTransport::endPendingAt(double sampleTime, double endTick) noexcept
 {
-    if (!(end > start))
-        end = start + 1.0;
-    if (!(endTick > startTick))
-        endTick = startTick + (end - start) / std::max(framesPerTick(), 1.0);
-
-    closeOpenAt(start);
-    if (spanCount_ == spans_.size())
-    {
-        oldestSpan_ = (oldestSpan_ + 1) % spans_.size();
-        --spanCount_;
-    }
-    ++spanCount_;
-    openSpan() = {TransportSpan::Kind::musical, start, end, startTick, endTick, startCount_};
+    auto& pending = openSpan();
+    assert(pending.kind == TransportSpan::Kind::pending && sampleTime > pending.start);
+    pending.kind = TransportSpan::Kind::musical;
+    pending.end = sampleTime;
+    pending.endTick =
+        endTick > pending.startTick
+            ? endTick
+            : pending.startTick + (sampleTime - pending.start) / std::max(framesPerTick(), 1.0);
 }
 
 double HostTransport::framesPerTick() const noexcept
 {
-    return hostBpm_ > 0.0
-               ? 60.0 * sampleRate_ / (TimeSignature::ticksPerQuarterNote * hostBpm_)
-               : 0.0;
+    return hostBpm_ > 0.0 ? 60.0 * sampleRate_ / (TimeSignature::ticksPerQuarterNote * hostBpm_)
+                          : 0.0;
 }
 
 double HostTransport::clampToTimeline(double sampleTime) const noexcept

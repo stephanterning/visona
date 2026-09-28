@@ -61,6 +61,8 @@ public:
         std::uint64_t midiDrops = 0;
         std::uint64_t ignoredSpp = 0;
         double midiOffsetFrames = 0.0;
+        /** The plugin's sidechain sync with Visona Sync; the row is hidden when empty. */
+        juce::String sidechainSync;
 
         /** Fraction of one CPU core. */
         double analysisLoad = 0.0;

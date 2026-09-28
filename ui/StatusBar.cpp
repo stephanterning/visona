@@ -68,9 +68,11 @@ void StatusBar::paint(juce::Graphics& g)
         bool bold;
         juce::Colour colour;
     };
-    const std::array<Item, 6> items{{
+    const std::array<Item, 7> items{{
         {values_.bpm, "999.9 BPM", true, palette::text},
         {values_.state, "", true, values_.stateIsError ? palette::error : palette::text},
+        {values_.sidechainSync, "SC +999.9 ms", true,
+         values_.sidechainSyncIsError ? palette::error : palette::level},
         {values_.sampleRate, "192 kHz", false, palette::level},
         {values_.window, "4 BARS", false, palette::level},
         {values_.gain, "+36 dB", false, palette::level},
@@ -85,7 +87,7 @@ void StatusBar::paint(juce::Graphics& g)
         const auto font = fontFor(step_, item.bold);
         const auto width = std::max(juce::GlyphArrangement::getStringWidthInt(font, item.text),
                                     juce::GlyphArrangement::getStringWidthInt(font, item.widest));
-        if (index > 1 && width > area.getWidth())
+        if (index > 2 && width > area.getWidth())
             break;
         const bool button = index == 1 && values_.stateIsAction;
         const auto padding = button ? metrics.gap * 2 : 0;
@@ -135,7 +137,11 @@ void StatusBar::mouseUp(const juce::MouseEvent& event)
 
 juce::String StatusBar::getTooltip()
 {
-    return values_.stateIsAction ? values_.stateTooltip : juce::String();
+    if (values_.stateIsAction)
+        return values_.stateTooltip;
+    if (values_.sidechainSync.isNotEmpty())
+        return values_.sidechainSyncTooltip;
+    return {};
 }
 
 } // namespace visona

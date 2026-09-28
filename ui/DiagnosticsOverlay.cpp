@@ -127,7 +127,8 @@ void DiagnosticsOverlay::update(const Values& values, double elapsedSeconds)
 int DiagnosticsOverlay::numRows() const
 {
     return headingRows + audioRows + midiRows + static_cast<int>(values_.channels.size()) +
-           (values_.callbackAllocations.has_value() ? 1 : 0) + analysisRows + renderingRows +
+           (values_.callbackAllocations.has_value() ? 1 : 0) +
+           (values_.sidechainSync.isNotEmpty() ? 1 : 0) + analysisRows + renderingRows +
            processRows;
 }
 
@@ -257,6 +258,8 @@ void DiagnosticsOverlay::paint(juce::Graphics& g)
                       " ms (" + juce::String(juce::roundToInt(values_.midiOffsetFrames)) +
                       " frames)"
                 : "-");
+    if (values_.sidechainSync.isNotEmpty())
+        drawRow("Sidechain sync", values_.sidechainSync);
 
     drawHeading("ANALYSIS");
     drawRow("Analysis thread", formatLoad(values_.analysisLoad));

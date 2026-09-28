@@ -3,13 +3,21 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.0-alpha.2] - 2026-09-28
 
 ### Added
 
 - VST3 plugin for macOS arm64: pass-through stereo effect with host transport, slim editor and per-instance appearance state.
 - `HostTransport` and `HostAnalysisPipeline` in `core/` for DAW playhead sync.
-- Release workflow publishes `Visona-vst3-macos-arm64.zip`.
+- Visona Sync, a VST3 instrument for macOS arm64 that writes a −6 dBFS impulse at every bar line of the host timeline.
+- Sidechain input on the Visona plugin. With Visona Sync on it, Visona measures how late the audio arrives after plugins with latency, shows it in the status bar (such as `SC +98.7 ms`) and draws the audio on the grid.
+- Release workflow publishes `Visona-vst3-macos-arm64.zip` and `Visona-sync-vst3-macos-arm64.zip`.
+
+### Known limitations (alpha)
+
+- Plugins are VST3 for macOS Apple Silicon only, ad-hoc signed. AU and CLAP are not included yet.
+- The plugins are tested in Ableton Live only.
+- The sidechain signal is not validated yet: route only Visona Sync to it.
 
 ## [0.1.0-alpha.1] - 2026-09-28
 
@@ -29,4 +37,5 @@ All notable changes to this project are documented here. The format is based on
 - Raspberry Pi builds are provided as a binary tarball; build on the Pi only for development.
 - Plugins (VST3/AU/CLAP) are not included yet.
 
+[0.1.0-alpha.2]: https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.1

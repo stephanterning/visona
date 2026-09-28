@@ -3,11 +3,10 @@
 namespace visona
 {
 
-PluginEditor::PluginEditor(PluginProcessor& processor)
-    : juce::AudioProcessorEditor(processor)
-    , processor_(processor)
-    , editor_(processor.analysis(), processor.layout(), processor.instanceState(),
-              processor.globalDefaults())
+PluginEditor::PluginEditor(PluginProcessor& pluginProcessor)
+    : juce::AudioProcessorEditor(pluginProcessor)
+    , processor_(pluginProcessor)
+    , editor_(pluginProcessor)
 {
     editor_.onStateChange = [this](const PluginInstanceState& state)
     {

@@ -12,8 +12,10 @@ add_executable(visona_core_tests
     AudioRingBufferTests.cpp
     BandSplitterTests.cpp
     ClockTimeMapperTests.cpp
+    BarImpulseSchedulerTests.cpp
     HostAnalysisPipelineTests.cpp
     HostTransportTests.cpp
+    SidechainSyncDetectorTests.cpp
     ColumnReductionTests.cpp
     LaneMappingTests.cpp
     MidiClockTransportTests.cpp

@@ -32,6 +32,10 @@ public:
         /** Whether the state is a button; the tooltip says what it does. */
         bool stateIsAction = false;
         juce::String stateTooltip;
+        /** Sidechain sync label, for example "SC SYNC". Empty when inactive. */
+        juce::String sidechainSync;
+        bool sidechainSyncIsError = false;
+        juce::String sidechainSyncTooltip;
         juce::String sampleRate;
         juce::String window;
         juce::String gain;
