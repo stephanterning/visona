@@ -244,9 +244,10 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Xcode generator locally, Ninja in CI.
   - Microphone permission (`MICROPHONE_PERMISSION_ENABLED` plus a usage text) is required, or audio input stays silent.
   - Ad-hoc signing is enough for the proof of concept.
-- **GitHub Actions on every PR (D-043):**
-  - `macos` (arm64 runner, pinned image and Xcode version): builds the app, runs the core tests and uploads the `.app` as an artifact.
-  - `linux` (Ubuntu, GCC and Clang): builds the core and tests, plus a sanitizer job (ASan/UBSan, and TSan for the ring and triple buffer).
+- **GitHub Actions (D-043):**
+  - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs.
+  - `Release` on published GitHub releases or manual trigger: macOS arm64 app bundle and Linux arm64 Pi binary tarball.
+  - macOS app builds locally with the `macos` or `xcode` preset while developing the GUI.
 - **Test framework:** Catch2 v3 via `FetchContent`. Its BSL-1.0 license is AGPL-compatible (D-054).
 - **Style:** `.clang-format`; warnings are errors in `core/`.
 - **Repository layout:**

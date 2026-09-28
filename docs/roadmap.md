@@ -3,15 +3,11 @@
 The plan from MVP 1.0 to the long-term platform. The architecture is described in [architecture.md](architecture.md); decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
 
 **Status:**
-- The MVP plan is approved (D-054).
-- The license (AGPLv3) and `AGENTS.md` are in place.
-- Step 1 (skeleton and CI) is merged ([#4](https://github.com/stephanterning/visona/pull/4)).
-- Step 2 (core primitives) is merged ([#5](https://github.com/stephanterning/visona/pull/5)).
-- Step 3 (audio input and settings) is merged ([#6](https://github.com/stephanterning/visona/pull/6)).
-- Step 4 (free-running sweep scope) is merged ([#7](https://github.com/stephanterning/visona/pull/7)).
-- MIDI Clock sync, steps 6 and 7, comes before frequency coloring, step 5 (D-072).
-- Steps 6, 7 and 7b (MIDI Clock transport, beat-synced sweep and horizontal zoom) are merged ([#12](https://github.com/stephanterning/visona/pull/12)) (D-082).
-- After testing step 7b, the maintainer asked for refinements that are not steps of their own: the grid and reference lines (D-087, D-088), moving the zoom (D-089) and `FREE` with manual BPM (D-090). Later he asked for a measurement ruler (D-094).
+- **MVP 1.0 proof of concept is achieved** (alpha). The maintainer verified the scenario on Apple Silicon Mac and on Raspberry Pi hardware with an RME Babyface Pro FS.
+- Steps 1–7b and step 5 (waveform modes) are merged. Step 8 (formal logging and written measurements) is deferred polish, not a blocker for alpha.
+- Raspberry Pi port and kiosk autostart landed early as a spike ([#20](https://github.com/stephanterning/visona/pull/20), [#21](https://github.com/stephanterning/visona/pull/21)); full milestone 6 (appliance hardening) remains after plugins.
+- **Next focus after alpha:** milestone 12 — VST3, AU and CLAP plugins with host transport, then UX polish and Pi appliance work (milestones 5–6).
+- CI: Linux core tests on every pull request; macOS and Pi app builds on release or manual workflow trigger only (private repo Actions budget).
 
 ## 1. MVP 1.0
 
@@ -29,7 +25,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - Display gain from 0 to +36 dB (D-024, D-046)
 - Status bar, control bar, a settings panel with persistence, resizing and fullscreen (D-046)
 - Transport policies per D-045, D-059 and D-090
-- CI on every PR: the macOS app, plus core and tests on Linux (D-043)
+- CI on every PR: core and tests on Linux (D-043). macOS and Pi app builds on release or manual trigger.
 
 **Out of scope**
 
@@ -180,17 +176,30 @@ Stricter sync acceptance criteria are defined after the MVP as a dedicated focus
 
 Milestone 7 is a separate DSP track and must not delay earlier milestones.
 
-## 5. After MVP 1.0
+## 5. After MVP 1.0 (alpha)
 
-**Moved out of the MVP** (order still open):
-
-- Sync precision as a dedicated focus area: acceptance criteria, jitter handling, possibly a PLL, and a sync offset (D-035)
-- Raspberry Pi: a hardware spike, the touch UI (milestone 5) and the appliance with hotplug and reconnect (milestone 6) (D-033)
-
-**Order after v1:**
+**Immediate order:**
 
 ```
-v1 beat-synced scope
+Alpha release (v0.1.0)
+  → VST3 / AU / CLAP plugins (milestone 12)
+  → UX polish and open issues from alpha use
+  → Touch UI (milestone 5) and Pi appliance hardening (milestone 6)
+  → Sync precision focus area (D-035)
+  → Auto BPM (milestone 7)
+  → Modular dashboard and further modules (milestones 8–11)
+```
+
+**Still open from the MVP defer list:**
+
+- Sync precision as a dedicated focus area: acceptance criteria, jitter handling, possibly a PLL, and a sync offset (D-035)
+- Hotplug and reconnect (D-033)
+- Step 8 file logging and written measurement notes (D-040)
+
+**Longer-term module order** (after plugins and v1 appliance):
+
+```
+v1 beat-synced scope (Mac + Pi appliance)
   → Auto BPM
   → Modular widget/layout engine
   → Spectrum
@@ -198,7 +207,6 @@ v1 beat-synced scope
   → Peak / RMS / True Peak
   → LUFS / loudness
   → Dedicated hardware meter replacement
-  → VST3 / AU
 ```
 
 **The order follows real usage.** If the scope turns out to be extremely useful, improving the scope beats mechanically moving on to the next module.

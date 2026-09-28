@@ -137,7 +137,7 @@ Press **D** to toggle the diagnostics overlay (block size, ring overruns, alloca
 
 | Topic | Status |
 | --- | --- |
-| **CI** | GitHub Actions still builds the app on macOS only. Linux jobs build `core/` and tests without JUCE. Pi builds are validated manually on hardware for now. |
+| **CI** | GitHub Actions builds the Pi binary on `ubuntu-24.04-arm` when a release is published or the Release workflow is triggered manually. Pull-request CI runs Linux `core/` tests only. Prefer downloading the release artifact instead of compiling on a 1 GB Pi. |
 | **Cross-compilation** | Not supported. Build natively on the Pi (or on another Linux machine with the same preset to check compilation only). |
 | **Wayland-native** | JUCE on Linux targets X11. Running under XWayland on Pi desktop sessions is expected; a pure Wayland kiosk setup is future work. |
 | **Device timestamps** | ALSA callbacks do not supply per-block host timestamps like CoreAudio. Visona falls back to `std::chrono::steady_clock` on Linux (see `app/src/HostTime.h`). MIDI/audio alignment may differ slightly from macOS until offset tuning is verified on Pi hardware. |

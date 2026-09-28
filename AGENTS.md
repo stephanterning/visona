@@ -56,4 +56,4 @@ cmake --preset macos && cmake --build --preset macos && ctest --preset macos
 cmake --preset core-gcc && cmake --build --preset core-gcc && ctest --preset core-gcc
 ```
 
-`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. CI in `.github/workflows/ci.yml` runs the `macos`, `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets on every pull request and on `main`.
+`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app and Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually.
