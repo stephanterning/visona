@@ -17,10 +17,11 @@ enum class SidechainSyncState
 };
 
 /**
-    Validates sidechain audio as Visona Sync bar impulses and estimates analysis offset.
+    Tracks Visona Sync bar impulses on the sidechain bus and estimates analysis offset.
 
-    When locked, `offsetFrames()` is the sidechain peak minus the expected bar boundary: apply it
-    by subtracting from audio sample indices when mapping to the host transport grid.
+    Permissive mode for early testing: locks on the first detected bar peak and keeps the last
+    offset when a bar is missed. When locked, `offsetFrames()` is the sidechain peak minus the
+    expected bar boundary.
 */
 class SidechainSyncDetector
 {
@@ -60,14 +61,8 @@ private:
                                       std::uint64_t blockStartSample,
                                       double searchCenterSample, int searchHalfWidth) const noexcept;
 
-    [[nodiscard]] bool peakLooksLikeImpulse(const PeakHit& hit,
-                                            std::span<const float> sidechain,
-                                            std::uint64_t blockStartSample) const noexcept;
-
     SidechainSyncState state_ = SidechainSyncState::off;
     double offsetFrames_ = 0.0;
-    int consecutiveMatches_ = 0;
-    int missedBars_ = 0;
     bool sidechainEnabled_ = false;
 };
 

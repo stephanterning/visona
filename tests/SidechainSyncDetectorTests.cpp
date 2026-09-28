@@ -20,10 +20,10 @@ std::vector<float> blockWithImpulse(std::uint32_t numFrames, std::uint32_t offse
 }
 
 void feedBars(SidechainSyncDetector& detector, std::uint64_t& streamSample, double& ppqAtBlockStart,
-              std::uint32_t framesPerBar, double bpm, double sampleRate)
+              std::uint32_t framesPerBar, double bpm, double sampleRate, int barCount = 4)
 {
     const TimeSignature timeSignature{4, 4};
-    for (int bar = 0; bar < 4; ++bar)
+    for (int bar = 0; bar < barCount; ++bar)
     {
         auto samples = blockWithImpulse(framesPerBar, 0);
         streamSample += framesPerBar;
@@ -35,7 +35,7 @@ void feedBars(SidechainSyncDetector& detector, std::uint64_t& streamSample, doub
 
 } // namespace
 
-TEST_CASE("SidechainSyncDetector locks on Visona Sync impulses", "[sync]")
+TEST_CASE("SidechainSyncDetector locks on the first Visona Sync impulse", "[sync]")
 {
     constexpr double sampleRate = 48'000.0;
     constexpr double bpm = 120.0;
@@ -46,7 +46,7 @@ TEST_CASE("SidechainSyncDetector locks on Visona Sync impulses", "[sync]")
 
     std::uint64_t streamSample = 0;
     double ppqAtBlockStart = 0.0;
-    feedBars(detector, streamSample, ppqAtBlockStart, framesPerBar, bpm, sampleRate);
+    feedBars(detector, streamSample, ppqAtBlockStart, framesPerBar, bpm, sampleRate, 1);
 
     CHECK(detector.state() == SidechainSyncState::locked);
     CHECK(detector.offsetFrames() == 0.0);
@@ -65,20 +65,16 @@ TEST_CASE("SidechainSyncDetector locks with PDC-like sidechain delay", "[sync]")
 
     std::uint64_t streamSample = 0;
     double ppqAtBlockStart = 0.0;
-    for (int bar = 0; bar < 4; ++bar)
-    {
-        auto samples = blockWithImpulse(framesPerBar, sidechainDelay);
-        streamSample += framesPerBar;
-        detector.processBlock(samples, streamSample, framesPerBar, ppqAtBlockStart, bpm,
-                              timeSignature, sampleRate, true);
-        ppqAtBlockStart += 4.0;
-    }
+    auto samples = blockWithImpulse(framesPerBar, sidechainDelay);
+    streamSample += framesPerBar;
+    detector.processBlock(samples, streamSample, framesPerBar, ppqAtBlockStart, bpm,
+                          timeSignature, sampleRate, true);
 
     CHECK(detector.state() == SidechainSyncState::locked);
     CHECK(detector.offsetFrames() == sidechainDelay);
 }
 
-TEST_CASE("SidechainSyncDetector rejects dense sidechain peaks", "[sync]")
+TEST_CASE("SidechainSyncDetector stays locked when a bar is missed", "[sync]")
 {
     constexpr double sampleRate = 48'000.0;
     constexpr double bpm = 120.0;
@@ -90,16 +86,19 @@ TEST_CASE("SidechainSyncDetector rejects dense sidechain peaks", "[sync]")
 
     std::uint64_t streamSample = 0;
     double ppqAtBlockStart = 0.0;
-    for (int bar = 0; bar < 10; ++bar)
+    feedBars(detector, streamSample, ppqAtBlockStart, framesPerBar, bpm, sampleRate, 1);
+    REQUIRE(detector.state() == SidechainSyncState::locked);
+    const auto lockedOffset = detector.offsetFrames();
+
+    for (int bar = 0; bar < 4; ++bar)
     {
-        std::vector<float> samples(framesPerBar, 0.0f);
-        for (std::uint32_t index = 0; index < framesPerBar; index += 512)
-            samples[index] = syncImpulseAmplitude;
+        const std::vector<float> silence(framesPerBar, 0.0f);
         streamSample += framesPerBar;
-        detector.processBlock(samples, streamSample, framesPerBar, ppqAtBlockStart, bpm,
+        detector.processBlock(silence, streamSample, framesPerBar, ppqAtBlockStart, bpm,
                               timeSignature, sampleRate, true);
         ppqAtBlockStart += 4.0;
     }
 
-    CHECK(detector.state() == SidechainSyncState::invalid);
+    CHECK(detector.state() == SidechainSyncState::locked);
+    CHECK(detector.offsetFrames() == lockedOffset);
 }
