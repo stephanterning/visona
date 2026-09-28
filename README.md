@@ -1,6 +1,6 @@
 # Visona
 
-**Visona** is a beat-synced stereo oscilloscope for music production. It shows your audio as a musical sweep scope locked to MIDI Clock from your DAW, with manual tempo when no clock is present.
+**Visona** is a beat-synced stereo oscilloscope for music production. It shows your audio as a musical sweep scope locked to MIDI Clock from your DAW, with manual tempo when no clock is present. As a VST3 plugin it follows the DAW's transport directly.
 
 ![Visona scope in action](docs/images/visona-scope.png)
 
@@ -20,6 +20,17 @@ Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove th
 ```sh
 xattr -cr /path/to/Visona.app
 ```
+
+For the VST3 plugins, remove the quarantine flag after copying them, then sign them ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt:
+
+```sh
+xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
+xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
+codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
+codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
+```
+
+Then restart the DAW or rescan its plugins.
 
 The **VST3 plugin** (pass-through stereo effect, host transport) ships alongside the standalone app on macOS. **Visona Sync**, a companion instrument, puts a bar impulse on the plugin's sidechain so Visona can measure how late audio arrives after plugins with latency in Ableton Live, and draw it on the grid. AU and CLAP are planned next. See [docs/plugins.md](docs/plugins.md).
 
@@ -43,7 +54,7 @@ Works with professional USB audio interfaces. Development and testing use an **R
 
 ## Raspberry Pi appliance
 
-See [docs/pi-setup.md](docs/pi-setup.md), [docs/pi-build.md](docs/pi-build.md) and [docs/pi-kiosk.md](docs/pi-kiosk.md). For normal use, download the release tarball rather than building on the Pi.
+See [docs/pi-setup.md](docs/pi-setup.md), [docs/pi-build.md](docs/pi-build.md) and [docs/pi-kiosk.md](docs/pi-kiosk.md). For normal use, download the release tarball rather than building on the Pi; it holds the binary and the kiosk scripts.
 
 ## License
 

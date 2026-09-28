@@ -141,7 +141,7 @@ A lightweight log of decisions and open questions. The architecture is described
   Ableton Live sends SPP (D-044), and without it Continue after a relocate lands in the wrong place, which would make the proof of concept misleading. Supersedes D-038.
 - **D-042 — The license is AGPLv3, matching JUCE's open-source license.** `Active`
   Visona is not a commercial product; it is free for anyone with the same need. GPL/AGPL-compatible dependencies are acceptable.
-- **D-043 — Development flow.** `Active`
+- **D-043 — Development flow.** `Amended by D-095`
   - GitHub Actions builds the macOS app, plus the core and tests on Linux, on every PR.
   - Agents open draft PRs; the maintainer tests on a Mac and merges.
 
@@ -380,6 +380,25 @@ A lightweight log of decisions and open questions. The architecture is described
   - The readout has no levels for now. Mega Scope also shows start, end and delta dB from the rectangle's height; the maintainer asked to leave them out until further notice.
   - Precision is one pixel: at 120 BPM and 96 kHz on a scope about 1,500 logical pixels wide, about 1.3 ms at 1 bar unzoomed and 0.04 ms at 32×. With MIDI Clock the tempo estimate adds a small error, and a tempo change within the window is read at the current tempo.
   - The calculations are in the core (`Ruler.h`) and tested there; `ScopeView` draws the rectangle and the readout.
+- **D-095 — Pull-request CI runs the Linux core jobs only; the macOS app, the VST3 plugins and the Pi binary are built by the Release workflow.** `Active`
+  - Made in the alpha preparation ([#22](https://github.com/stephanterning/visona/pull/22)) to save the private repository's macOS Actions minutes.
+  - The Release workflow runs when a GitHub release is published, or on a manual trigger, which also works on a branch to check a macOS build before merging.
+  - Until then, the maintainer's local Mac build is the check that the JUCE targets compile.
+
+  Amends D-043.
+- **D-096 — The VST3 plugin follows the host playhead, paired with the first frame of each block.** `Active`
+  - Hosts report the playhead (position in quarter notes, tempo, time signature and whether it plays) for a block's first frame. The audio thread queues it with that frame's stream index; the analysis thread builds musical spans between consecutive playheads, and the audio after the newest one waits for the next, as after the latest tick with MIDI Clock (D-075).
+  - A playhead more than one tick from where the previous one leads is a relocation, such as a loop or a jump. The sweep starts over, and the audio before it keeps going from the previous position.
+  - A block without a playhead goes on from the last one at its tempo.
+  - The plugin has no MIDI Clock input and no `FREE`, and its editor hides the BPM control and the full screen button.
+  - Introduced in [#24](https://github.com/stephanterning/visona/pull/24). [#25](https://github.com/stephanterning/visona/pull/25) moved the pairing to the first frame, after the timeline had been one block early.
+- **D-097 — Visona Sync measures, through the plugin's sidechain, how far the audio at the plugin lags the host playhead.** `Active`
+  - Ableton Live reports the same playhead to every plugin on a track, so the audio after a plugin with latency arrives late by it ([Ableton's Delay Compensation FAQ](https://help.ableton.com/hc/en-us/articles/209072409-Delay-Compensation-FAQ)). Live aligns a sidechain with the main input of the plugin it feeds.
+  - Visona Sync is a VST3 instrument that writes a one-frame −6 dBFS impulse at every bar line of the host playhead. The maintainer chose an audio impulse over a MIDI trigger, which Oszillos Mega Scope uses, because a sidechain is easier to route in Live. Communication between plugin instances was considered and rejected, since it cannot carry sample-accurate timing between tracks.
+  - The Visona plugin measures the loudest sidechain sample of each block against the nearest bar line of the block's playhead. The first impulse locks the offset, and a different offset replaces it when two impulses in a row agree. The offset shifts where each playhead sits on the audio timeline (D-096), and a new offset restarts the sweep.
+  - The status bar shows the offset, such as `SC +98.7 ms`, and `SC ...` while the sidechain is on but no impulse has arrived.
+  - When the maintainer routes Visona Sync to the sidechain, it is used whatever the host's own delay compensation does; Visona does not try to tell whether the host already reports the right timing.
+  - The signal is not validated yet: any peak above −20 dBFS counts. The maintainer asked to drop the validation for now, after a stricter check kept losing lock in Live.
 
 ---
 

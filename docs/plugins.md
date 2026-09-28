@@ -1,6 +1,6 @@
 # Visona plugins
 
-Visona is available as a **pass-through stereo effect** for use inside a DAW. Audio is copied to the output unchanged while the scope analyzes the incoming signal.
+Visona is available as a **pass-through stereo effect** for use inside a DAW. Audio is copied to the output unchanged while the scope analyzes the incoming signal. **Visona Sync** is a companion instrument that feeds Visona's sidechain, so Visona can measure how late the audio arrives after plugins with latency (see [Sidechain sync](#sidechain-sync-visona-sync)).
 
 ## Formats
 
@@ -13,16 +13,20 @@ Visona is available as a **pass-through stereo effect** for use inside a DAW. Au
 
 Release builds are published on [GitHub Releases](https://github.com/stephanterning/visona/releases) as `Visona-vst3-macos-arm64.zip` (`Visona.vst3`) and `Visona-sync-vst3-macos-arm64.zip` (`Visona Sync.vst3`). Copy the bundles into `~/Library/Audio/Plug-Ins/VST3/` and rescan in your DAW.
 
-Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag if macOS blocks a bundle:
+Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag after copying the bundles, then sign them ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt:
 
 ```sh
 xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
 xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
+codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
+codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
 ```
+
+Do the same after installing a local build. Then restart the DAW or rescan its plugins.
 
 ## Transport
 
-The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW. There is no MIDI Clock input and no FREE mode in the plugin editor.
+The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW, as reported at the first frame of each audio block. There is no MIDI Clock input and no FREE mode in the plugin editor. The status bar shows **HOST RUN** while the DAW plays and **STOPPED** while it is stopped.
 
 The standalone app still uses MIDI Clock and manual FREE tempo.
 
@@ -44,9 +48,9 @@ The sidechain signal is not validated yet: any peak above −20 dBFS counts as a
 The plugin editor is a slimmed-down version of the standalone UI:
 
 - Window, gain, waveform mode and zoom work as in the app
-- Tempo is read-only (from the host)
+- The tempo comes from the host and is shown in the status bar; the BPM control and the full screen button are hidden
 - **Settings** opens appearance controls (waveform colour) only — no audio device or MIDI device panels
-- Press **D** for the diagnostics overlay
+- Press **D** for the diagnostics overlay, which includes a sidechain sync row
 
 Waveform mode and colour are saved **per plugin instance** in the DAW project. Global defaults live in `~/Library/Application Support/Visona/VisonaPluginDefaults.settings` and apply when an instance has no saved appearance.
 
@@ -61,10 +65,19 @@ The VST3 bundles are at:
 - `build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3`
 - `build/macos/plugin/VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3`
 
-Plugin-only build:
+Plugin-only build, with the bundles under `build/macos-plugin/` instead:
 
 ```sh
 cmake --preset macos-plugin && cmake --build --preset macos-plugin
+```
+
+To install a local build, replace the old bundles, then clear the quarantine flag and sign them as described above:
+
+```sh
+rm -rf ~/Library/Audio/Plug-Ins/VST3/Visona.vst3 ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
+cp -R build/macos-plugin/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3 \
+      "build/macos-plugin/plugin/VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3" \
+      ~/Library/Audio/Plug-Ins/VST3/
 ```
 
 ## Testing in Ableton Live
@@ -74,13 +87,14 @@ cmake --preset macos-plugin && cmake --build --preset macos-plugin
 3. Stop — the view freezes with **STOPPED**.
 4. Move the playhead and press Continue — the scope should show the new position.
 5. Try 120, 126 and 174 BPM.
+6. Put a plugin with latency before Visona and route Visona Sync to its sidechain. The status bar should show **SC** with that latency, and kicks should stay on the grid.
 
 ### If the scope stops or Live feels sluggish
 
 Before removing or re-adding the plugin, note:
 
-- Status line: **HOST RUN** or **STOPPED**
-- Diagnostics overlay (**D**): sample rate, ring overruns, analysis load
+- Status line: **HOST RUN** or **STOPPED**, and **SC** with the measured latency if the sidechain is in use
+- Diagnostics overlay (**D**): sample rate, block size, ring overruns, stream time, sidechain sync and analysis load
 - Whether Live's transport is playing
 - Whether audio still passes through when the UI stops updating
 - Whether the Mac became sluggish before or after the waveform stopped
