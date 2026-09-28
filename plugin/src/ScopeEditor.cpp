@@ -37,8 +37,8 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     , state_(processor.instanceState())
     , defaults_(processor.globalDefaults())
     , scope_(analysis_.snapshots(), layout_)
-    , window_(state.window)
-    , peaks_(layout.totalChannelCount(), 0.0f)
+    , window_(state_.window)
+    , peaks_(layout_.totalChannelCount(), 0.0f)
 {
     setOpaque(true);
     lookAndFeel_.setColourScheme(palette::widgetColours());

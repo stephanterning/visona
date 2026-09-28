@@ -113,9 +113,10 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiB
             sidechainInputEnabled_ = true;
             sidechainSync_.setSidechainEnabled(true);
             sidechainSync_.processBlock(
-                {sidechainInput.getReadPointer(0), sidechainInput.getNumSamples()}, streamSample_,
-                numSamples, playhead.ppqPosition, playhead.bpm, playhead.timeSignature, sampleRate_,
-                playhead.isPlaying);
+                {sidechainInput.getReadPointer(0),
+                 static_cast<std::size_t>(sidechainInput.getNumSamples())},
+                streamSample_, numSamples, playhead.ppqPosition, playhead.bpm,
+                playhead.timeSignature, sampleRate_, playhead.isPlaying);
         }
     }
 

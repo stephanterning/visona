@@ -5,9 +5,9 @@
 namespace visona
 {
 
-SyncEditor::SyncEditor(SyncProcessor& processor)
-    : juce::AudioProcessorEditor(processor)
-    , processor_(processor)
+SyncEditor::SyncEditor(SyncProcessor& syncProcessor)
+    : juce::AudioProcessorEditor(syncProcessor)
+    , processor_(syncProcessor)
 {
     title_.setText("Visona Sync", juce::dontSendNotification);
     title_.setFont(juce::Font(juce::FontOptions(22.0f, juce::Font::bold)));

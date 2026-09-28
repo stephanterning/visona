@@ -78,7 +78,6 @@ private:
 
     std::size_t window_ = 2;
     std::vector<float> peaks_;
-    double sampleRate_ = 0.0;
 };
 
 } // namespace visona
