@@ -68,7 +68,7 @@ public:
 
 private:
     void analyze(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
-                 const TransportSpan& span) noexcept;
+                 const TransportSpan& span, double analysisOffset) noexcept;
     void followStart(std::uint64_t startCount, std::uint64_t sampleIndex) noexcept;
     [[nodiscard]] double windowTicks() const noexcept;
     void publish() noexcept;

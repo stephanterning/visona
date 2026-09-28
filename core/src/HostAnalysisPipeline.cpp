@@ -160,8 +160,7 @@ std::size_t HostAnalysisPipeline::poll() noexcept
                 break;
 
             const auto first = region->sampleIndex();
-            const auto& span =
-                transport_.spanAt(static_cast<double>(first) - analysisOffset);
+            const auto& span = transport_.spanAt(static_cast<double>(first));
             if (span.kind == TransportSpan::Kind::pending)
                 break;
             auto numFrames = region->numFrames();
@@ -171,8 +170,17 @@ std::size_t HostAnalysisPipeline::poll() noexcept
                                                                  static_cast<double>(first)));
             numFrames = std::min(numFrames, maxFramesPerPoll - framesAnalyzed);
             if (numFrames == 0)
-                break;
-            analyze(*region, numFrames, span);
+            {
+                const auto skip = std::min(region->numFrames(), maxFramesPerPoll - framesAnalyzed);
+                if (skip == 0)
+                    break;
+                nextSampleIndex_ = first + skip;
+                framesAnalyzed += skip;
+                ring_->consume(skip);
+                changed_ = true;
+                continue;
+            }
+            analyze(*region, numFrames, span, analysisOffset);
             nextSampleIndex_ = first + numFrames;
             framesAnalyzed += numFrames;
             ring_->consume(numFrames);
@@ -193,7 +201,8 @@ float HostAnalysisPipeline::takePeak(std::size_t channel) noexcept
 }
 
 void HostAnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region,
-                                   std::size_t numFrames, const TransportSpan& span) noexcept
+                                   std::size_t numFrames, const TransportSpan& span,
+                                   double analysisOffset) noexcept
 {
     for (std::size_t channel = 0; channel < channels_.size(); ++channel)
     {
@@ -206,11 +215,14 @@ void HostAnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region,
         raiseTo(peaks_[channel], peak);
     }
 
+    const auto mappedSampleIndex = static_cast<std::uint64_t>(std::max(
+        0.0, static_cast<double>(region.sampleIndex()) - analysisOffset));
+
     switch (span.kind)
     {
     case TransportSpan::Kind::musical:
         followStart(span.startCount, region.sampleIndex());
-        analyzer_.processMusical(region.sampleIndex(), channels_, numFrames, span);
+        analyzer_.processMusical(mappedSampleIndex, channels_, numFrames, span);
         return;
     case TransportSpan::Kind::frozen:
         followStart(span.startCount, region.sampleIndex());

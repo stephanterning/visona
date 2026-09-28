@@ -56,6 +56,25 @@ TEST_CASE("HostAnalysisPipeline caps work per poll", "[analysis][host]")
     CHECK(ring.peek().has_value());
 }
 
+TEST_CASE("HostAnalysisPipeline keeps draining the ring with a sidechain offset", "[analysis][host]")
+{
+    constexpr double sampleRate = 48'000.0;
+    AudioRingBuffer ring(2, 48'000, 1'024);
+    AudioInputWriter writer(ring);
+    writer.route(0, 0);
+    writer.route(1, 1);
+
+    HostAnalysisPipeline pipeline(2);
+    pipeline.setStream(&ring, sampleRate);
+    pipeline.setPlayhead(0.0, playingAt(0.0));
+    pipeline.setAnalysisOffset(2'048.0);
+
+    pushSilence(writer, 8'192);
+    CHECK(pipeline.poll() > 0);
+    CHECK(pipeline.poll() > 0);
+    CHECK(!ring.peek().has_value());
+}
+
 TEST_CASE("HostAnalysisPipeline keeps analyzing when the host playhead drops out briefly",
           "[analysis][host]")
 {
