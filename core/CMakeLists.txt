@@ -9,8 +9,10 @@ add_library(visona_core STATIC
     include/visona/BlockTiming.h
     include/visona/CacheLine.h
     include/visona/ClockTimeMapper.h
+    include/visona/BarImpulseScheduler.h
     include/visona/HostAnalysisPipeline.h
     include/visona/HostTransport.h
+    include/visona/SidechainSyncDetector.h
     include/visona/ColumnReduction.h
     include/visona/LaneMapping.h
     include/visona/MidiClockEvent.h
@@ -33,8 +35,10 @@ add_library(visona_core STATIC
     src/AudioRingBuffer.cpp
     src/BandSplitter.cpp
     src/ClockTimeMapper.cpp
+    src/BarImpulseScheduler.cpp
     src/HostAnalysisPipeline.cpp
     src/HostTransport.cpp
+    src/SidechainSyncDetector.cpp
     src/ColumnReduction.cpp
     src/LaneMapping.cpp
     src/MidiClockTransport.cpp

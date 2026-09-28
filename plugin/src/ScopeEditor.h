@@ -1,6 +1,6 @@
 #pragma once
 
-#include "PluginAnalysisThread.h"
+#include "PluginProcessor.h"
 #include "PluginState.h"
 
 #include "ui/Banner.h"
@@ -28,8 +28,7 @@ class ScopeEditor final : public juce::Component,
                           private juce::Timer
 {
 public:
-    ScopeEditor(PluginAnalysisThread& analysis, const SourceLayout& layout,
-                PluginInstanceState& state, PluginGlobalDefaults& defaults);
+    ScopeEditor(PluginProcessor& processor);
     ~ScopeEditor() override;
 
     std::function<void(const PluginInstanceState&)> onStateChange;
@@ -52,6 +51,7 @@ private:
     void updateDiagnostics();
     void notifyStateChange();
 
+    PluginProcessor& processor_;
     PluginAnalysisThread& analysis_;
     const SourceLayout& layout_;
     PluginInstanceState& state_;

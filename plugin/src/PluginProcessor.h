@@ -6,6 +6,7 @@
 #include <visona/AudioInputWriter.h>
 #include <visona/AudioRingBuffer.h>
 #include <visona/HostTransport.h>
+#include <visona/SidechainSyncDetector.h>
 #include <visona/SourceLayout.h>
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -24,6 +25,7 @@ public:
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override;
+    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override;
@@ -63,6 +65,21 @@ public:
         return globalDefaults_;
     }
 
+    [[nodiscard]] SidechainSyncState sidechainSyncState() const noexcept
+    {
+        return sidechainSync_.state();
+    }
+
+    [[nodiscard]] double sidechainSyncOffsetFrames() const noexcept
+    {
+        return sidechainSync_.offsetFrames();
+    }
+
+    [[nodiscard]] bool sidechainInputEnabled() const noexcept
+    {
+        return sidechainInputEnabled_;
+    }
+
 private:
     [[nodiscard]] HostTransport::Playhead readPlayhead(int numSamples) const noexcept;
 
@@ -70,11 +87,14 @@ private:
     PluginGlobalDefaults globalDefaults_;
     PluginInstanceState instanceState_;
     PluginAnalysisThread analysis_;
+    SidechainSyncDetector sidechainSync_;
 
     std::unique_ptr<AudioRingBuffer> ring_;
     std::unique_ptr<AudioInputWriter> writer_;
     std::vector<const float*> channelPointers_;
     double sampleRate_ = 0.0;
+    std::uint64_t streamSample_ = 0;
+    bool sidechainInputEnabled_ = false;
 
     mutable double lastKnownBpm_ = 120.0;
     mutable double lastKnownPpq_ = 0.0;

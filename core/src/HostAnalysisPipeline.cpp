@@ -76,6 +76,11 @@ void HostAnalysisPipeline::setBandSplitting(bool enabled) noexcept
     bandSplitting_.store(enabled, std::memory_order_relaxed);
 }
 
+void HostAnalysisPipeline::setAnalysisOffset(double frames) noexcept
+{
+    analysisOffset_.store(frames, std::memory_order_relaxed);
+}
+
 void HostAnalysisPipeline::setPlayhead(double sampleTime,
                                        const HostTransport::Playhead& playhead) noexcept
 {
@@ -144,6 +149,7 @@ std::size_t HostAnalysisPipeline::poll() noexcept
             lastKnownTimeSignature_ = playhead.timeSignature;
         }
 
+        const auto analysisOffset = analysisOffset_.load(std::memory_order_relaxed);
         const auto newest = static_cast<double>(ring_->newestFrameEnd());
         transport_.syncTo(newest, playhead);
         transport_.advanceTo(newest);
@@ -154,7 +160,8 @@ std::size_t HostAnalysisPipeline::poll() noexcept
                 break;
 
             const auto first = region->sampleIndex();
-            const auto& span = transport_.spanAt(static_cast<double>(first));
+            const auto& span =
+                transport_.spanAt(static_cast<double>(first) - analysisOffset);
             if (span.kind == TransportSpan::Kind::pending)
                 break;
             auto numFrames = region->numFrames();

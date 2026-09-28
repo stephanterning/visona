@@ -50,6 +50,12 @@ public:
     */
     void setPlayhead(double sampleTime, const HostTransport::Playhead& playhead) noexcept;
 
+    /**
+        Any thread. Frames subtracted from audio sample indices when mapping to the host grid
+        (sidechain-measured latency). Ignored unless sidechain sync is locked.
+    */
+    void setAnalysisOffset(double frames) noexcept;
+
     /** Analysis side. Returns the number of frames analyzed. */
     std::size_t poll() noexcept;
 
@@ -89,6 +95,7 @@ private:
     std::atomic<double> playheadBpm_{0.0};
     std::atomic<int> playheadNumerator_{4};
     std::atomic<int> playheadDenominator_{4};
+    std::atomic<double> analysisOffset_{0.0};
 
     /** Updated when the host sends a valid playhead; used when it drops out briefly. */
     double lastKnownBpm_ = 0.0;

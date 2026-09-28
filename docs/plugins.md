@@ -6,7 +6,8 @@ Visona is available as a **pass-through stereo effect** for use inside a DAW. Au
 
 | Format | Status | Identifier |
 | --- | --- | --- |
-| **VST3** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Visn` — browser shows **Stephan Terning → Visona** |
+| **VST3 — Visona** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Visn` — browser shows **Stephan Terning → Visona** |
+| **VST3 — Visona Sync** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Sync` — **Stephan Terning → Visona Sync** |
 | **AU** | Planned | Same four-character codes |
 | **CLAP** | Planned | Same four-character codes |
 
@@ -23,6 +24,15 @@ xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
 The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW. There is no MIDI Clock input and no FREE mode in the plugin editor.
 
 The standalone app still uses MIDI Clock and manual FREE tempo.
+
+## Sidechain sync (Visona Sync)
+
+**Visona Sync** is a host-synced instrument that outputs a −6 dBFS impulse at the start of each bar. Route its audio to the **sidechain input** on **Visona** so the scope can align audio to the grid when track latency compensation is incomplete.
+
+1. Add **Visona Sync** on an instrument track (no MIDI clip needed).
+2. Enable **Visona** sidechain input in Live and route the Sync track to it.
+3. Press Play — after a few bars the status bar shows **SC SYNC** when bar impulses are recognised.
+4. If the sidechain signal does not look like Visona Sync, Visona shows **SC ?** and ignores it.
 
 ## Editor
 
@@ -41,7 +51,10 @@ Waveform mode and colour are saved **per plugin instance** in the DAW project. G
 cmake --preset macos && cmake --build --preset macos
 ```
 
-The VST3 bundle is at `build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3`.
+The VST3 bundles are at:
+
+- `build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3`
+- `build/macos/plugin/VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3`
 
 Plugin-only build:
 

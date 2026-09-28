@@ -40,6 +40,11 @@ public:
         pipeline_.setBandSplitting(enabled);
     }
 
+    void setAnalysisOffset(double frames) noexcept
+    {
+        pipeline_.setAnalysisOffset(frames);
+    }
+
     [[nodiscard]] TripleBuffer<SweepSnapshot>& snapshots() noexcept
     {
         return pipeline_.snapshots();

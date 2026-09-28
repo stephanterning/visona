@@ -30,13 +30,13 @@ juce::String formatSampleRate(double sampleRate)
 
 } // namespace
 
-ScopeEditor::ScopeEditor(PluginAnalysisThread& analysis, const SourceLayout& layout,
-                         PluginInstanceState& state, PluginGlobalDefaults& defaults)
-    : analysis_(analysis)
-    , layout_(layout)
-    , state_(state)
-    , defaults_(defaults)
-    , scope_(analysis.snapshots(), layout)
+ScopeEditor::ScopeEditor(PluginProcessor& processor)
+    : processor_(processor)
+    , analysis_(processor.analysis())
+    , layout_(processor.layout())
+    , state_(processor.instanceState())
+    , defaults_(processor.globalDefaults())
+    , scope_(analysis_.snapshots(), layout_)
     , window_(state.window)
     , peaks_(layout.totalChannelCount(), 0.0f)
 {
@@ -266,6 +266,27 @@ void ScopeEditor::updateStatus()
         values.state = "HOST";
         break;
     }
+
+    switch (processor_.sidechainSyncState())
+    {
+    case SidechainSyncState::locked:
+        values.sidechainSync = "SC SYNC";
+        values.sidechainSyncTooltip =
+            "Sidechain sync from Visona Sync is adjusting the grid by " +
+            juce::String(juce::roundToInt(processor_.sidechainSyncOffsetFrames())) + " samples.";
+        break;
+    case SidechainSyncState::invalid:
+        values.sidechainSync = "SC ?";
+        values.sidechainSyncIsError = true;
+        values.sidechainSyncTooltip =
+            "Sidechain input is enabled, but the signal does not look like Visona Sync bar "
+            "impulses. Sync is ignored.";
+        break;
+    case SidechainSyncState::off:
+    case SidechainSyncState::waiting:
+        break;
+    }
+
     if (snapshot.hasStream && snapshot.sampleRate > 0.0)
         values.sampleRate = formatSampleRate(snapshot.sampleRate);
     values.window = WindowControl::describe(window_);
