@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS arm64 app
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      APP_BUNDLE: build/macos/app/Visona_artefacts/Release/Visona.app
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure
+        run: cmake --preset macos
+
+      - name: Build
+        run: cmake --build --preset macos
+
+      - name: Test
+        run: ctest --preset macos
+
+      - name: Check app bundle
+        run: |
+          executable="$APP_BUNDLE/Contents/MacOS/Visona"
+          test "$(lipo -archs "$executable")" = "arm64"
+          vtool -show-build "$executable" | grep -E '^ +minos 14\.0$'
+          codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+          plist="$APP_BUNDLE/Contents/Info.plist"
+          test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.stephanterning.visona"
+          plutil -extract NSMicrophoneUsageDescription raw "$plist"
+
+      - name: Package app
+        run: ditto -c -k --keepParent "$APP_BUNDLE" Visona-macos-arm64.zip
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Visona-macos-arm64
+          path: Visona-macos-arm64.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Visona-macos-arm64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  linux-arm64:
+    name: Linux arm64 app (Pi)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            libasound2-dev libfreetype6-dev libfontconfig1-dev \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxcomposite-dev libxi-dev libgl1-mesa-dev
+
+      - name: Configure
+        run: cmake --preset pi
+
+      - name: Build
+        run: cmake --build --preset pi
+
+      - name: Test
+        run: ctest --preset pi
+
+      - name: Package Pi binary and kiosk scripts
+        run: |
+          tar czf Visona-linux-arm64-pi.tar.gz \
+            -C build/pi/app/Visona_artefacts/Release Visona \
+            -C "$GITHUB_WORKSPACE" scripts/pi docs/pi-kiosk.md docs/pi-build.md docs/pi-setup.md
+
+      - name: Upload Pi artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Visona-linux-arm64-pi
+          path: Visona-linux-arm64-pi.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Visona-linux-arm64-pi.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

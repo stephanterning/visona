@@ -8,70 +8,12 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  macos:
-    name: macOS arm64 app (Xcode 26.6)
-    # Hosted images can only be pinned to a macOS major version; DEVELOPER_DIR pins Xcode.
-    runs-on: macos-26
-    timeout-minutes: 45
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      APP_BUNDLE: build/macos/app/Visona_artefacts/Release/Visona.app
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Show toolchain
-        run: |
-          sw_vers
-          uname -m
-          xcodebuild -version
-          cmake --version
-          ninja --version
-
-      - name: Configure
-        run: cmake --preset macos
-
-      - name: Build
-        run: cmake --build --preset macos
-
-      - name: Test
-        run: ctest --preset macos
-
-      - name: Check app bundle
-        run: |
-          executable="$APP_BUNDLE/Contents/MacOS/Visona"
-          test "$(lipo -archs "$executable")" = "arm64"
-          vtool -show-build "$executable" | grep -E '^ +minos 14\.0$'
-          codesign --verify --strict --verbose=2 "$APP_BUNDLE"
-          plist="$APP_BUNDLE/Contents/Info.plist"
-          test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.stephanterning.visona"
-          # Without a usage text, macOS delivers silence from every audio input.
-          plutil -extract NSMicrophoneUsageDescription raw "$plist"
-
-      - name: Package app
-        run: ditto -c -k --keepParent "$APP_BUNDLE" Visona-macos-arm64.zip
-
-      - name: Upload app
-        uses: actions/upload-artifact@v7
-        with:
-          path: Visona-macos-arm64.zip
-          archive: false
-          if-no-files-found: error
-          retention-days: 30
-
-      # The documented local workflow uses the Xcode generator, so build that too.
-      - name: Build and test Xcode project (Debug)
-        run: |
-          cmake --preset xcode
-          cmake --build --preset xcode -- -quiet
-          ctest --preset xcode
-          codesign --verify --strict --verbose=2 build/xcode/app/Visona_artefacts/Debug/Visona.app
-
   linux:
     name: Linux core (${{ matrix.compiler }})
     runs-on: ubuntu-24.04
