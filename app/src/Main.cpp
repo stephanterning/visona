@@ -29,11 +29,16 @@ class MainWindow final : public juce::DocumentWindow
 public:
     MainWindow(const juce::String& name, AudioEngine& engine, Settings& settings, bool kiosk)
         : DocumentWindow(name, palette::background,
-                         kiosk ? juce::DocumentWindow::closeButton
-                               : juce::DocumentWindow::allButtons)
+                         kiosk ? 0 : juce::DocumentWindow::allButtons)
         , kiosk_(kiosk)
     {
-        setUsingNativeTitleBar(!kiosk);
+        setUsingNativeTitleBar(false);
+        if (kiosk)
+        {
+            setTitleBarHeight(0);
+            setTitleBarButtonsRequired(0, false);
+        }
+
         setContentOwned(new MainComponent(engine, settings), true);
 
         // On macOS, a resizable window with a maximise button gets native fullscreen
@@ -47,7 +52,18 @@ public:
         setVisible(true);
 
         if (kiosk)
-            setFullScreen(true);
+        {
+            // JUCE's setFullScreen() on Linux uses the desktop work area (below the panel).
+            // Cover the whole display, including the Pi taskbar, with a borderless window.
+            juce::MessageManager::callAsync([this]
+            {
+                if (auto* const display =
+                        juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
+                    setBounds(display->totalArea);
+                setAlwaysOnTop(true);
+                toFront(true);
+            });
+        }
 
         getContentComponent()->grabKeyboardFocus();
     }

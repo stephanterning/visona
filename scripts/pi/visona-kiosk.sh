@@ -12,6 +12,14 @@ if command -v xset >/dev/null 2>&1; then
     xset s noblank || true
 fi
 
+# Hide the desktop panel so Visona can cover the whole display (best effort per Pi OS flavour).
+if command -v lxpanelctl >/dev/null 2>&1; then
+    lxpanelctl hide || true
+fi
+if pgrep -x wf-panel >/dev/null 2>&1; then
+    pkill -x wf-panel || true
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BIN="${VISONA_BIN:-${REPO_ROOT}/build/pi/app/Visona_artefacts/Release/Visona}"

@@ -6,7 +6,7 @@ Requires a built Pi binary — see [pi-build.md](pi-build.md) and [pi-setup.md](
 
 ## What gets installed
 
-1. **`--kiosk` flag** — Visona starts borderless and fullscreen (close button only).
+1. **`--kiosk` flag** — Visona starts borderless, covers the whole display (no title bar), and hides the Pi taskbar when possible.
 2. **`scripts/pi/visona-kiosk.sh`** — disables X11 screen blanking, then launches Visona.
 3. **`~/.config/autostart/visona-kiosk.desktop`** — starts the wrapper when the desktop session loads.
 
@@ -86,7 +86,8 @@ rm ~/.config/autostart/visona-kiosk.desktop
 | Black screen after login | Log in via SSH, run `./scripts/pi/visona-kiosk.sh` and read errors; check `DISPLAY=:0`. |
 | Visona does not start at login | Confirm `~/.config/autostart/visona-kiosk.desktop` exists; log out and in (not just reboot to text console). |
 | Screen goes blank | Wrapper runs `xset`; install `x11-xserver-utils` if missing: `sudo apt install x11-xserver-utils`. |
-| Window not fullscreen | Use `--kiosk`; press **F** toggles fullscreen in non-kiosk runs. |
+| Window not fullscreen | Rebuild after updating `cursor/pi-kiosk-autostart-149a`; kiosk uses the full display, not JUCE's Linux work-area fullscreen. |
+| Quit without a close button | From SSH: `pkill Visona`. Kiosk mode has no window chrome. |
 | Wrong audio device | Open Settings once with keyboard/touch, save Babyface, restart. |
 
 ## Limitations
