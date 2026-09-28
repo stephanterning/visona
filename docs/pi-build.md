@@ -2,7 +2,7 @@
 
 Visona runs on **Raspberry Pi OS 64-bit** (Bookworm or later) as a native Linux ARM64 app using JUCE's ALSA backend. The target interface is a **RME Babyface Pro FS** in USB Class Compliant mode (no RME Linux drivers).
 
-This document covers a developer build and manual smoke test. Kiosk mode, autostart, and fullscreen deployment are not part of this port yet.
+This document covers a developer build and manual smoke test. For boot-to-fullscreen kiosk setup, see [pi-kiosk.md](pi-kiosk.md).
 
 ## Prerequisites
 
@@ -66,6 +66,7 @@ Before the first build:
 2. **Close** other apps on the Pi (browser, IDE) while building.
 
 3. The `pi` preset sets **`CMAKE_BUILD_PARALLEL_LEVEL=1`** and **`jobs: 1`** so configure and build run one compile at a time. The first full build can still take **45–90 minutes** on a Pi 4.
+4. **LTO is off on Linux** so the final link finishes in a few minutes instead of 20–45 minutes on a 1 GB Pi.
 
 The `libcurl` / `webkit2gtk` / `gtk` messages during configure are expected: Visona disables curl and the embedded browser, so those packages are not required.
 
@@ -141,11 +142,12 @@ Press **D** to toggle the diagnostics overlay (block size, ring overruns, alloca
 | **Wayland-native** | JUCE on Linux targets X11. Running under XWayland on Pi desktop sessions is expected; a pure Wayland kiosk setup is future work. |
 | **Device timestamps** | ALSA callbacks do not supply per-block host timestamps like CoreAudio. Visona falls back to `std::chrono::steady_clock` on Linux (see `app/src/HostTime.h`). MIDI/audio alignment may differ slightly from macOS until offset tuning is verified on Pi hardware. |
 | **Hotplug / reconnect** | Same as macOS MVP: no hotplug or automatic reconnect (D-033). |
-| **Kiosk / autostart** | Not implemented in this port. |
+| **Kiosk / autostart** | See [pi-kiosk.md](pi-kiosk.md). Requires desktop autologin plus `install-kiosk.sh`. |
 
 ## Troubleshooting
 
 - **`g++: fatal error: Killed signal terminated program cc1plus`** — Out of memory. Add swap (see above), run `rm -rf build/pi`, then `cmake --preset pi && cmake --build --preset pi` again. If it still fails, reboot and build from SSH with the desktop closed.
+- **Link step stuck at `Linking CXX executable .../Visona` for many minutes** — With LTO and 1 GB RAM this can take 20–45 minutes and look frozen. Run `top` and look for `ld` or `g++` using CPU; if active, wait. Current Linux builds disable LTO; after `git pull`, run `cmake --preset pi` again (reconfigures) then `cmake --build --preset pi` — the link should finish in a few minutes.
 - **`cannot find -lstdc++`** — Install `build-essential` and use the `pi` preset (GCC). If the default `c++` symlink points at Clang, ensure the matching `libstdc++-*-dev` package is installed or keep `CMAKE_CXX_COMPILER=g++` as the preset does.
 - **`X11/extensions/XInput2.h: No such file or directory`** — Install `libxi-dev`.
 - **No audio input / silence** — Check group membership (`audio`), cable and gain at the interface, and that the correct ALSA device is selected in Settings.

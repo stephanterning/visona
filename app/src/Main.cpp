@@ -12,22 +12,64 @@
 namespace visona
 {
 
+namespace
+{
+
+bool commandLineHasFlag(const juce::String& commandLine, const juce::String& flag)
+{
+    const juce::StringArray tokens =
+        juce::StringArray::fromTokens(commandLine.trim(), " ", juce::String());
+    return tokens.contains(flag);
+}
+
+} // namespace
+
 class MainWindow final : public juce::DocumentWindow
 {
 public:
-    MainWindow(const juce::String& name, AudioEngine& engine, Settings& settings)
-        : DocumentWindow(name, palette::background, DocumentWindow::allButtons)
+    MainWindow(const juce::String& name, AudioEngine& engine, Settings& settings, bool kiosk)
+        : DocumentWindow(name, palette::background,
+                         kiosk ? 0 : juce::DocumentWindow::allButtons)
+        , kiosk_(kiosk)
     {
-        setUsingNativeTitleBar(true);
+        setUsingNativeTitleBar(false);
+        if (kiosk)
+        {
+            setTitleBarHeight(0);
+            setTitleBarButtonsRequired(0, false);
+        }
+
         setContentOwned(new MainComponent(engine, settings), true);
 
         // On macOS, a resizable window with a maximise button gets native fullscreen
         // from the green title bar button.
-        setResizable(true, false);
+        setResizable(!kiosk, false);
         setResizeLimits(minimumWidth, minimumHeight, maximumSize, maximumSize);
 
-        centreWithSize(getWidth(), getHeight());
+        if (!kiosk)
+            centreWithSize(getWidth(), getHeight());
+
         setVisible(true);
+
+        if (kiosk)
+        {
+            juce::MessageManager::callAsync([this]
+            {
+#if JUCE_LINUX
+                // Raspberry Pi OS (labwc) hides wf-panel-pi when the compositor gets a real
+                // fullscreen request. Borderless + always-on-top leaves the panel visible.
+                setFullScreen(true);
+#else
+                // Cover the whole display with a borderless window (macOS menu bar excluded).
+                if (auto* const display =
+                        juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
+                    setBounds(display->logicalBounds.toNearestInt());
+                setAlwaysOnTop(true);
+                toFront(true);
+#endif
+            });
+        }
+
         getContentComponent()->grabKeyboardFocus();
     }
 
@@ -37,6 +79,7 @@ public:
     }
 
 private:
+    const bool kiosk_;
     static constexpr int minimumWidth = 320;
     static constexpr int minimumHeight = 200;
     static constexpr int maximumSize = 16384;
@@ -63,11 +106,15 @@ public:
         return false;
     }
 
-    void initialise(const juce::String&) override
+    void initialise(const juce::String& commandLine) override
     {
+        kiosk_ = commandLineHasFlag(commandLine, "--kiosk") ||
+                 commandLineHasFlag(commandLine, "-k");
+
         settings = std::make_unique<Settings>();
         audioEngine = std::make_unique<AudioEngine>(*settings);
-        mainWindow = std::make_unique<MainWindow>(getApplicationName(), *audioEngine, *settings);
+        mainWindow = std::make_unique<MainWindow>(getApplicationName(), *audioEngine, *settings,
+                                                  kiosk_);
 
         // Opened after the window is up, so the system's microphone prompt appears over it.
         audioEngine->openSavedDevice();
@@ -88,6 +135,7 @@ public:
     void anotherInstanceStarted(const juce::String&) override {}
 
 private:
+    bool kiosk_ = false;
     std::unique_ptr<Settings> settings;
     std::unique_ptr<AudioEngine> audioEngine;
     std::unique_ptr<MainWindow> mainWindow;
