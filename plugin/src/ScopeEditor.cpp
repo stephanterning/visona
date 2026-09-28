@@ -275,16 +275,9 @@ void ScopeEditor::updateStatus()
             "Sidechain sync from Visona Sync is adjusting the grid by " +
             juce::String(juce::roundToInt(processor_.sidechainSyncOffsetFrames())) + " samples.";
         break;
-    case SidechainSyncState::invalid:
-        values.sidechainSync = "SC ?";
-        values.sidechainSyncIsError = true;
-        values.sidechainSyncTooltip =
-            "Sidechain sync is enabled but no bar impulse has been detected yet.";
-        break;
     case SidechainSyncState::waiting:
         values.sidechainSync = "SC ...";
-        values.sidechainSyncTooltip =
-            "Sidechain sync is listening for Visona Sync bar impulses.";
+        values.sidechainSyncTooltip = "Sidechain sync is listening for Visona Sync bar impulses.";
         break;
     case SidechainSyncState::off:
         break;

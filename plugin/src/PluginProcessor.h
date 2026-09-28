@@ -11,6 +11,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
 
 namespace visona
@@ -65,23 +67,22 @@ public:
         return globalDefaults_;
     }
 
+    /** Any thread. The sidechain sync state after the latest block. */
     [[nodiscard]] SidechainSyncState sidechainSyncState() const noexcept
     {
-        return sidechainSync_.state();
+        return syncState_.load(std::memory_order_relaxed);
     }
 
+    /** Any thread. Frames the audio here lags the host playhead, as Visona Sync measured it. */
     [[nodiscard]] double sidechainSyncOffsetFrames() const noexcept
     {
-        return sidechainSync_.offsetFrames();
-    }
-
-    [[nodiscard]] bool sidechainInputEnabled() const noexcept
-    {
-        return sidechainInputEnabled_;
+        return syncOffsetFrames_.load(std::memory_order_relaxed);
     }
 
 private:
-    [[nodiscard]] HostTransport::Playhead readPlayhead(int numSamples) const noexcept;
+    [[nodiscard]] HostTransport::Playhead readPlayhead() const noexcept;
+    void updateSidechainSync(juce::AudioBuffer<float>& buffer,
+                             const HostTransport::Playhead& playhead) noexcept;
 
     const SourceLayout layout_{2};
     PluginGlobalDefaults globalDefaults_;
@@ -93,8 +94,9 @@ private:
     std::unique_ptr<AudioInputWriter> writer_;
     std::vector<const float*> channelPointers_;
     double sampleRate_ = 0.0;
-    std::uint64_t streamSample_ = 0;
-    bool sidechainInputEnabled_ = false;
+
+    std::atomic<SidechainSyncState> syncState_{SidechainSyncState::off};
+    std::atomic<double> syncOffsetFrames_{0.0};
 
     mutable double lastKnownBpm_ = 120.0;
     mutable double lastKnownPpq_ = 0.0;

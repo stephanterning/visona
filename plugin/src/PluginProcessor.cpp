@@ -5,6 +5,8 @@
 
 #include <visona/SweepWindow.h>
 
+#include <span>
+
 namespace visona
 {
 
@@ -39,7 +41,6 @@ PluginProcessor::~PluginProcessor() = default;
 void PluginProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     sampleRate_ = sampleRate;
-    streamSample_ = 0;
     ring_ = std::make_unique<AudioRingBuffer>(
         layout_.totalChannelCount(), ringCapacityFrames(sampleRate, samplesPerBlock),
         std::max<std::size_t>(ringCapacityFrames(sampleRate, samplesPerBlock) /
@@ -53,6 +54,7 @@ void PluginProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     analysis_.setWindow(instanceState_.window);
     analysis_.setBandSplitting(instanceState_.waveformMode == WaveformMode::dj);
     sidechainSync_.reset();
+    analysis_.setAnalysisOffset(0.0);
 }
 
 void PluginProcessor::releaseResources()
@@ -62,6 +64,7 @@ void PluginProcessor::releaseResources()
     writer_.reset();
     ring_.reset();
     sidechainSync_.setSidechainEnabled(false);
+    syncState_.store(SidechainSyncState::off, std::memory_order_relaxed);
 }
 
 bool PluginProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -95,41 +98,42 @@ void PluginProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiB
         channelPointers_[static_cast<std::size_t>(channel)] = mainInput.getReadPointer(channel);
 
     // The host reports the playhead at the block's first frame.
-    const auto playhead = readPlayhead(static_cast<int>(numSamples));
+    const auto playhead = readPlayhead();
     if (writer_ != nullptr)
     {
         const auto blockStartSample = writer_->nextSampleIndex();
         writer_->write(channelPointers_, numSamples, 0);
         analysis_.pushPlayhead(blockStartSample, playhead);
     }
-    streamSample_ += numSamples;
 
-    sidechainInputEnabled_ = false;
-    if (getBus(true, 1) != nullptr && getBus(true, 1)->isEnabled())
-    {
-        const auto sidechainInput = getBusBuffer(buffer, true, 1);
-        if (sidechainInput.getNumChannels() > 0)
-        {
-            sidechainInputEnabled_ = true;
-            sidechainSync_.setSidechainEnabled(true);
-            sidechainSync_.processBlock({sidechainInput.getReadPointer(0),
-                                         static_cast<std::size_t>(sidechainInput.getNumSamples())},
-                                        streamSample_, numSamples, playhead.ppqPosition,
-                                        playhead.bpm, playhead.timeSignature, sampleRate_,
-                                        playhead.isPlaying);
-        }
-    }
-
-    if (!sidechainInputEnabled_)
-        sidechainSync_.setSidechainEnabled(false);
-
-    if (sidechainSync_.state() == SidechainSyncState::locked)
-        analysis_.setAnalysisOffset(sidechainSync_.offsetFrames());
-    else
-        analysis_.setAnalysisOffset(0.0);
+    updateSidechainSync(buffer, playhead);
 }
 
-HostTransport::Playhead PluginProcessor::readPlayhead(int numSamples) const noexcept
+void PluginProcessor::updateSidechainSync(juce::AudioBuffer<float>& buffer,
+                                          const HostTransport::Playhead& playhead) noexcept
+{
+    const auto* bus = getBus(true, 1);
+    const auto sidechain = bus != nullptr && bus->isEnabled() ? getBusBuffer(buffer, true, 1)
+                                                              : juce::AudioBuffer<float>();
+    const bool enabled = sidechain.getNumChannels() > 0 && sidechain.getNumSamples() > 0;
+    sidechainSync_.setSidechainEnabled(enabled);
+    if (enabled)
+    {
+        const std::span<const float> samples{sidechain.getReadPointer(0),
+                                             static_cast<std::size_t>(sidechain.getNumSamples())};
+        sidechainSync_.processBlock(samples, playhead.ppqPosition, playhead.bpm,
+                                    playhead.timeSignature, sampleRate_,
+                                    playhead.valid && playhead.isPlaying);
+    }
+
+    const auto state = sidechainSync_.state();
+    analysis_.setAnalysisOffset(state == SidechainSyncState::locked ? sidechainSync_.offsetFrames()
+                                                                    : 0.0);
+    syncState_.store(state, std::memory_order_relaxed);
+    syncOffsetFrames_.store(sidechainSync_.offsetFrames(), std::memory_order_relaxed);
+}
+
+HostTransport::Playhead PluginProcessor::readPlayhead() const noexcept
 {
     HostTransport::Playhead playhead;
     if (auto* head = getPlayHead())
@@ -164,7 +168,6 @@ HostTransport::Playhead PluginProcessor::readPlayhead(int numSamples) const noex
             }
         }
     }
-    juce::ignoreUnused(numSamples);
     return playhead;
 }
 

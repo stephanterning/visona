@@ -2,134 +2,130 @@
 #include <visona/SidechainSyncDetector.h>
 
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-using Catch::Matchers::WithinAbs;
+#include <cstdint>
+#include <vector>
 
 using visona::SidechainSyncDetector;
 using visona::SidechainSyncState;
 using visona::TimeSignature;
-using visona::syncImpulseAmplitude;
 
 namespace
 {
 
-std::vector<float> blockWithImpulse(std::uint32_t numFrames, std::uint32_t offset)
+// At 120 BPM and 48 kHz a quarter note is 24000 frames, and a 4/4 bar 96000.
+constexpr double sampleRate = 48'000.0;
+constexpr double bpm = 120.0;
+constexpr double framesPerQuarter = 24'000.0;
+constexpr std::uint32_t blockSize = 512;
+constexpr TimeSignature fourFour{4, 4};
+
+std::vector<float> impulseAt(std::uint32_t index, float peak = visona::syncImpulseAmplitude)
 {
-    std::vector<float> samples(numFrames, 0.0f);
-    if (offset < numFrames)
-        samples[offset] = syncImpulseAmplitude;
+    std::vector<float> samples(blockSize, 0.0f);
+    samples[index] = peak;
     return samples;
 }
 
-void feedBars(SidechainSyncDetector& detector, std::uint64_t& streamSample, double& ppqAtBlockStart,
-              std::uint32_t framesPerBar, double bpm, double sampleRate, int barCount = 4)
+/** Feeds the block that holds the impulse of the bar at `barPpq`, arriving `lag` frames late. */
+void impulseAfterBar(SidechainSyncDetector& detector, double barPpq, std::int64_t lag,
+                     float peak = visona::syncImpulseAmplitude)
 {
-    const TimeSignature timeSignature{4, 4};
-    for (int bar = 0; bar < barCount; ++bar)
-    {
-        auto samples = blockWithImpulse(framesPerBar, 0);
-        streamSample += framesPerBar;
-        detector.processBlock(samples, streamSample, framesPerBar, ppqAtBlockStart, bpm,
-                              timeSignature, sampleRate, true);
-        ppqAtBlockStart += 4.0;
-    }
+    const auto barStart = static_cast<std::int64_t>(barPpq * framesPerQuarter);
+    const auto arrival = barStart + lag;
+    const auto blockStart = arrival - arrival % blockSize;
+    const auto ppqAtBlockStart = static_cast<double>(blockStart) / framesPerQuarter;
+    detector.processBlock(impulseAt(static_cast<std::uint32_t>(arrival - blockStart), peak),
+                          ppqAtBlockStart, bpm, fourFour, sampleRate, true);
 }
 
 } // namespace
 
-TEST_CASE("SidechainSyncDetector locks on the first Visona Sync impulse", "[sync]")
+TEST_CASE("SidechainSyncDetector measures no offset for an impulse on the bar line", "[sync]")
 {
-    constexpr double sampleRate = 48'000.0;
-    constexpr double bpm = 120.0;
-    const auto framesPerBar = static_cast<std::uint32_t>(sampleRate * 2.0);
-
     SidechainSyncDetector detector;
+    CHECK(detector.state() == SidechainSyncState::off);
     detector.setSidechainEnabled(true);
+    CHECK(detector.state() == SidechainSyncState::waiting);
 
-    std::uint64_t streamSample = 0;
-    double ppqAtBlockStart = 0.0;
-    feedBars(detector, streamSample, ppqAtBlockStart, framesPerBar, bpm, sampleRate, 1);
-
+    impulseAfterBar(detector, 8.0, 0);
     CHECK(detector.state() == SidechainSyncState::locked);
     CHECK(detector.offsetFrames() == 0.0);
+    CHECK(detector.impulsePeak() == visona::syncImpulseAmplitude);
 }
 
-TEST_CASE("SidechainSyncDetector locks with PDC-like sidechain delay", "[sync]")
+TEST_CASE("SidechainSyncDetector measures a lag longer than a block", "[sync]")
 {
-    constexpr double sampleRate = 48'000.0;
-    constexpr double bpm = 120.0;
-    const auto framesPerBar = static_cast<std::uint32_t>(sampleRate * 2.0);
-    const TimeSignature timeSignature{4, 4};
-    constexpr std::uint32_t sidechainDelay = 512;
-
     SidechainSyncDetector detector;
     detector.setSidechainEnabled(true);
 
-    std::uint64_t streamSample = 0;
-    double ppqAtBlockStart = 0.0;
-    auto samples = blockWithImpulse(framesPerBar, sidechainDelay);
-    streamSample += framesPerBar;
-    detector.processBlock(samples, streamSample, framesPerBar, ppqAtBlockStart, bpm,
-                          timeSignature, sampleRate, true);
-
+    impulseAfterBar(detector, 8.0, 4'736);
     CHECK(detector.state() == SidechainSyncState::locked);
-    CHECK(detector.offsetFrames() == sidechainDelay);
+    CHECK(detector.offsetFrames() == 4'736.0);
 }
 
-TEST_CASE("SidechainSyncDetector locks when impulse arrives in a later block", "[sync]")
+TEST_CASE("SidechainSyncDetector measures an impulse before the bar line as negative", "[sync]")
 {
-    constexpr double sampleRate = 48'000.0;
-    constexpr double bpm = 120.0;
-    constexpr std::uint32_t blockSize = 1024;
-    const auto framesPerBar = static_cast<std::uint32_t>(sampleRate * 2.0);
-    const TimeSignature timeSignature{4, 4};
-    constexpr std::uint32_t sidechainDelay = 600;
-
     SidechainSyncDetector detector;
     detector.setSidechainEnabled(true);
 
-    const std::uint64_t barTwoStart = framesPerBar;
-    const std::uint64_t blockStart = barTwoStart + 512;
-    const std::uint64_t streamSample = blockStart + blockSize;
-    const auto ppqAtBlockStart =
-        8.0 + static_cast<double>(blockStart - barTwoStart) / (sampleRate * 60.0 / bpm);
+    impulseAfterBar(detector, 8.0, -300);
+    CHECK(detector.offsetFrames() == -300.0);
+}
 
-    auto samples = blockWithImpulse(blockSize, sidechainDelay);
-    detector.processBlock(samples, streamSample, blockSize, ppqAtBlockStart, bpm,
-                          timeSignature, sampleRate, true);
+TEST_CASE("SidechainSyncDetector accepts an impulse summed to 0 dBFS", "[sync]")
+{
+    SidechainSyncDetector detector;
+    detector.setSidechainEnabled(true);
 
+    impulseAfterBar(detector, 4.0, 144, 1.0f);
     CHECK(detector.state() == SidechainSyncState::locked);
-    const auto expectedOffset =
-        static_cast<double>(blockStart + sidechainDelay) - static_cast<double>(barTwoStart);
-    CHECK_THAT(detector.offsetFrames(), WithinAbs(expectedOffset, 1.0));
+    CHECK(detector.offsetFrames() == 144.0);
 }
 
-TEST_CASE("SidechainSyncDetector stays locked when a bar is missed", "[sync]")
+TEST_CASE("SidechainSyncDetector ignores a sidechain below -20 dBFS", "[sync]")
 {
-    constexpr double sampleRate = 48'000.0;
-    constexpr double bpm = 120.0;
-    const auto framesPerBar = static_cast<std::uint32_t>(sampleRate * 2.0);
-    const TimeSignature timeSignature{4, 4};
-
     SidechainSyncDetector detector;
     detector.setSidechainEnabled(true);
 
-    std::uint64_t streamSample = 0;
-    double ppqAtBlockStart = 0.0;
-    feedBars(detector, streamSample, ppqAtBlockStart, framesPerBar, bpm, sampleRate, 1);
+    impulseAfterBar(detector, 4.0, 144, 0.05f);
+    CHECK(detector.state() == SidechainSyncState::waiting);
+}
+
+TEST_CASE("SidechainSyncDetector keeps its offset through a stray peak and follows a new one",
+          "[sync]")
+{
+    SidechainSyncDetector detector;
+    detector.setSidechainEnabled(true);
+
+    impulseAfterBar(detector, 4.0, 144);
+    impulseAfterBar(detector, 8.0, 145);
+    CHECK(detector.offsetFrames() == 144.0);
+
+    impulseAfterBar(detector, 12.0, 3'000);
+    CHECK(detector.offsetFrames() == 144.0);
+    impulseAfterBar(detector, 16.0, 144);
+
+    // A plugin with 1000 frames of latency was added before the scope.
+    impulseAfterBar(detector, 20.0, 1'144);
+    CHECK(detector.offsetFrames() == 144.0);
+    impulseAfterBar(detector, 24.0, 1'144);
+    CHECK(detector.offsetFrames() == 1'144.0);
+}
+
+TEST_CASE("SidechainSyncDetector listens only while the host plays and the input is on", "[sync]")
+{
+    SidechainSyncDetector detector;
+    detector.processBlock(impulseAt(0), 8.0, bpm, fourFour, sampleRate, true);
+    CHECK(detector.state() == SidechainSyncState::off);
+
+    detector.setSidechainEnabled(true);
+    detector.processBlock(impulseAt(0), 8.0, bpm, fourFour, sampleRate, false);
+    CHECK(detector.state() == SidechainSyncState::waiting);
+
+    impulseAfterBar(detector, 8.0, 144);
     REQUIRE(detector.state() == SidechainSyncState::locked);
-    const auto lockedOffset = detector.offsetFrames();
-
-    for (int bar = 0; bar < 4; ++bar)
-    {
-        const std::vector<float> silence(framesPerBar, 0.0f);
-        streamSample += framesPerBar;
-        detector.processBlock(silence, streamSample, framesPerBar, ppqAtBlockStart, bpm,
-                              timeSignature, sampleRate, true);
-        ppqAtBlockStart += 4.0;
-    }
-
-    CHECK(detector.state() == SidechainSyncState::locked);
-    CHECK(detector.offsetFrames() == lockedOffset);
+    detector.setSidechainEnabled(false);
+    CHECK(detector.state() == SidechainSyncState::off);
+    CHECK(detector.offsetFrames() == 0.0);
 }

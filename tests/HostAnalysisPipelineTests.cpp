@@ -1,7 +1,9 @@
 #include <visona/AudioInputWriter.h>
 #include <visona/AudioRingBuffer.h>
+#include <visona/BarImpulseScheduler.h>
 #include <visona/HostAnalysisPipeline.h>
 #include <visona/HostTransport.h>
+#include <visona/SidechainSyncDetector.h>
 #include <visona/SweepWindow.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -14,9 +16,13 @@
 
 using visona::AudioInputWriter;
 using visona::AudioRingBuffer;
+using visona::BarImpulseScheduler;
 using visona::HostAnalysisPipeline;
 using visona::HostTransport;
+using visona::SidechainSyncDetector;
+using visona::SidechainSyncState;
 using visona::SweepSnapshot;
+using visona::TimeSignature;
 using visona::TransportState;
 
 namespace
@@ -58,8 +64,9 @@ void playSilence(AudioInputWriter& writer, HostAnalysisPipeline& pipeline, std::
     A host like Ableton Live, feeding one Visona instance block by block.
 
     Every plugin gets the same playhead, at the first frame of each block, but the audio reaching
-    Visona has passed plugins with `latency` frames of latency. The main input has a click on every
-    beat of the timeline.
+    Visona has passed plugins with `latency` frames of latency. The host aligns the sidechain with
+    the main input, so Visona Sync's bar impulses arrive just as late. The main input has a click
+    on every beat of the timeline.
 */
 class LiveHost
 {
@@ -79,14 +86,19 @@ public:
     }
 
     /** Stops for a few blocks, then plays `bars` bars from the song start. */
-    void play(double bars)
+    void play(double bars, bool withSidechain)
     {
         constexpr std::uint64_t stoppedBlocks = 8;
         const auto playStart = stoppedBlocks * blockSize_;
         const auto end = playStart + static_cast<std::uint64_t>(bars * 4.0 * framesPerQuarter());
 
         std::vector<float> main(blockSize_);
+        std::vector<float> sidechain(blockSize_);
+        // Visona Sync's output on its own track, before the host delays it.
+        std::vector<float> syncOutput(end + blockSize_, 0.0f);
+        std::vector<std::uint32_t> impulses;
         const std::array<const float*, 2> inputs{main.data(), main.data()};
+        detector_.setSidechainEnabled(withSidechain);
 
         for (std::uint64_t blockStart = 0; blockStart < end; blockStart += blockSize_)
         {
@@ -99,12 +111,27 @@ public:
                     ? static_cast<double>(blockStart - playStart) / framesPerQuarter()
                     : 0.0;
 
+            if (playhead.isPlaying)
+            {
+                impulses.clear();
+                BarImpulseScheduler::impulsesInBlock(blockStart, blockSize_, playhead.ppqPosition,
+                                                     bpm_, fourFour, sampleRate, impulses);
+                for (const auto offset : impulses)
+                    syncOutput[blockStart + offset] = visona::syncImpulseAmplitude;
+            }
+
             for (std::uint32_t index = 0; index < blockSize_; ++index)
             {
                 const auto frame = blockStart + index;
                 main[index] =
                     frame >= latency_ && isBeatFrame(frame - latency_, playStart) ? 1.0f : 0.0f;
+                sidechain[index] = frame >= latency_ ? syncOutput[frame - latency_] : 0.0f;
             }
+
+            detector_.processBlock(sidechain, playhead.ppqPosition, bpm_, fourFour, sampleRate,
+                                   playhead.isPlaying);
+            pipeline_.setAnalysisOffset(
+                detector_.state() == SidechainSyncState::locked ? detector_.offsetFrames() : 0.0);
 
             const auto blockStartSample = writer_.nextSampleIndex();
             writer_.write(inputs, blockSize_, 0);
@@ -121,12 +148,19 @@ public:
         return pipeline_.snapshots().readBuffer();
     }
 
+    [[nodiscard]] const SidechainSyncDetector& detector() const noexcept
+    {
+        return detector_;
+    }
+
     [[nodiscard]] double framesPerQuarter() const noexcept
     {
         return sampleRate * 60.0 / bpm_;
     }
 
 private:
+    static constexpr TimeSignature fourFour{4, 4};
+
     /** The click of each beat is on the first timeline frame at or after the beat. */
     [[nodiscard]] bool isBeatFrame(std::uint64_t frame, std::uint64_t playStart) const noexcept
     {
@@ -143,6 +177,7 @@ private:
     AudioRingBuffer ring_;
     AudioInputWriter writer_;
     HostAnalysisPipeline pipeline_;
+    SidechainSyncDetector detector_;
 };
 
 /** The bins of the 1-bar sweep that hold a click, as distances from the nearest beat line. */
@@ -252,7 +287,7 @@ TEST_CASE("A click on every beat lands on the grid with host playheads", "[analy
     CAPTURE(bpm, blockSize);
 
     LiveHost host(bpm, blockSize, 0);
-    host.play(3.0);
+    host.play(3.0, false);
 
     const auto& snapshot = host.snapshot();
     CHECK(snapshot.transportState == TransportState::running);
@@ -265,12 +300,13 @@ TEST_CASE("A click on every beat lands on the grid with host playheads", "[analy
     }
 }
 
-TEST_CASE("Audio after plugins with latency lands late without sidechain sync", "[analysis][host]")
+TEST_CASE("Audio after plugins with latency lands late without sidechain sync",
+          "[analysis][host][sync]")
 {
     constexpr double bpm = 123.0;
     constexpr std::uint64_t latency = 4'736;
     LiveHost host(bpm, 512, latency);
-    host.play(3.0);
+    host.play(3.0, false);
 
     // 4736 frames at 123 BPM are 0.2023 beats: 207 bins.
     const auto expected = static_cast<std::int64_t>(std::round(
@@ -281,5 +317,29 @@ TEST_CASE("Audio after plugins with latency lands late without sidechain sync", 
     {
         CAPTURE(distance);
         CHECK(std::abs(distance - expected) <= 1);
+    }
+}
+
+TEST_CASE("Visona Sync on the sidechain puts audio after plugins with latency on the grid",
+          "[analysis][host][sync]")
+{
+    const auto latency = GENERATE(std::uint64_t{0}, std::uint64_t{144}, std::uint64_t{4'736});
+    const auto blockSize = GENERATE(64u, 512u, 1'000u);
+    CAPTURE(latency, blockSize);
+
+    LiveHost host(123.0, blockSize, latency);
+    host.play(3.0, true);
+
+    REQUIRE(host.detector().state() == SidechainSyncState::locked);
+    CHECK(host.detector().offsetFrames() == static_cast<double>(latency));
+
+    const auto& snapshot = host.snapshot();
+    CHECK(snapshot.transportState == TransportState::running);
+    const auto distances = clickDistancesFromBeats(snapshot);
+    CHECK(distances.size() >= 4);
+    for (const auto distance : distances)
+    {
+        CAPTURE(distance);
+        CHECK(std::abs(distance) <= 1);
     }
 }
