@@ -38,6 +38,37 @@ Visona disables JUCE's curl and embedded web browser, so `libcurl` and WebKit/GT
 
 CMake **3.22 or later** and **Ninja** are required. The `pi` preset uses **GCC** (`g++`) explicitly so the linker finds the matching `libstdc++` development files.
 
+## Memory and swap (important on Pi 4)
+
+Building JUCE on a Raspberry Pi is RAM-heavy. If the compiler is **Killed** during `juceaide` or `juce_graphics`, the Linux OOM killer ran out of memory — not a code error.
+
+Before the first build:
+
+1. **Add swap** (2 GB is enough for a 2 GB or 4 GB Pi):
+
+   ```sh
+   sudo dphys-swapfile swapoff
+   sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+   sudo dphys-swapfile setup
+   sudo dphys-swapfile swapon
+   free -h
+   ```
+
+   On Bookworm systems without `dphys-swapfile`, use a manual swap file:
+
+   ```sh
+   sudo fallocate -l 2G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   ```
+
+2. **Close** other apps on the Pi (browser, IDE) while building.
+
+3. The `pi` preset sets **`CMAKE_BUILD_PARALLEL_LEVEL=1`** and **`jobs: 1`** so configure and build run one compile at a time. The first full build can still take **45–90 minutes** on a Pi 4.
+
+The `libcurl` / `webkit2gtk` / `gtk` messages during configure are expected: Visona disables curl and the embedded browser, so those packages are not required.
+
 ## Build
 
 Clone the repository on the Pi, then configure and build with the `pi` preset:
@@ -114,6 +145,7 @@ Press **D** to toggle the diagnostics overlay (block size, ring overruns, alloca
 
 ## Troubleshooting
 
+- **`g++: fatal error: Killed signal terminated program cc1plus`** — Out of memory. Add swap (see above), run `rm -rf build/pi`, then `cmake --preset pi && cmake --build --preset pi` again. If it still fails, reboot and build from SSH with the desktop closed.
 - **`cannot find -lstdc++`** — Install `build-essential` and use the `pi` preset (GCC). If the default `c++` symlink points at Clang, ensure the matching `libstdc++-*-dev` package is installed or keep `CMAKE_CXX_COMPILER=g++` as the preset does.
 - **`X11/extensions/XInput2.h: No such file or directory`** — Install `libxi-dev`.
 - **No audio input / silence** — Check group membership (`audio`), cable and gain at the interface, and that the correct ALSA device is selected in Settings.

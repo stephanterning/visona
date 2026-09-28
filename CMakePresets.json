@@ -89,6 +89,9 @@
         "CMAKE_C_COMPILER": "gcc",
         "CMAKE_CXX_COMPILER": "g++",
         "VISONA_BUILD_APP": "ON"
+      },
+      "environment": {
+        "CMAKE_BUILD_PARALLEL_LEVEL": "1"
       }
     }
   ],
@@ -99,7 +102,7 @@
     { "name": "core-clang", "configurePreset": "core-clang" },
     { "name": "core-sanitize", "configurePreset": "core-sanitize" },
     { "name": "core-tsan", "configurePreset": "core-tsan" },
-    { "name": "pi", "configurePreset": "pi" }
+    { "name": "pi", "configurePreset": "pi", "jobs": 1 }
   ],
   "testPresets": [
     {
