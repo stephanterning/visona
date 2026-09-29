@@ -95,6 +95,24 @@ TEST_CASE("Auto gain zooms out at the end of the first bar that goes past the la
     CHECK(autoGain.gainDb() == 18);
 }
 
+TEST_CASE("Auto gain zooms out as soon as the bar in progress goes past the lane", "[autogain]")
+{
+    AutoGain autoGain;
+    autoGain.reset(18);
+    CHECK_FALSE(autoGain.notePeak(0.1f));
+    CHECK(autoGain.gainDb() == 18);
+    CHECK(autoGain.notePeak(0.5f));
+    CHECK(autoGain.gainDb() == 6);
+    CHECK_FALSE(autoGain.notePeak(0.5f));
+
+    // The bar it was in still keeps the gain down for the hold time once it ends.
+    CHECK_FALSE(addBars(autoGain, 1, 0.5f));
+    CHECK_FALSE(addBars(autoGain, 14, 0.1f));
+    CHECK(autoGain.gainDb() == 6);
+    CHECK(addBars(autoGain, 1, 0.1f));
+    CHECK(autoGain.gainDb() == 18);
+}
+
 TEST_CASE("A loud bar within the hold time keeps auto gain from zooming in", "[autogain]")
 {
     AutoGain autoGain;
@@ -151,6 +169,16 @@ TEST_CASE("Auto gain follows the bars that ended since it last looked", "[autoga
     CHECK(autoGain.follow(recent));
     CHECK(autoGain.gainDb() == 6);
 
+    // The bar in progress counts before it ends.
+    recent.currentPeak = 0.9f;
+    CHECK(autoGain.follow(recent));
+    CHECK(autoGain.gainDb() == 0);
+    CHECK_FALSE(autoGain.follow(recent));
+    end(0.9f);
+    recent.currentPeak = 0.1f;
+    CHECK_FALSE(autoGain.follow(recent));
+    CHECK(autoGain.gainDb() == 0);
+
     // More bars than the snapshot holds: only those still held are added, so the loud bar that
     // was missed does not keep the gain down.
     for (std::size_t bar = 0; bar < RecentBarPeaks::capacity + 4; ++bar)
@@ -169,6 +197,7 @@ TEST_CASE("BarPeakMeter ends a bar when the next one starts", "[autogain][bars]"
 
     meter.process(channels, 3, 0, tickPerFrame(), 4.0, 2.0);
     CHECK(meter.recent().count == 0);
+    CHECK(meter.recent().currentPeak == 0.4f);
 
     const std::array<const float*, 2> rest{left.data() + 3, right.data() + 3};
     meter.process(rest, 7, 3, tickPerFrame(), 4.0, 2.0);
@@ -178,6 +207,7 @@ TEST_CASE("BarPeakMeter ends a bar when the next one starts", "[autogain][bars]"
     CHECK(recent.bar(1).seconds == 2.0);
     CHECK(recent.bar(2).peak == 0.6f);
     CHECK(recent.bar(2).seconds == 2.0);
+    CHECK(recent.currentPeak == 0.3f);
 }
 
 TEST_CASE("BarPeakMeter drops the bar in progress when the sweep starts over", "[autogain][bars]")
@@ -189,7 +219,9 @@ TEST_CASE("BarPeakMeter drops the bar in progress when the sweep starts over", "
     const std::array<const float*, 1> quietChannel{quiet.data()};
 
     meter.process(loudChannel, 2, 0, tickPerFrame(), 4.0, 2.0);
+    CHECK(meter.recent().currentPeak == 0.9f);
     meter.restart();
+    CHECK(meter.recent().currentPeak == 0.0f);
     meter.process(quietChannel, 5, 0, tickPerFrame(), 4.0, 2.0);
     REQUIRE(meter.recent().count == 1);
     CHECK(meter.recent().bar(1).peak == 0.1f);

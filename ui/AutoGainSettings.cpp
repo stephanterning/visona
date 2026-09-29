@@ -19,10 +19,9 @@ AutoGainSettings::AutoGainSettings()
     setTitle("Auto gain");
 
     toggle_.setButtonText("Off");
-    toggle_.setTooltip(
-        "Auto gain zooms the view in 3 dB steps, up to +18 dB, so the loudest peak "
-        "fills the top 3 dB. It zooms out at the next bar line when a peak goes past "
-        "the edge. Setting the gain by hand turns it off.");
+    toggle_.setTooltip("Auto gain zooms the view in 3 dB steps, up to +18 dB, so the loudest peak "
+                       "fills the top 3 dB. It zooms out as soon as a peak goes past the edge. "
+                       "Setting the gain by hand turns it off.");
     toggle_.onClick = [this]
     {
         if (onAutoGainChange)

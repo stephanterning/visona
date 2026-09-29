@@ -42,17 +42,28 @@ void AutoGain::setHoldSeconds(double seconds) noexcept
 
 bool AutoGain::follow(const RecentBarPeaks& recent) noexcept
 {
+    bool changed = false;
     if (!synced_ || recent.count < seenBars_)
     {
         synced_ = true;
-        seenBars_ = recent.count;
-        return false;
     }
-    bool changed = false;
-    for (auto number = std::max(seenBars_ + 1, recent.oldest()); number <= recent.count; ++number)
-        changed = addBar(recent.bar(number)) || changed;
+    else
+    {
+        for (auto number = std::max(seenBars_ + 1, recent.oldest()); number <= recent.count;
+             ++number)
+            changed = addBar(recent.bar(number)) || changed;
+    }
     seenBars_ = recent.count;
-    return changed;
+    return notePeak(recent.currentPeak) || changed;
+}
+
+bool AutoGain::notePeak(float peak) noexcept
+{
+    if (fits(peak, gainDb_))
+        return false;
+    gainDb_ = gainFor(peak);
+    heldSeconds_ = 0.0;
+    return true;
 }
 
 bool AutoGain::addBar(const BarPeak& bar) noexcept

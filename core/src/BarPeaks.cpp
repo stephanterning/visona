@@ -9,6 +9,7 @@ namespace visona
 void BarPeakMeter::restart() noexcept
 {
     inBar_ = false;
+    recent_.currentPeak = 0.0f;
 }
 
 void BarPeakMeter::process(std::span<const float* const> channels, std::size_t numFrames,
@@ -50,6 +51,7 @@ void BarPeakMeter::process(std::span<const float* const> channels, std::size_t n
         frames_ += run;
         done += run;
     }
+    recent_.currentPeak = inBar_ ? peak_ : 0.0f;
 }
 
 void BarPeakMeter::endBar(double sampleRate) noexcept

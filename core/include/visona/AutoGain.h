@@ -11,13 +11,12 @@ namespace visona
 
 /**
     Auto gain (D-098): picks the display gain in 3 dB steps, from 0 dB to DisplayGain::maxDb, from
-    the peaks of the bars that have ended. It is presentation only, like the gain it sets (D-024).
+    the peaks of the bars. It is presentation only, like the gain it sets (D-024).
 
-    At the end of each bar:
-    - If the bar's peak lands above the top of the lane, the gain drops at once to the highest step
-      that fits it.
-    - Otherwise, once the gain has held for the hold time, it rises at once to the highest step
-      that fits the loudest peak of the bars in the last hold time, if that is higher.
+    - As soon as a peak of the bar in progress lands above the top of the lane, the gain drops to
+      the highest step that fits it.
+    - At the end of each bar, once the gain has held for the hold time, it rises at once to the
+      highest step that fits the loudest peak of the bars in the last hold time, if that is higher.
 
     The highest step that fits a peak puts it within the top 3 dB of the lane. Bars whose peak is
     at or below thresholdDb do not count when rising, so silence never zooms in; a loud peak keeps
@@ -48,8 +47,13 @@ public:
         return holdSeconds_;
     }
 
-    /** Adds the bars that ended since the previous call. Returns whether the gain changed. */
+    /** Adds the bars that ended since the previous call, then drops the gain if the bar in progress
+        goes past the lane. Returns whether the gain changed. */
     bool follow(const RecentBarPeaks& recent) noexcept;
+
+    /** Drops the gain if `peak`, of the bar in progress, goes past the lane. Returns whether the
+        gain changed. */
+    bool notePeak(float peak) noexcept;
 
     /** Adds one bar that has ended. Returns whether the gain changed. */
     bool addBar(const BarPeak& bar) noexcept;

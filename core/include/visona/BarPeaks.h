@@ -18,8 +18,8 @@ struct BarPeak
 };
 
 /**
-    The latest bars that have ended, for auto gain (D-098). Bars are numbered from 1 in the order
-    they end; the numbers never go back, even across streams.
+    The latest bars that have ended, and the bar in progress, for auto gain (D-098). Bars are
+    numbered from 1 in the order they end; the numbers never go back, even across streams.
 */
 struct RecentBarPeaks
 {
@@ -27,6 +27,9 @@ struct RecentBarPeaks
 
     /** How many bars have ended in all. */
     std::uint64_t count = 0;
+
+    /** The peak of the bar in progress so far, or 0 when none is. */
+    float currentPeak = 0.0f;
 
     /** Bar `number`, which must be among the latest min(count, capacity). */
     [[nodiscard]] const BarPeak& bar(std::uint64_t number) const noexcept
@@ -46,7 +49,8 @@ struct RecentBarPeaks
 /**
     Measures the peak of each bar on the analysis thread. A frame belongs to the bar its position
     in ticks lies in, with bar 1 starting at tick 0. A bar ends when a frame lands in another bar,
-    so a bar that is still being played, or the one the transport stopped in, has not ended.
+    so a bar that is still being played, or the one the transport stopped in, has not ended. The
+    peak of the bar in progress is kept up to date after each call to process().
 
     One thread only. Nothing allocates.
 */

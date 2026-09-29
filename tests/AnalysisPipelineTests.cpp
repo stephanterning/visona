@@ -650,6 +650,7 @@ TEST_CASE("AnalysisPipeline measures the peak of each bar that has ended", "[ana
         CHECK(bars.bar(number).peak == 0.1f * static_cast<float>(number));
         CHECK(bars.bar(number).seconds == 128'000.0 / 48'000.0);
     }
+    CHECK(bars.currentPeak == 0.4f);
 }
 
 TEST_CASE("A new tempo or window starts the free-running sweep over from bar 1", "[analysis][free]")
