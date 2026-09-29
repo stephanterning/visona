@@ -1,8 +1,38 @@
+include("${PROJECT_SOURCE_DIR}/cmake/ClapSetup.cmake")
+
+# Installing into Common Files needs administrator rights on Windows.
+if(WIN32)
+    set(visona_copy_plugins FALSE)
+else()
+    set(visona_copy_plugins TRUE)
+endif()
+
+# Ad-hoc signs every macOS bundle of a plugin, so a DAW loads the local build.
+function(visona_sign_plugin_formats target)
+    if(NOT APPLE)
+        return()
+    endif()
+    foreach(format IN ITEMS VST3 AU CLAP)
+        set(format_target "${target}_${format}")
+        if(NOT TARGET "${format_target}")
+            continue()
+        endif()
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            set_target_properties("${format_target}" PROPERTIES
+                XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-")
+        else()
+            add_custom_command(TARGET "${format_target}" POST_BUILD
+                COMMAND codesign --force --sign - --timestamp=none "$<TARGET_FILE:${format_target}>"
+                VERBATIM)
+        endif()
+    endforeach()
+endfunction()
+
 juce_add_plugin(VisonaPlugin
     COMPANY_NAME "Stephan Terning"
     PLUGIN_MANUFACTURER_CODE Ster
     PLUGIN_CODE Visn
-    FORMATS VST3
+    FORMATS VST3 AU
     PRODUCT_NAME "Visona"
     BUNDLE_ID "io.github.stephanterning.visona.plugin"
     IS_SYNTH FALSE
@@ -10,8 +40,9 @@ juce_add_plugin(VisonaPlugin
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
-    COPY_PLUGIN_AFTER_BUILD TRUE
-    VST3_CATEGORIES Fx Analyzer)
+    COPY_PLUGIN_AFTER_BUILD ${visona_copy_plugins}
+    VST3_CATEGORIES Fx Analyzer
+    AU_MAIN_TYPE kAudioUnitType_Effect)
 
 target_sources(VisonaPlugin PRIVATE
     src/PluginAnalysisThread.cpp
@@ -39,22 +70,19 @@ target_link_libraries(VisonaPlugin
         juce::juce_recommended_warning_flags
         $<$<BOOL:${APPLE}>:juce::juce_recommended_lto_flags>)
 
-if(APPLE)
-    if(CMAKE_GENERATOR STREQUAL "Xcode")
-        set_target_properties(VisonaPlugin_VST3 PROPERTIES
-            XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-")
-    else()
-        add_custom_command(TARGET VisonaPlugin_VST3 POST_BUILD
-            COMMAND codesign --force --sign - --timestamp=none "$<TARGET_FILE:VisonaPlugin_VST3>"
-            VERBATIM)
-    endif()
-endif()
+clap_juce_extensions_plugin(TARGET VisonaPlugin
+    CLAP_ID "io.github.stephanterning.visona.plugin"
+    CLAP_FEATURES audio-effect analyzer stereo
+    CLAP_MANUAL_URL "https://github.com/stephanterning/visona/blob/main/docs/plugins.md"
+    CLAP_SUPPORT_URL "https://github.com/stephanterning/visona/issues")
+
+visona_sign_plugin_formats(VisonaPlugin)
 
 juce_add_plugin(VisonaSyncPlugin
     COMPANY_NAME "Stephan Terning"
     PLUGIN_MANUFACTURER_CODE Ster
     PLUGIN_CODE Sync
-    FORMATS VST3
+    FORMATS VST3 AU
     PRODUCT_NAME "Visona Sync"
     BUNDLE_ID "io.github.stephanterning.visona.sync"
     IS_SYNTH TRUE
@@ -62,8 +90,9 @@ juce_add_plugin(VisonaSyncPlugin
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD TRUE
-    VST3_CATEGORIES Instrument Generator)
+    COPY_PLUGIN_AFTER_BUILD ${visona_copy_plugins}
+    VST3_CATEGORIES Instrument Generator
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice)
 
 target_sources(VisonaSyncPlugin PRIVATE
     src/SyncEditor.cpp
@@ -87,13 +116,10 @@ target_link_libraries(VisonaSyncPlugin
         juce::juce_recommended_warning_flags
         $<$<BOOL:${APPLE}>:juce::juce_recommended_lto_flags>)
 
-if(APPLE)
-    if(CMAKE_GENERATOR STREQUAL "Xcode")
-        set_target_properties(VisonaSyncPlugin_VST3 PROPERTIES
-            XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-")
-    else()
-        add_custom_command(TARGET VisonaSyncPlugin_VST3 POST_BUILD
-            COMMAND codesign --force --sign - --timestamp=none "$<TARGET_FILE:VisonaSyncPlugin_VST3>"
-            VERBATIM)
-    endif()
-endif()
+clap_juce_extensions_plugin(TARGET VisonaSyncPlugin
+    CLAP_ID "io.github.stephanterning.visona.sync"
+    CLAP_FEATURES instrument utility stereo
+    CLAP_MANUAL_URL "https://github.com/stephanterning/visona/blob/main/docs/plugins.md"
+    CLAP_SUPPORT_URL "https://github.com/stephanterning/visona/issues")
+
+visona_sign_plugin_formats(VisonaSyncPlugin)

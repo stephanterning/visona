@@ -3,6 +3,10 @@
 #include <cstdlib>
 #include <new>
 
+#ifdef _WIN32
+#include <malloc.h>
+#endif
+
 #if defined(__SANITIZE_THREAD__)
 #define VISONA_TEST_TSAN 1
 #elif defined(__has_feature)
@@ -63,24 +67,42 @@ void ignoreDeallocation(const volatile void*) noexcept {}
 namespace
 {
 
-constexpr auto defaultAlignment = alignof(std::max_align_t);
+void* tryAllocate(std::size_t size) noexcept
+{
+    ++allocationsOnThisThread;
+    return std::malloc(size == 0 ? 1 : size);
+}
 
-void* tryAllocate(std::size_t size, std::size_t alignment) noexcept
+void* tryAllocateAligned(std::size_t size, std::size_t alignment) noexcept
 {
     ++allocationsOnThisThread;
     if (size == 0)
         size = 1;
-    if (alignment <= defaultAlignment)
+#ifdef _WIN32
+    // MSVC has no aligned_alloc; memory from _aligned_malloc must be freed with _aligned_free.
+    return _aligned_malloc(size, alignment);
+#else
+    if (alignment <= alignof(std::max_align_t))
         return std::malloc(size);
     // aligned_alloc requires the size to be a multiple of the alignment.
     return std::aligned_alloc(alignment, (size + alignment - 1) / alignment * alignment);
+#endif
 }
 
-void* allocate(std::size_t size, std::size_t alignment)
+void freeAligned(void* memory) noexcept
 {
-    if (void* const memory = tryAllocate(size, alignment))
-        return memory;
-    throw std::bad_alloc();
+#ifdef _WIN32
+    _aligned_free(memory);
+#else
+    std::free(memory);
+#endif
+}
+
+void* orThrow(void* memory)
+{
+    if (memory == nullptr)
+        throw std::bad_alloc();
+    return memory;
 }
 
 } // namespace
@@ -90,42 +112,42 @@ void* allocate(std::size_t size, std::size_t alignment)
 
 void* operator new(std::size_t size)
 {
-    return allocate(size, defaultAlignment);
+    return orThrow(tryAllocate(size));
 }
 
 void* operator new[](std::size_t size)
 {
-    return allocate(size, defaultAlignment);
+    return orThrow(tryAllocate(size));
 }
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept
 {
-    return tryAllocate(size, defaultAlignment);
+    return tryAllocate(size);
 }
 
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept
 {
-    return tryAllocate(size, defaultAlignment);
+    return tryAllocate(size);
 }
 
 void* operator new(std::size_t size, std::align_val_t alignment)
 {
-    return allocate(size, static_cast<std::size_t>(alignment));
+    return orThrow(tryAllocateAligned(size, static_cast<std::size_t>(alignment)));
 }
 
 void* operator new[](std::size_t size, std::align_val_t alignment)
 {
-    return allocate(size, static_cast<std::size_t>(alignment));
+    return orThrow(tryAllocateAligned(size, static_cast<std::size_t>(alignment)));
 }
 
 void* operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t&) noexcept
 {
-    return tryAllocate(size, static_cast<std::size_t>(alignment));
+    return tryAllocateAligned(size, static_cast<std::size_t>(alignment));
 }
 
 void* operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_t&) noexcept
 {
-    return tryAllocate(size, static_cast<std::size_t>(alignment));
+    return tryAllocateAligned(size, static_cast<std::size_t>(alignment));
 }
 
 void operator delete(void* memory) noexcept
@@ -160,32 +182,32 @@ void operator delete[](void* memory, std::size_t) noexcept
 
 void operator delete(void* memory, std::align_val_t) noexcept
 {
-    std::free(memory);
+    freeAligned(memory);
 }
 
 void operator delete[](void* memory, std::align_val_t) noexcept
 {
-    std::free(memory);
+    freeAligned(memory);
 }
 
 void operator delete(void* memory, std::align_val_t, const std::nothrow_t&) noexcept
 {
-    std::free(memory);
+    freeAligned(memory);
 }
 
 void operator delete[](void* memory, std::align_val_t, const std::nothrow_t&) noexcept
 {
-    std::free(memory);
+    freeAligned(memory);
 }
 
 void operator delete(void* memory, std::size_t, std::align_val_t) noexcept
 {
-    std::free(memory);
+    freeAligned(memory);
 }
 
 void operator delete[](void* memory, std::size_t, std::align_val_t) noexcept
 {
-    std::free(memory);
+    freeAligned(memory);
 }
 
 #endif
