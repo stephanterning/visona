@@ -399,6 +399,12 @@ A lightweight log of decisions and open questions. The architecture is described
   - The status bar shows the offset, such as `SC +98.7 ms`, and `SC ...` while the sidechain is on but no impulse has arrived.
   - When the maintainer routes Visona Sync to the sidechain, it is used whatever the host's own delay compensation does; Visona does not try to tell whether the host already reports the right timing.
   - The signal is not validated yet: any peak above −20 dBFS counts. The maintainer asked to drop the validation for now, after a stricter check kept losing lock in Live.
+- **D-098 — Both plugins are also built as AU, with JUCE's own client, and as CLAP, with clap-juce-extensions.** `Active`
+  - JUCE 9.0.2 has no CLAP client. JUCE has announced native CLAP for JUCE 9, but it depends on AudioProcessor v2, which has not shipped. [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) supports JUCE 9 since its #178 and is used by shipping plugins such as Surge XT. It is fetched with `FetchContent`, pinned to a commit.
+  - The wrapper maps the CLAP ID to JUCE's `AudioProcessor` without changing the processors, and state goes through `getStateInformation` and `setStateInformation` unchanged. When JUCE ships CLAP, moving to it should keep projects loading if its IDs and state match; that is to be checked then.
+  - The CLAP IDs are the VST3 bundle IDs: `io.github.stephanterning.visona.plugin` and `io.github.stephanterning.visona.sync`. AU and CLAP keep manufacturer `Ster`, plugin codes `Visn` and `Sync`, and company name "Stephan Terning".
+  - Visona is an AU effect (`aufx`), since it takes no MIDI, with its mono sidechain as an optional second input bus. Visona Sync is an AU instrument (`aumu`), which takes MIDI.
+  - The Release workflow runs `auval` on both AUs and `clap-validator` on both CLAPs, and publishes one zip per plugin and format.
 
 ---
 
