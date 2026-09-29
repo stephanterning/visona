@@ -159,7 +159,9 @@ void SyncProcessor::changeProgramName(int index, const juce::String& newName)
 
 void SyncProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    juce::ignoreUnused(destData);
+    // Visona Sync has no settings, but the CLAP wrapper fails to load an empty state.
+    constexpr int stateVersion = 1;
+    juce::MemoryOutputStream(destData, false).writeInt(stateVersion);
 }
 
 void SyncProcessor::setStateInformation(const void* data, int sizeInBytes)

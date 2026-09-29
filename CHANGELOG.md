@@ -7,10 +7,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- AU and CLAP builds of Visona (AU effect with sidechain) and Visona Sync (AU instrument), for macOS arm64. CLAP is built with clap-juce-extensions, since JUCE 9.0.2 has no CLAP support (D-098).
+- Release workflow validates the AUs with `auval` and the CLAPs with `clap-validator`, and publishes `Visona-au-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip`, `Visona-clap-macos-arm64.zip` and `Visona-sync-clap-macos-arm64.zip`.
+
+- VST3 and CLAP builds of both plugins for Windows x64 and Linux x86_64, validated with pluginval and `clap-validator` and published as `Visona-{vst3,clap}-windows-x64.zip`, `Visona-sync-{vst3,clap}-windows-x64.zip`, `Visona-{vst3,clap}-linux-x86_64.tar.gz` and `Visona-sync-{vst3,clap}-linux-x86_64.tar.gz` (D-099).
+- `windows-plugin` and `linux-plugin` CMake presets.
+- The standalone app hides the mouse cursor after three seconds of inactivity in fullscreen and kiosk mode.
 - Auto gain, off by default, in the app's settings panel and the plugin's Appearance panel. It zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out as soon as a peak goes past the edge, and in at a bar line after the peaks have stayed low for 10, 30 or 60 s (30 s by default). Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off.
 
 ### Changed
 
+- Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 - Display gain goes up to +18 dB instead of +36 dB.
 
 ## [0.1.0-alpha.2] - 2026-09-28

@@ -39,7 +39,7 @@ public:
             setTitleBarButtonsRequired(0, false);
         }
 
-        setContentOwned(new MainComponent(engine, settings), true);
+        setContentOwned(new MainComponent(engine, settings, kiosk_), true);
 
         // On macOS, a resizable window with a maximise button gets native fullscreen
         // from the green title bar button.

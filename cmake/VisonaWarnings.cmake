@@ -6,6 +6,8 @@ add_library(visona::warnings ALIAS visona_warnings)
 if(MSVC)
     target_compile_options(visona_warnings INTERFACE
         /W4 /permissive-
+        # C4324: padding from alignas(cacheLineSize), which keeps SPSC indices on separate lines.
+        /wd4324
         $<$<BOOL:${VISONA_WARNINGS_AS_ERRORS}>:/WX>)
 else()
     target_compile_options(visona_warnings INTERFACE

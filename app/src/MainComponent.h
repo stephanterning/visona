@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IdleCursorHider.h"
 #include "ui/Banner.h"
 #include "ui/ControlBar.h"
 #include "ui/DiagnosticsOverlay.h"
@@ -36,7 +37,7 @@ class MainComponent final : public juce::Component,
                             private juce::Timer
 {
 public:
-    MainComponent(AudioEngine& engine, Settings& settings);
+    MainComponent(AudioEngine& engine, Settings& settings, bool kioskMode = false);
     ~MainComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -75,6 +76,8 @@ private:
 
     AudioEngine& engine_;
     Settings& settings_;
+    const bool kioskMode_;
+    IdleCursorHider idleCursorHider_{*this};
     juce::LookAndFeel_V4 lookAndFeel_;
 
     StatusBar statusBar_;

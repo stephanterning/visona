@@ -146,7 +146,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Agents open draft PRs; the maintainer tests on a Mac and merges.
 
   The Linux job keeps the core free of platform dependencies (D-003) and is cheap. A self-hosted runner may be added later.
-- **D-044 — The platform is macOS on Apple Silicon (arm64) only.** `Active`
+- **D-044 — The platform is macOS on Apple Silicon (arm64) only.** `Extended by D-099`
   One architecture and one real test environment are enough for a proof of concept. The reference environment is an Apple Silicon Mac with Xcode, and Ableton Live with MIDI Clock Type = Song, so that SPP is sent.
 - **D-045 — MVP transport policies:** `Active`
   - Start: bar 1, and the sweep restarts.
@@ -156,9 +156,9 @@ A lightweight log of decisions and open questions. The architecture is described
   - Before the first Start: a free-running sweep with a fixed time window.
 
   These are the explicit defaults required by D-016.
-- **D-046 — MVP UI:** `Amended by D-098`
+- **D-046 — MVP UI:** `Amended by D-100`
   - Status at the top: BPM, MIDI state, sample rate, window and gain.
-  - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB (+18 dB since D-098).
+  - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB (+18 dB since D-100).
   - A settings panel for audio device, input channel pair and MIDI input, with persisted settings.
   - A resizable window with fullscreen.
   - L/R stacked, with L on top.
@@ -399,7 +399,19 @@ A lightweight log of decisions and open questions. The architecture is described
   - The status bar shows the offset, such as `SC +98.7 ms`, and `SC ...` while the sidechain is on but no impulse has arrived.
   - When the maintainer routes Visona Sync to the sidechain, it is used whatever the host's own delay compensation does; Visona does not try to tell whether the host already reports the right timing.
   - The signal is not validated yet: any peak above −20 dBFS counts. The maintainer asked to drop the validation for now, after a stricter check kept losing lock in Live.
-- **D-098 — Auto gain: an optional setting that zooms the display gain in 3 dB steps, decided once per bar.** `Active`
+- **D-098 — Both plugins are also built as AU, with JUCE's own client, and as CLAP, with clap-juce-extensions.** `Active`
+  - JUCE 9.0.2 has no CLAP client. JUCE has announced native CLAP for JUCE 9, but it depends on AudioProcessor v2, which has not shipped. [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) supports JUCE 9 since its #178 and is used by shipping plugins such as Surge XT. It is fetched with `FetchContent`, pinned to a commit.
+  - The wrapper maps the CLAP ID to JUCE's `AudioProcessor` without changing the processors, and state goes through `getStateInformation` and `setStateInformation` unchanged. When JUCE ships CLAP, moving to it should keep projects loading if its IDs and state match; that is to be checked then.
+  - The CLAP IDs are the VST3 bundle IDs: `io.github.stephanterning.visona.plugin` and `io.github.stephanterning.visona.sync`. AU and CLAP keep manufacturer `Ster`, plugin codes `Visn` and `Sync`, and company name "Stephan Terning".
+  - Visona is an AU effect (`aufx`), since it takes no MIDI, with its mono sidechain as an optional second input bus. Visona Sync is an AU instrument (`aumu`), which takes MIDI.
+  - The Release workflow runs `auval` on both AUs and `clap-validator` on both CLAPs, and publishes one zip per plugin and format.
+- **D-099 — The Release workflow also builds both plugins as VST3 and CLAP for Windows x64 and Linux x86_64.** `Active`
+  - The maintainer asked for Windows and Linux plugins in every release and manual run. AU exists on macOS only.
+  - The jobs use the new `windows-plugin` (MSVC, Ninja) and `linux-plugin` (GCC, Ninja) presets, run the core tests, validate the VST3s with [pluginval](https://github.com/Tracktion/pluginval) (strictness 5, without GUI tests) and the CLAPs with `clap-validator`, and publish one archive per plugin, format and platform: zips on Windows, tarballs on Linux.
+  - Windows links the MSVC runtime statically, so no Visual C++ redistributable is needed. The Windows build does not copy the plugins into `Common Files`, which needs administrator rights.
+  - Linux is built on Ubuntu 24.04, so the plugins need glibc 2.38 and GCC 13's libstdc++ or later. The binaries are unsigned; nothing on either platform has been tested in a DAW yet.
+  - Extends D-044 for the plugins only; the standalone app stays on macOS and the Pi.
+- **D-100 — Auto gain: an optional setting that zooms the display gain in 3 dB steps, out at once and in at bar lines.** `Active`
   - The maintainer asked for it. It answers Q-014. It is off by default, and is set in the settings panel of the app and the Appearance panel of the plugin, per instance there, and saved.
   - Display gain now goes up to +18 dB, by hand as well as by auto gain. By hand it still moves in 1 dB steps.
   - Auto gain looks at the peak of each bar, the loudest sample over both channels:

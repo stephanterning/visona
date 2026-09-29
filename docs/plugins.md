@@ -4,25 +4,99 @@ Visona is available as a **pass-through stereo effect** for use inside a DAW. Au
 
 ## Formats
 
-| Format | Status | Identifier |
+Both plugins are built for three platforms:
+
+| Platform | Formats |
+| --- | --- |
+| macOS on Apple Silicon, macOS 14 or later | VST3, AU, CLAP |
+| Windows 10 or 11, x64 | VST3, CLAP |
+| Linux x86_64 with glibc 2.38 and GCC 13's libstdc++ or later (Ubuntu 24.04, Debian 13, Fedora 39 or newer) | VST3, CLAP |
+
+AU exists on macOS only. Every format uses manufacturer `Ster` and company name **Stephan Terning**, so hosts list them as **Stephan Terning → Visona** and **Stephan Terning → Visona Sync**.
+
+| Plugin | VST3 | AU | CLAP |
+| --- | --- | --- | --- |
+| **Visona** (effect with sidechain) | Plugin code `Visn`, category Fx / Analyzer | Effect `aufx Visn Ster`, with the sidechain as a second input bus | ID `io.github.stephanterning.visona.plugin`, features audio-effect, analyzer |
+| **Visona Sync** (instrument) | Plugin code `Sync`, category Instrument | Instrument `aumu Sync Ster`, with MIDI in | ID `io.github.stephanterning.visona.sync`, features instrument, utility |
+
+Use one format per DAW; they behave the same. Ableton Live loads VST3, and AU on macOS, but not CLAP. Reaper and Bitwig Studio load CLAP on all three platforms.
+
+## Install
+
+Release builds are published on [GitHub Releases](https://github.com/stephanterning/visona/releases), one archive per plugin, format and platform.
+
+### macOS
+
+| Zip | Bundle | Install folder |
 | --- | --- | --- |
-| **VST3 — Visona** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Visn` — browser shows **Stephan Terning → Visona** |
-| **VST3 — Visona Sync** | Available (macOS arm64) | Manufacturer `Ster`, plugin `Sync` — **Stephan Terning → Visona Sync** |
-| **AU** | Planned | Same four-character codes |
-| **CLAP** | Planned | Same four-character codes |
+| `Visona-vst3-macos-arm64.zip` | `Visona.vst3` | `~/Library/Audio/Plug-Ins/VST3/` |
+| `Visona-sync-vst3-macos-arm64.zip` | `Visona Sync.vst3` | `~/Library/Audio/Plug-Ins/VST3/` |
+| `Visona-au-macos-arm64.zip` | `Visona.component` | `~/Library/Audio/Plug-Ins/Components/` |
+| `Visona-sync-au-macos-arm64.zip` | `Visona Sync.component` | `~/Library/Audio/Plug-Ins/Components/` |
+| `Visona-clap-macos-arm64.zip` | `Visona.clap` | `~/Library/Audio/Plug-Ins/CLAP/` |
+| `Visona-sync-clap-macos-arm64.zip` | `Visona Sync.clap` | `~/Library/Audio/Plug-Ins/CLAP/` |
 
-Release builds are published on [GitHub Releases](https://github.com/stephanterning/visona/releases) as `Visona-vst3-macos-arm64.zip` (`Visona.vst3`) and `Visona-sync-vst3-macos-arm64.zip` (`Visona Sync.vst3`). Copy the bundles into `~/Library/Audio/Plug-Ins/VST3/` and rescan in your DAW.
+Unzip and copy each bundle into its folder; create the folder if it does not exist.
 
-Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag after copying the bundles, then sign them ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt:
+Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag after copying the bundles, then sign them ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt. For the formats you installed:
 
 ```sh
-xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
-xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
-codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
-codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
+cd ~/Library/Audio/Plug-Ins
+xattr -cr VST3/Visona.vst3 VST3/Visona\ Sync.vst3
+xattr -cr Components/Visona.component Components/Visona\ Sync.component
+xattr -cr CLAP/Visona.clap CLAP/Visona\ Sync.clap
+codesign --force --sign - --deep VST3/Visona.vst3
+codesign --force --sign - --deep VST3/Visona\ Sync.vst3
+codesign --force --sign - --deep Components/Visona.component
+codesign --force --sign - --deep Components/Visona\ Sync.component
+codesign --force --sign - --deep CLAP/Visona.clap
+codesign --force --sign - --deep CLAP/Visona\ Sync.clap
 ```
 
 Do the same after installing a local build. Then restart the DAW or rescan its plugins.
+
+### Windows
+
+| Zip | Bundle | Install folder |
+| --- | --- | --- |
+| `Visona-vst3-windows-x64.zip` | `Visona.vst3` (a folder) | `C:\Program Files\Common Files\VST3\` |
+| `Visona-sync-vst3-windows-x64.zip` | `Visona Sync.vst3` (a folder) | `C:\Program Files\Common Files\VST3\` |
+| `Visona-clap-windows-x64.zip` | `Visona.clap` | `C:\Program Files\Common Files\CLAP\` |
+| `Visona-sync-clap-windows-x64.zip` | `Visona Sync.clap` | `C:\Program Files\Common Files\CLAP\` |
+
+Copying into these folders needs administrator rights. The builds are unsigned: before unzipping, right-click each zip, choose **Properties** and tick **Unblock**, or run `Unblock-File .\Visona-*.zip` in PowerShell, so Windows does not flag the plugins as downloaded from the internet. They need no Visual C++ redistributable. Then rescan in your DAW.
+
+### Linux
+
+| Archive | Bundle | Install folder |
+| --- | --- | --- |
+| `Visona-vst3-linux-x86_64.tar.gz` | `Visona.vst3` (a folder) | `~/.vst3/` |
+| `Visona-sync-vst3-linux-x86_64.tar.gz` | `Visona Sync.vst3` (a folder) | `~/.vst3/` |
+| `Visona-clap-linux-x86_64.tar.gz` | `Visona.clap` | `~/.clap/` |
+| `Visona-sync-clap-linux-x86_64.tar.gz` | `Visona Sync.clap` | `~/.clap/` |
+
+```sh
+mkdir -p ~/.vst3 ~/.clap
+tar xzf Visona-vst3-linux-x86_64.tar.gz -C ~/.vst3
+tar xzf Visona-sync-vst3-linux-x86_64.tar.gz -C ~/.vst3
+tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap
+tar xzf Visona-sync-clap-linux-x86_64.tar.gz -C ~/.clap
+```
+
+No signing is needed. The plugins use the system's FreeType and Fontconfig libraries (`libfreetype6` and `libfontconfig1` on Debian and Ubuntu), which desktop distributions normally have. Then rescan in your DAW.
+
+### If a DAW does not show the AU
+
+macOS keeps a cache of installed Audio Units. If a new or updated AU does not show up, or an old version keeps loading, refresh that cache, then restart the DAW:
+
+```sh
+killall -9 AudioComponentRegistrar
+auval -a | grep Ster
+```
+
+`auval -a` lists every AU macOS knows of; both **Stephan Terning** plugins should be in the list. `auval -v aufx Visn Ster` and `auval -v aumu Sync Ster` validate them one at a time and should end with **AU VALIDATION SUCCEEDED**.
+
+In Ableton Live, turn on **Use Audio Units** under **Settings → Plug-Ins**, then press **Rescan**. Rescanning is enough; do not delete any DAW preference folders to refresh plugins.
 
 ## Transport
 
@@ -54,16 +128,18 @@ The plugin editor is a slimmed-down version of the standalone UI:
 
 Waveform mode and colour are saved **per plugin instance** in the DAW project. Global defaults live in `~/Library/Application Support/Visona/VisonaPluginDefaults.settings` and apply when an instance has no saved appearance.
 
-## Build locally (macOS)
+## Build locally
+
+### macOS
 
 ```sh
 cmake --preset macos && cmake --build --preset macos
 ```
 
-The VST3 bundles are at:
+The bundles are under `build/macos/plugin/`, in a folder per format:
 
-- `build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3`
-- `build/macos/plugin/VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3`
+- `VisonaPlugin_artefacts/Release/VST3/Visona.vst3`, `AU/Visona.component` and `CLAP/Visona.clap`
+- `VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3`, `AU/Visona Sync.component` and `CLAP/Visona Sync.clap`
 
 Plugin-only build, with the bundles under `build/macos-plugin/` instead:
 
@@ -71,16 +147,39 @@ Plugin-only build, with the bundles under `build/macos-plugin/` instead:
 cmake --preset macos-plugin && cmake --build --preset macos-plugin
 ```
 
-To install a local build, replace the old bundles, then clear the quarantine flag and sign them as described above:
+The build also copies each bundle into its install folder under `~/Library/Audio/Plug-Ins/`, but it signs the build-tree copy only after that. To install a local build, replace the old bundles, then clear the quarantine flag and sign them as described in [Install](#install):
 
 ```sh
-rm -rf ~/Library/Audio/Plug-Ins/VST3/Visona.vst3 ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
-cp -R build/macos-plugin/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3 \
-      "build/macos-plugin/plugin/VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3" \
-      ~/Library/Audio/Plug-Ins/VST3/
+plugins=~/Library/Audio/Plug-Ins
+build=build/macos-plugin/plugin
+rm -rf "$plugins"/VST3/Visona*.vst3 "$plugins"/Components/Visona*.component "$plugins"/CLAP/Visona*.clap
+mkdir -p "$plugins"/VST3 "$plugins"/Components "$plugins"/CLAP
+cp -R "$build"/Visona*Plugin_artefacts/Release/VST3/*.vst3 "$plugins"/VST3/
+cp -R "$build"/Visona*Plugin_artefacts/Release/AU/*.component "$plugins"/Components/
+cp -R "$build"/Visona*Plugin_artefacts/Release/CLAP/*.clap "$plugins"/CLAP/
 ```
 
+### Windows and Linux
+
+Windows needs Visual Studio 2022 or later with the C++ workload, CMake and Ninja. Run the commands from a **x64 Native Tools Command Prompt**, so that MSVC is on the path:
+
+```sh
+cmake --preset windows-plugin && cmake --build --preset windows-plugin && ctest --preset windows-plugin
+```
+
+Linux needs GCC, CMake, Ninja and JUCE's development packages (on Ubuntu: `libasound2-dev libfreetype6-dev libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxi-dev libgl1-mesa-dev`):
+
+```sh
+cmake --preset linux-plugin && cmake --build --preset linux-plugin && ctest --preset linux-plugin
+```
+
+The bundles are under `build/<preset>/plugin/`, in `VisonaPlugin_artefacts/Release/` and `VisonaSyncPlugin_artefacts/Release/`, with a folder per format. The Linux build also copies them into `~/.vst3` and `~/.clap`; the Windows build does not copy them, since that needs administrator rights.
+
+The CLAP builds use [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions), which CMake downloads, since JUCE 9.0.2 has no CLAP support of its own (D-098).
+
 ## Testing in Ableton Live
+
+Live loads the VST3 and the AU; test one format at a time, since Live lists both.
 
 1. Insert **Visona** on a stereo track that receives audio.
 2. Press Play — the sweep should restart at bar 1 and kicks should land on the grid.
@@ -88,6 +187,17 @@ cp -R build/macos-plugin/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3 
 4. Move the playhead and press Continue — the scope should show the new position.
 5. Try 120, 126 and 174 BPM.
 6. Put a plugin with latency before Visona and route Visona Sync to its sidechain. The status bar should show **SC** with that latency, and kicks should stay on the grid.
+
+The AUs are under **Plug-Ins → Audio Units → Stephan Terning** in Live's browser.
+
+## Testing CLAP in Reaper or Bitwig Studio
+
+Ableton Live does not load CLAP plugins; use Reaper or Bitwig Studio. On Windows and Linux, the same steps apply to the VST3s too; the CLAP folders there are `C:\Program Files\Common Files\CLAP` and `~/.clap`.
+
+- **Reaper:** open **Settings → Plug-ins → CLAP**, check that `~/Library/Audio/Plug-Ins/CLAP` is in the path list, and press **Re-scan**. Insert **CLAP: Visona (Stephan Terning)** on a track with audio. For the sidechain, set Visona's track to 4 channels and send the Visona Sync track to its channels 3/4. Reaper feeds channel 3 to Visona's sidechain input; check Visona's pin connector (the **2 in 2 out** button) if the status bar does not show **SC**.
+- **Bitwig Studio:** CLAP plugins in `~/Library/Audio/Plug-Ins/CLAP` are found at startup; check **Settings → Locations → Plug-ins** if they are missing. Insert **Visona** from the browser on an audio track. Choose the Visona Sync track as the sidechain input in the device header.
+
+Then go through steps 2–6 above. Visona Sync only writes impulses while the transport plays.
 
 ### If the scope stops or Live feels sluggish
 
