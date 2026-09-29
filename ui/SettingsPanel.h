@@ -16,7 +16,7 @@ namespace visona
 /**
     The settings overlay: audio device, sample rate, buffer size, the device input channel for each
     source channel, the MIDI input for MIDI Clock, the waveform colour (D-093) and auto gain
-    (D-098). Any input channel can feed any source channel. In small windows it also holds the view
+    (D-100). Any input channel can feed any source channel. In small windows it also holds the view
     controls that no longer fit in the control bar. The panel is opaque, so it never makes the view
     behind it repaint.
 */
@@ -37,7 +37,7 @@ public:
 
     void setWaveformColour(std::size_t index);
 
-    /** The auto gain settings (D-098), whose callbacks the owner sets. */
+    /** The auto gain settings (D-100), whose callbacks the owner sets. */
     [[nodiscard]] AutoGainSettings& autoGain() noexcept
     {
         return autoGain_;

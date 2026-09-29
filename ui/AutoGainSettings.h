@@ -9,7 +9,7 @@ namespace visona
 {
 
 /**
-    The auto gain settings (D-098): an on/off button and how long the gain must hold before it
+    The auto gain settings (D-100): an on/off button and how long the gain must hold before it
     zooms in, one of AutoGain::holdChoices. Like the other controls, it asks for changes through
     its callbacks and shows whatever its setters say.
 */

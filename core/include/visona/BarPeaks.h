@@ -18,7 +18,7 @@ struct BarPeak
 };
 
 /**
-    The latest bars that have ended, and the bar in progress, for auto gain (D-098). Bars are
+    The latest bars that have ended, and the bar in progress, for auto gain (D-100). Bars are
     numbered from 1 in the order they end; the numbers never go back, even across streams.
 */
 struct RecentBarPeaks

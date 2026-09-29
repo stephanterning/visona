@@ -58,7 +58,7 @@ struct SweepSnapshot
         is on, so the renderer can line the colours up with the shape (D-092). */
     std::array<double, 3> bandDelayFrames{};
 
-    /** The peaks of the latest bars that have ended, for auto gain (D-098). */
+    /** The peaks of the latest bars that have ended, for auto gain (D-100). */
     RecentBarPeaks barPeaks;
 
     /** MIDI Clock messages received, and Song Position Pointers ignored while running. */

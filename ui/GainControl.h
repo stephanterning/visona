@@ -10,7 +10,7 @@ namespace visona
 class StepButton;
 
 /**
-    Display gain as `GAIN [−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps (D-046, D-054, D-098).
+    Display gain as `GAIN [−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps (D-046, D-054, D-100).
     No knob: the buttons step it and repeat while held, dragging the value up or right raises it,
     the scroll wheel steps it, and a double-click or double-tap resets it to 0 dB. While auto gain
     sets it, the label reads AUTO, or the value `AUTO +9` without a label; a change by hand is

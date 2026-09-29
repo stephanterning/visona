@@ -27,7 +27,7 @@ namespace visona
        musical positions while running, and writing nothing while frozen. Audio after the latest
        tick waits in the ring for the next one. While the transport runs free, the sweep keeps
        its own time: bars at the free tempo, counted from bar 1 where it started (D-090);
-    3. measures the peak of each bar of the sweep for auto gain (D-098);
+    3. measures the peak of each bar of the sweep for auto gain (D-100);
     4. publishes a SweepSnapshot for the UI thread if anything changed.
 
     setStream(), setMidiQueue() and poll() are the analysis side. They must not run concurrently;

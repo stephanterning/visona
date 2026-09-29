@@ -60,7 +60,7 @@ public:
     [[nodiscard]] std::size_t waveformColour(std::size_t count, std::size_t fallback) const;
     void setWaveformColour(std::size_t index);
 
-    /** Whether auto gain is on (D-098); off if nothing is saved. */
+    /** Whether auto gain is on (D-100); off if nothing is saved. */
     [[nodiscard]] bool autoGain() const;
     void setAutoGain(bool isOn);
 

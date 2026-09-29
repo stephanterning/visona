@@ -10,7 +10,7 @@ namespace visona
 {
 
 /**
-    Auto gain (D-098): picks the display gain in 3 dB steps, from 0 dB to DisplayGain::maxDb, from
+    Auto gain (D-100): picks the display gain in 3 dB steps, from 0 dB to DisplayGain::maxDb, from
     the peaks of the bars. It is presentation only, like the gain it sets (D-024).
 
     - As soon as a peak of the bar in progress lands above the top of the lane, the gain drops to
