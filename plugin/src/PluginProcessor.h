@@ -5,6 +5,7 @@
 
 #include <visona/AudioInputWriter.h>
 #include <visona/AudioRingBuffer.h>
+#include <visona/AutoGain.h>
 #include <visona/HostTransport.h>
 #include <visona/SidechainSyncDetector.h>
 #include <visona/SourceLayout.h>
@@ -67,6 +68,16 @@ public:
         return globalDefaults_;
     }
 
+    /** Message thread only. Auto gain, kept here so that it carries on when the editor is closed
+        and opened again. */
+    [[nodiscard]] AutoGain& autoGain() noexcept
+    {
+        return autoGain_;
+    }
+
+    /** Message thread only. Whether autoGain() has been started for this instance. */
+    bool autoGainStarted = false;
+
     /** Any thread. The sidechain sync state after the latest block. */
     [[nodiscard]] SidechainSyncState sidechainSyncState() const noexcept
     {
@@ -105,6 +116,7 @@ private:
     const SourceLayout layout_{2};
     PluginGlobalDefaults globalDefaults_;
     PluginInstanceState instanceState_;
+    AutoGain autoGain_;
     PluginAnalysisThread analysis_;
     SidechainSyncDetector sidechainSync_;
 

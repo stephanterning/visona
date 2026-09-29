@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioSettings.h"
+#include "AutoGainSettings.h"
 #include "ColourSwatches.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -14,9 +15,10 @@ namespace visona
 
 /**
     The settings overlay: audio device, sample rate, buffer size, the device input channel for each
-    source channel, the MIDI input for MIDI Clock, and the waveform colour (D-093). Any input
-   channel can feed any source channel. In small windows it also holds the view controls that no
-   longer fit in the control bar. The panel is opaque, so it never makes the view behind it repaint.
+    source channel, the MIDI input for MIDI Clock, the waveform colour (D-093) and auto gain
+    (D-098). Any input channel can feed any source channel. In small windows it also holds the view
+    controls that no longer fit in the control bar. The panel is opaque, so it never makes the view
+    behind it repaint.
 */
 class SettingsPanel final : public juce::Component, private juce::ChangeListener
 {
@@ -34,6 +36,12 @@ public:
     std::function<void(std::size_t index)> onWaveformColourChange;
 
     void setWaveformColour(std::size_t index);
+
+    /** The auto gain settings (D-098), whose callbacks the owner sets. */
+    [[nodiscard]] AutoGainSettings& autoGain() noexcept
+    {
+        return autoGain_;
+    }
 
     /** Called when the user toggles the view controls. */
     std::function<void()> onDiagnostics;
@@ -85,6 +93,8 @@ private:
     Row midiRow_;
     juce::Label colourLabel_;
     ColourSwatches colourSwatches_;
+    juce::Label autoGainLabel_;
+    AutoGainSettings autoGain_;
     juce::Label viewLabel_;
     juce::TextButton diagnosticsButton_;
     juce::TextButton fullScreenButton_;

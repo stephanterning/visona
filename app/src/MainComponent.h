@@ -8,6 +8,8 @@
 #include "ui/StatusBar.h"
 #include "ui/ZoomOverview.h"
 
+#include <visona/AutoGain.h>
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <cstdint>
@@ -25,9 +27,9 @@ class Settings;
     under it while zoomed in, the scope in the middle and the control bar at the bottom, with the
     banner, the diagnostics overlay and the settings panel over the scope (architecture.md 3.6).
 
-    Shortcuts: 1 to 5 pick the window, + and - (or the up and down arrows) change the gain, F
-    toggles full screen, D the diagnostics overlay, Cmd+, the settings panel, and Esc closes the
-    settings panel or, with it closed, resets the zoom.
+    Shortcuts: 1 to 5 pick the window, + and - (or the up and down arrows) change the gain by hand,
+    which turns auto gain off, F toggles full screen, D the diagnostics overlay, Cmd+, the settings
+    panel, and Esc closes the settings panel or, with it closed, resets the zoom.
 */
 class MainComponent final : public juce::Component,
                             private juce::ChangeListener,
@@ -45,7 +47,13 @@ private:
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void timerCallback() override;
 
+    /** Sets the gain by hand, which turns auto gain off. */
     void setGainDb(int gainDb);
+    void showGainDb(int gainDb);
+    void setAutoGain(bool isOn);
+    void setAutoGainHold(std::size_t choice);
+    /** Lets auto gain see the bars that ended since the previous frame. */
+    void followAutoGain();
     void setWindow(std::size_t window);
     void setFreeTempo(double bpm);
 
@@ -79,6 +87,8 @@ private:
     juce::TooltipWindow tooltips_{this};
 
     int gainDb_ = 0;
+    bool autoGainOn_ = false;
+    AutoGain autoGain_;
     std::size_t window_;
 
     // Cached on device changes, because reading them from the device queries the driver.

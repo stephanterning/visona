@@ -1,5 +1,6 @@
 #pragma once
 
+#include <visona/AutoGain.h>
 #include <visona/WaveformStyle.h>
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -31,7 +32,12 @@ private:
 
 struct PluginInstanceState
 {
+    /** The gain set by hand. While auto gain is on, the processor's AutoGain sets the gain shown.
+     */
     int gainDb = 0;
+    bool autoGain = false;
+    /** An index into AutoGain::holdChoices. */
+    std::size_t autoGainHold = AutoGain::defaultHoldChoice;
     std::size_t window = 2;
     WaveformMode waveformMode = WaveformMode::precise;
     std::size_t waveformColour = 0;

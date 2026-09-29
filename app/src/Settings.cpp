@@ -1,6 +1,9 @@
 #include "Settings.h"
 
+#include <visona/AutoGain.h>
 #include <visona/SweepWindow.h>
+
+#include <algorithm>
 
 namespace visona
 {
@@ -15,6 +18,8 @@ constexpr auto midiInputNameKey = "midiInputName";
 constexpr auto freeTempoKey = "freeTempo";
 constexpr auto waveformModeKey = "waveformMode";
 constexpr auto waveformColourKey = "waveformColour";
+constexpr auto autoGainKey = "autoGain";
+constexpr auto autoGainHoldKey = "autoGainHoldSeconds";
 
 juce::PropertiesFile::Options fileOptions()
 {
@@ -128,6 +133,33 @@ std::size_t Settings::waveformColour(std::size_t count, std::size_t fallback) co
 void Settings::setWaveformColour(std::size_t index)
 {
     properties_.setValue(waveformColourKey, static_cast<int>(index));
+}
+
+bool Settings::autoGain() const
+{
+    return properties_.getBoolValue(autoGainKey, false);
+}
+
+void Settings::setAutoGain(bool isOn)
+{
+    properties_.setValue(autoGainKey, isOn);
+}
+
+std::size_t Settings::autoGainHold() const
+{
+    const auto seconds = properties_.getIntValue(
+        autoGainHoldKey, AutoGain::holdChoices[AutoGain::defaultHoldChoice]);
+    const auto found =
+        std::find(AutoGain::holdChoices.begin(), AutoGain::holdChoices.end(), seconds);
+    return found != AutoGain::holdChoices.end()
+               ? static_cast<std::size_t>(found - AutoGain::holdChoices.begin())
+               : AutoGain::defaultHoldChoice;
+}
+
+void Settings::setAutoGainHold(std::size_t choice)
+{
+    choice = std::min(choice, AutoGain::holdChoices.size() - 1);
+    properties_.setValue(autoGainHoldKey, AutoGain::holdChoices[choice]);
 }
 
 juce::File Settings::file() const

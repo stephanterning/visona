@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "PluginState.h"
 
+#include "ui/AutoGainSettings.h"
 #include "ui/Banner.h"
 #include "ui/ColourSwatches.h"
 #include "ui/ControlBar.h"
@@ -21,8 +22,8 @@ namespace visona
 {
 
 /**
-    Slim plugin editor: scope, controls and appearance settings, without standalone audio or MIDI
-    device panels.
+    Slim plugin editor: scope, controls and appearance settings, including auto gain, without
+    standalone audio or MIDI device panels.
 */
 class ScopeEditor final : public juce::Component,
                           private juce::Timer
@@ -40,7 +41,15 @@ public:
 private:
     void timerCallback() override;
 
+    /** Sets the gain by hand, which turns auto gain off. */
     void setGainDb(int gainDb);
+    /** The gain on screen: auto gain's while it is on, otherwise the one set by hand. */
+    [[nodiscard]] int shownGainDb();
+    void showGainDb(int gainDb);
+    void setAutoGain(bool isOn);
+    void setAutoGainHold(std::size_t choice);
+    /** Lets auto gain see the bars that ended since the previous frame. */
+    void followAutoGain();
     void setWindow(std::size_t window);
     void setWaveformMode(WaveformMode mode);
     void setWaveformColour(std::size_t index);
@@ -74,6 +83,8 @@ private:
     juce::TextButton appearanceClose_;
     juce::Label colourLabel_;
     ColourSwatches colourSwatches_;
+    juce::Label autoGainLabel_;
+    AutoGainSettings autoGainSettings_;
     juce::TooltipWindow tooltips_{this};
 
     std::size_t window_ = 2;
