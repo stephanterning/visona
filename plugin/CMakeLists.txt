@@ -1,5 +1,12 @@
 include("${PROJECT_SOURCE_DIR}/cmake/ClapSetup.cmake")
 
+# Installing into Common Files needs administrator rights on Windows.
+if(WIN32)
+    set(visona_copy_plugins FALSE)
+else()
+    set(visona_copy_plugins TRUE)
+endif()
+
 # Ad-hoc signs every macOS bundle of a plugin, so a DAW loads the local build.
 function(visona_sign_plugin_formats target)
     if(NOT APPLE)
@@ -33,7 +40,7 @@ juce_add_plugin(VisonaPlugin
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
-    COPY_PLUGIN_AFTER_BUILD TRUE
+    COPY_PLUGIN_AFTER_BUILD ${visona_copy_plugins}
     VST3_CATEGORIES Fx Analyzer
     AU_MAIN_TYPE kAudioUnitType_Effect)
 
@@ -83,7 +90,7 @@ juce_add_plugin(VisonaSyncPlugin
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD TRUE
+    COPY_PLUGIN_AFTER_BUILD ${visona_copy_plugins}
     VST3_CATEGORIES Instrument Generator
     AU_MAIN_TYPE kAudioUnitType_MusicDevice)
 

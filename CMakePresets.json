@@ -47,6 +47,33 @@
       }
     },
     {
+      "name": "linux-plugin",
+      "displayName": "Linux: plugins and tests only, GCC, Ninja, Release",
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "VISONA_BUILD_APP": "OFF",
+        "VISONA_BUILD_PLUGIN": "ON"
+      }
+    },
+    {
+      "name": "windows-plugin",
+      "displayName": "Windows: plugins and tests only, MSVC, Ninja, Release (run from a Developer prompt)",
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
+        "VISONA_BUILD_APP": "OFF",
+        "VISONA_BUILD_PLUGIN": "ON"
+      }
+    },
+    {
       "name": "core-gcc",
       "displayName": "Core and tests only (no JUCE), GCC, Release",
       "inherits": "base",
@@ -111,6 +138,8 @@
     { "name": "xcode", "configurePreset": "xcode", "configuration": "Debug" },
     { "name": "macos", "configurePreset": "macos" },
     { "name": "macos-plugin", "configurePreset": "macos-plugin" },
+    { "name": "linux-plugin", "configurePreset": "linux-plugin" },
+    { "name": "windows-plugin", "configurePreset": "windows-plugin" },
     { "name": "core-gcc", "configurePreset": "core-gcc" },
     { "name": "core-clang", "configurePreset": "core-clang" },
     { "name": "core-sanitize", "configurePreset": "core-sanitize" },
@@ -127,6 +156,8 @@
     { "name": "xcode", "inherits": "base", "configurePreset": "xcode", "configuration": "Debug" },
     { "name": "macos", "inherits": "base", "configurePreset": "macos" },
     { "name": "macos-plugin", "inherits": "base", "configurePreset": "macos-plugin" },
+    { "name": "linux-plugin", "inherits": "base", "configurePreset": "linux-plugin" },
+    { "name": "windows-plugin", "inherits": "base", "configurePreset": "windows-plugin" },
     { "name": "core-gcc", "inherits": "base", "configurePreset": "core-gcc" },
     { "name": "core-clang", "inherits": "base", "configurePreset": "core-clang" },
     {
