@@ -56,8 +56,12 @@ cmake --preset macos && cmake --build --preset macos && ctest --preset macos
 # macOS: plugins and tests only
 cmake --preset macos-plugin && cmake --build --preset macos-plugin && ctest --preset macos-plugin
 
+# Windows (x64 Native Tools prompt) or Linux: plugins and tests only
+cmake --preset windows-plugin && cmake --build --preset windows-plugin && ctest --preset windows-plugin
+cmake --preset linux-plugin && cmake --build --preset linux-plugin && ctest --preset linux-plugin
+
 # Any platform: core and tests only, without JUCE (as in Linux CI)
 cmake --preset core-gcc && cmake --build --preset core-gcc && ctest --preset core-gcc
 ```
 
-`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app, the macOS VST3, AU and CLAP plugins (Visona and Visona Sync, checked with `auval` and `clap-validator`) and the Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually, so nothing checks that the JUCE targets compile on macOS before then.
+`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app, the macOS VST3, AU and CLAP plugins (Visona and Visona Sync, checked with `auval` and `clap-validator`), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`) and the Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually, so nothing checks that the JUCE targets compile on macOS, Windows or Linux before then.

@@ -146,7 +146,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Agents open draft PRs; the maintainer tests on a Mac and merges.
 
   The Linux job keeps the core free of platform dependencies (D-003) and is cheap. A self-hosted runner may be added later.
-- **D-044 — The platform is macOS on Apple Silicon (arm64) only.** `Active`
+- **D-044 — The platform is macOS on Apple Silicon (arm64) only.** `Extended by D-099`
   One architecture and one real test environment are enough for a proof of concept. The reference environment is an Apple Silicon Mac with Xcode, and Ableton Live with MIDI Clock Type = Song, so that SPP is sent.
 - **D-045 — MVP transport policies:** `Active`
   - Start: bar 1, and the sweep restarts.
@@ -405,6 +405,12 @@ A lightweight log of decisions and open questions. The architecture is described
   - The CLAP IDs are the VST3 bundle IDs: `io.github.stephanterning.visona.plugin` and `io.github.stephanterning.visona.sync`. AU and CLAP keep manufacturer `Ster`, plugin codes `Visn` and `Sync`, and company name "Stephan Terning".
   - Visona is an AU effect (`aufx`), since it takes no MIDI, with its mono sidechain as an optional second input bus. Visona Sync is an AU instrument (`aumu`), which takes MIDI.
   - The Release workflow runs `auval` on both AUs and `clap-validator` on both CLAPs, and publishes one zip per plugin and format.
+- **D-099 — The Release workflow also builds both plugins as VST3 and CLAP for Windows x64 and Linux x86_64.** `Active`
+  - The maintainer asked for Windows and Linux plugins in every release and manual run. AU exists on macOS only.
+  - The jobs use the new `windows-plugin` (MSVC, Ninja) and `linux-plugin` (GCC, Ninja) presets, run the core tests, validate the VST3s with [pluginval](https://github.com/Tracktion/pluginval) (strictness 5, without GUI tests) and the CLAPs with `clap-validator`, and publish one archive per plugin, format and platform: zips on Windows, tarballs on Linux.
+  - Windows links the MSVC runtime statically, so no Visual C++ redistributable is needed. The Windows build does not copy the plugins into `Common Files`, which needs administrator rights.
+  - Linux is built on Ubuntu 24.04, so the plugins need glibc 2.38 and GCC 13's libstdc++ or later. The binaries are unsigned; nothing on either platform has been tested in a DAW yet.
+  - Extends D-044 for the plugins only; the standalone app stays on macOS and the Pi.
 
 ---
 

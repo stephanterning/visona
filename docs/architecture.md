@@ -11,8 +11,8 @@ Visona is a platform-independent real-time engine for musical audio analysis and
 - **The long-term goal is a dedicated studio meter.** A Raspberry Pi with a small touchscreen should eventually be able to replace a hardware loudness and stereo meter.
 - **Targets:**
   - MVP 1.0 is a macOS standalone app on Apple Silicon (D-033, D-044).
-  - A VST3, AU and CLAP plugin for macOS follows the DAW's transport (D-096), with the Visona Sync companion instrument (D-097, D-098). A Linux ARM64 build runs on the Raspberry Pi.
-  - The Raspberry Pi appliance, and Windows and Linux desktop apps and plugins, come later, all on the same analysis engine and UI.
+  - A VST3, AU and CLAP plugin for macOS, also built as VST3 and CLAP for Windows and Linux, follows the DAW's transport (D-096), with the Visona Sync companion instrument (D-097, D-098, D-099). A Linux ARM64 build runs on the Raspberry Pi.
+  - The Raspberry Pi appliance, and Windows and Linux desktop apps, come later, all on the same analysis engine and UI.
 - **More inputs than stereo.** Inputs are modeled as *sources*, each a group of 1..N channels. MVP 1.0 has exactly one stereo source, but the core never hardcodes two channels (D-049, D-052).
 - **Free software.** Visona is licensed under AGPLv3 and is not a commercial product (D-042).
 
@@ -258,7 +258,7 @@ The Visona plugin is a pass-through stereo effect, built as VST3, AU and CLAP (D
   - Ad-hoc signing is enough for the proof of concept.
 - **GitHub Actions (D-043, D-095):**
   - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs.
-  - `Release` on published GitHub releases or manual trigger: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` on published GitHub releases or manual trigger: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
   - macOS app builds locally with the `macos` or `xcode` preset while developing the GUI.
 - **Test framework:** Catch2 v3 via `FetchContent`. Its BSL-1.0 license is AGPL-compatible (D-054).
 - **Style:** `.clang-format`; warnings are errors in `core/`.

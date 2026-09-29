@@ -182,7 +182,7 @@ Milestone 7 is a separate DSP track and must not delay earlier milestones.
 
 ```
 Alpha release (v0.1.0)
-  → VST3 / AU / CLAP plugins (milestone 12; VST3 and Visona Sync done, AU and CLAP built)
+  → VST3 / AU / CLAP plugins (milestone 12; VST3 and Visona Sync done, AU and CLAP built, Windows and Linux plugin builds, D-099)
   → UX polish and open issues from alpha use
   → Touch UI (milestone 5) and Pi appliance hardening (milestone 6)
   → Sync precision focus area (D-035)

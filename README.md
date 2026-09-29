@@ -13,6 +13,8 @@ Pre-built binaries are published on **[GitHub Releases](https://github.com/steph
 | **macOS** | Apple Silicon, macOS 14 or later | `Visona-macos-arm64.zip` — unzip and open `Visona.app` |
 | **macOS plugin, Visona** | Apple Silicon, macOS 14 or later | `Visona-vst3-macos-arm64.zip`, `Visona-au-macos-arm64.zip` or `Visona-clap-macos-arm64.zip` — see the install folders below ([plugin guide](docs/plugins.md)) |
 | **macOS plugin, Visona Sync** | Apple Silicon, macOS 14 or later | `Visona-sync-vst3-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip` or `Visona-sync-clap-macos-arm64.zip` ([sidechain sync](docs/plugins.md#sidechain-sync-visona-sync)) |
+| **Windows plugins** | Windows 10 or 11, x64 | `Visona-vst3-windows-x64.zip`, `Visona-clap-windows-x64.zip` and the `Visona-sync-…` zips ([install](docs/plugins.md#windows)) |
+| **Linux plugins** | x86_64, Ubuntu 24.04, Debian 13, Fedora 39 or newer | `Visona-vst3-linux-x86_64.tar.gz`, `Visona-clap-linux-x86_64.tar.gz` and the `Visona-sync-…` tarballs ([install](docs/plugins.md#linux)) |
 | **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64 | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
 
 Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove the quarantine flag:
@@ -21,7 +23,7 @@ Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove th
 xattr -cr /path/to/Visona.app
 ```
 
-Copy each plugin bundle into the folder for its format:
+On macOS, copy each plugin bundle into the folder for its format (Windows and Linux: see the [plugin guide](docs/plugins.md#install)):
 
 | Format | Bundles | Install folder |
 | --- | --- | --- |
@@ -46,7 +48,7 @@ codesign --force --sign - --deep CLAP/Visona\ Sync.clap
 
 Then restart the DAW or rescan its plugins. If a new AU does not show up, refresh macOS's AU cache with `killall -9 AudioComponentRegistrar` and restart the DAW; see the [plugin guide](docs/plugins.md#if-a-daw-does-not-show-the-au).
 
-The **plugin** (pass-through stereo effect, host transport) ships as VST3, AU and CLAP alongside the standalone app on macOS. **Visona Sync**, a companion instrument, puts a bar impulse on the plugin's sidechain so Visona can measure how late audio arrives after plugins with latency in Ableton Live, and draw it on the grid. Ableton Live loads the VST3 or AU; for CLAP, use a host such as Reaper or Bitwig Studio. See [docs/plugins.md](docs/plugins.md).
+The **plugin** (pass-through stereo effect, host transport) ships as VST3, AU and CLAP on macOS, and as VST3 and CLAP on Windows and Linux. **Visona Sync**, a companion instrument, puts a bar impulse on the plugin's sidechain so Visona can measure how late audio arrives after plugins with latency in Ableton Live, and draw it on the grid. Ableton Live loads the VST3 or AU; for CLAP, use a host such as Reaper or Bitwig Studio. See [docs/plugins.md](docs/plugins.md).
 
 ## What you get
 
