@@ -42,9 +42,10 @@ juce::String formatSampleRate(double sampleRate)
 
 } // namespace
 
-MainComponent::MainComponent(AudioEngine& engine, Settings& settings)
+MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kioskMode)
     : engine_(engine)
     , settings_(settings)
+    , kioskMode_(kioskMode)
     , scope_(engine.snapshots(), engine.layout())
     , settingsPanel_(engine)
     , window_(defaultSweepWindow)
@@ -313,6 +314,7 @@ bool MainComponent::isFullScreen() const
 void MainComponent::updateToggles()
 {
     const auto fullScreen = isFullScreen();
+    idleCursorHider_.setActive(fullScreen || kioskMode_);
     controlBar_.setToggles(diagnostics_.isVisible(), fullScreen, settingsPanel_.isVisible());
     settingsPanel_.setViewToggles(diagnostics_.isVisible(), fullScreen);
 }
