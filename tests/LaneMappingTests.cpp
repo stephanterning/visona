@@ -10,15 +10,15 @@ using visona::DisplayGain;
 using visona::LaneMapping;
 using visona::LaneRows;
 
-TEST_CASE("Display gain runs from 0 to +36 dB", "[lane]")
+TEST_CASE("Display gain runs from 0 to +18 dB", "[lane]")
 {
     CHECK(DisplayGain::clampDb(-3) == 0);
     CHECK(DisplayGain::clampDb(12) == 12);
-    CHECK(DisplayGain::clampDb(40) == 36);
+    CHECK(DisplayGain::clampDb(18) == 18);
+    CHECK(DisplayGain::clampDb(36) == 18);
     CHECK(DisplayGain::toLinear(0) == 1.0f);
     CHECK_THAT(static_cast<double>(DisplayGain::toLinear(6)), WithinRel(1.9953, 1.0e-4));
-    CHECK_THAT(static_cast<double>(DisplayGain::toLinear(20)), WithinRel(10.0, 1.0e-5));
-    CHECK_THAT(static_cast<double>(DisplayGain::toLinear(36)), WithinRel(63.0957, 1.0e-4));
+    CHECK_THAT(static_cast<double>(DisplayGain::toLinear(18)), WithinRel(7.9433, 1.0e-4));
 }
 
 TEST_CASE("LaneMapping puts full scale at the lane edges at 0 dB", "[lane]")

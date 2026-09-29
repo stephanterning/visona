@@ -55,6 +55,7 @@ void AnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) noexc
     nextSampleIndex_ = 0;
     analyzer_.start(0);
     analyzer_.setBandSplitting(false, 0.0);
+    barPeaks_.restart();
     mapper_.reset(sampleRate_);
     transport_.reset(sampleRate_);
     mappedAnyBlock_ = false;
@@ -230,6 +231,8 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
     case TransportSpan::Kind::musical:
         followStart(span.startCount, region.sampleIndex());
         analyzer_.processMusical(region.sampleIndex(), channels_, numFrames, span);
+        barPeaks_.process(channels_, numFrames, region.sampleIndex(), span,
+                          transport_.timeSignature().ticksPerBar(), sampleRate_);
         return;
     case TransportSpan::Kind::frozen:
         followStart(span.startCount, region.sampleIndex());
@@ -249,6 +252,7 @@ void AnalysisPipeline::followStart(std::uint64_t startCount, std::uint64_t sampl
     followsStart_ = true;
     followedStart_ = startCount;
     analyzer_.startMusical(windowTicks());
+    barPeaks_.restart();
     freeOrigin_ = sampleIndex;
     freeFramesPerTick_ = 60.0 * sampleRate_ / (TimeSignature::ticksPerQuarterNote * freeBpm_);
     changed_ = true;
@@ -268,6 +272,8 @@ void AnalysisPipeline::analyzeFree(const AudioRingBuffer::ReadRegion& region,
     free.end = origin + spanFrames;
     free.endTick = spanFrames / freeFramesPerTick_;
     analyzer_.processMusical(region.sampleIndex(), channels_, numFrames, free);
+    barPeaks_.process(channels_, numFrames, region.sampleIndex(), free,
+                      transport_.timeSignature().ticksPerBar(), sampleRate_);
 }
 
 double AnalysisPipeline::windowTicks() const noexcept
@@ -295,6 +301,7 @@ void AnalysisPipeline::publish() noexcept
     snapshot.windowTicks = analyzer_.isMusical() ? analyzer_.windowTicks() : windowTicks();
     snapshot.windowStartTick = analyzer_.windowStartTick();
     snapshot.bandDelayFrames = analyzer_.bandDelayFrames();
+    snapshot.barPeaks = barPeaks_.recent();
     snapshot.midiEvents = midiEvents_;
     snapshot.ignoredSpp = transport_.ignoredSppCount();
     snapshots_.publish();

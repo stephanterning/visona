@@ -1,6 +1,7 @@
 #pragma once
 
 #include <visona/AudioRingBuffer.h>
+#include <visona/BarPeaks.h>
 #include <visona/ClockTimeMapper.h>
 #include <visona/MidiClockEvent.h>
 #include <visona/MidiClockTransport.h>
@@ -26,7 +27,8 @@ namespace visona
        musical positions while running, and writing nothing while frozen. Audio after the latest
        tick waits in the ring for the next one. While the transport runs free, the sweep keeps
        its own time: bars at the free tempo, counted from bar 1 where it started (D-090);
-    3. publishes a SweepSnapshot for the UI thread if anything changed.
+    3. measures the peak of each bar of the sweep for auto gain (D-098);
+    4. publishes a SweepSnapshot for the UI thread if anything changed.
 
     setStream(), setMidiQueue() and poll() are the analysis side. They must not run concurrently;
     the app calls them under one lock, which only the analysis thread and stream changes take. The
@@ -113,6 +115,7 @@ private:
     void publish() noexcept;
 
     SweepAnalyzer analyzer_;
+    BarPeakMeter barPeaks_;
     TripleBuffer<SweepSnapshot> snapshots_;
     ClockTimeMapper mapper_;
     MidiClockTransport transport_;

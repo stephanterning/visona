@@ -628,6 +628,30 @@ TEST_CASE("The free-running sweep is bars at the free tempo", "[analysis][free]"
     CHECK(clickBins >= 4);
 }
 
+TEST_CASE("AnalysisPipeline measures the peak of each bar that has ended", "[analysis][free]")
+{
+    // 90 BPM at 48 kHz: 128 000 frames per bar. Bar k (from 0) peaks at 0.1 * (k + 1).
+    MidiSession session(48'000.0);
+    session.pipeline().setFreeTempo(90.0);
+    constexpr std::uint64_t barFrames = 128'000;
+    session.run(barFrames * 3 + barFrames / 2,
+                [](std::uint64_t frame)
+                {
+                    const auto bar = static_cast<float>(frame / barFrames);
+                    return frame % 1'000 == 500 ? 0.1f * (bar + 1.0f) : 0.0f;
+                });
+
+    const auto& bars = session.snapshot().barPeaks;
+    REQUIRE(bars.count == 3);
+    CHECK(bars.oldest() == 1);
+    for (std::uint64_t number = 1; number <= 3; ++number)
+    {
+        CAPTURE(number);
+        CHECK(bars.bar(number).peak == 0.1f * static_cast<float>(number));
+        CHECK(bars.bar(number).seconds == 128'000.0 / 48'000.0);
+    }
+}
+
 TEST_CASE("A new tempo or window starts the free-running sweep over from bar 1", "[analysis][free]")
 {
     MidiSession session(48'000.0);
