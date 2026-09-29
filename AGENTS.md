@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Visona is a beat-synced stereo oscilloscope for music production and, long-term, a modular, cross-platform real-time audio-monitoring platform. It is written in C++ with JUCE. The macOS standalone app and VST3 plugin are the current focus; AU, CLAP and the Raspberry Pi appliance follow.
+Visona is a beat-synced stereo oscilloscope for music production and, long-term, a modular, cross-platform real-time audio-monitoring platform. It is written in C++ with JUCE. The macOS standalone app and the VST3, AU and CLAP plugins are the current focus; the Raspberry Pi appliance follows.
 
 ## Language rule: English only
 
@@ -17,11 +17,11 @@ The maintainer may talk to agents in Swedish. Translate to English before anythi
 
 ## Build & test
 
-Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple Silicon (arm64) only, with macOS 14.0 as the deployment target. CMake downloads JUCE 9.0.2 and Catch2 v3 with `FetchContent`.
+Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple Silicon (arm64) only, with macOS 14.0 as the deployment target. CMake downloads JUCE 9.0.2, Catch2 v3 and, for the CLAP plugins, clap-juce-extensions with `FetchContent`.
 
 - `core/`: plain C++20 library with no JUCE dependency. Warnings are errors.
 - `app/`: the JUCE app, "Visona": audio device, audio callback, settings and wiring. Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
-- `plugin/`: the JUCE plugins (VST3 first): Visona, a pass-through stereo effect with host transport and an optional sidechain, and Visona Sync, an instrument that writes a bar impulse for that sidechain. Built when `VISONA_BUILD_PLUGIN` is ON (included in the `macos`, `macos-plugin` and `xcode` presets).
+- `plugin/`: the JUCE plugins, built as VST3, AU and CLAP: Visona, a pass-through stereo effect with host transport and an optional sidechain, and Visona Sync, an instrument that writes a bar impulse for that sidechain. Built when `VISONA_BUILD_PLUGIN` is ON (included in the `macos`, `macos-plugin` and `xcode` presets).
 - `ui/`: JUCE components, compiled into the app and plugin targets.
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
 
@@ -47,17 +47,17 @@ If CMake reports "No CMAKE_C_COMPILER could be found", Xcode is not set up yet. 
 Presets are in `CMakePresets.json`; build trees go to `build/<preset>/`.
 
 ```sh
-# macOS: Xcode project with the app, VST3 plugin and tests
+# macOS: Xcode project with the app, plugins and tests
 cmake --preset xcode && open build/xcode/Visona.xcodeproj
 
-# macOS: command-line build of the app and VST3 plugin, then run the tests
+# macOS: command-line build of the app and plugins, then run the tests
 cmake --preset macos && cmake --build --preset macos && ctest --preset macos
 
-# macOS: VST3 plugin and tests only
+# macOS: plugins and tests only
 cmake --preset macos-plugin && cmake --build --preset macos-plugin && ctest --preset macos-plugin
 
 # Any platform: core and tests only, without JUCE (as in Linux CI)
 cmake --preset core-gcc && cmake --build --preset core-gcc && ctest --preset core-gcc
 ```
 
-`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app, the macOS VST3 plugins (Visona and Visona Sync) and the Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually, so nothing checks that the JUCE targets compile on macOS before then.
+`core-clang`, `core-sanitize` (Clang with ASan and UBSan) and `core-tsan` (Clang with TSan) work the same way. Format C++ with `clang-format`. Pull-request CI in `.github/workflows/ci.yml` runs the `core-gcc`, `core-clang`, `core-sanitize` and `core-tsan` presets. The macOS app, the macOS VST3, AU and CLAP plugins (Visona and Visona Sync, checked with `auval` and `clap-validator`) and the Pi ARM64 app are built by `.github/workflows/release.yml` when a GitHub release is published or that workflow is triggered manually, so nothing checks that the JUCE targets compile on macOS before then.

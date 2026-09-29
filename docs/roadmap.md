@@ -6,8 +6,8 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - **MVP 1.0 proof of concept is achieved** (alpha). The maintainer verified the scenario on Apple Silicon Mac and on Raspberry Pi hardware with an RME Babyface Pro FS.
 - Steps 1–7b and step 5 (waveform modes) are merged. Step 8 (formal logging and written measurements) is deferred polish, not a blocker for alpha.
 - Raspberry Pi port and kiosk autostart landed early as a spike ([#20](https://github.com/stephanterning/visona/pull/20), [#21](https://github.com/stephanterning/visona/pull/21)); full milestone 6 (appliance hardening) remains after plugins.
-- **Milestone 12 has started:** the VST3 plugin with host transport ([#24](https://github.com/stephanterning/visona/pull/24)) and Visona Sync for sidechain latency measurement in Ableton Live ([#25](https://github.com/stephanterning/visona/pull/25)) are merged, for 0.1.0-alpha.2 (D-096, D-097). AU and CLAP come next, then UX polish and Pi appliance work (milestones 5–6).
-- CI: Linux core tests on every pull request; the macOS app, the VST3 plugins and the Pi app are built on release or manual workflow trigger only (private repo Actions budget, D-095).
+- **Milestone 12 has started:** the VST3 plugin with host transport ([#24](https://github.com/stephanterning/visona/pull/24)) and Visona Sync for sidechain latency measurement in Ableton Live ([#25](https://github.com/stephanterning/visona/pull/25)) are merged, for 0.1.0-alpha.2 (D-096, D-097). AU and CLAP builds of both plugins follow (D-098), then UX polish and Pi appliance work (milestones 5–6).
+- CI: Linux core tests on every pull request; the macOS app, the plugins and the Pi app are built on release or manual workflow trigger only (private repo Actions budget, D-095).
 
 ## 1. MVP 1.0
 
@@ -172,7 +172,7 @@ Stricter sync acceptance criteria are defined after the MVP as a dedicated focus
 | 9 | Spectrum | Scope and spectrum side by side, with an adaptive layout | After MVP |
 | 10 | Stereo/phase | Correlation, vectorscope and stereo balance | After MVP |
 | 11 | Loudness | LUFS M/S/I, True Peak and LRA; the Pi starts replacing a hardware meter | After MVP |
-| 12 | Plugin | VST3/AU with host transport, inside the DAW | After MVP; VST3 on macOS since 0.1.0-alpha.2 |
+| 12 | Plugin | VST3/AU with host transport, inside the DAW | After MVP; VST3 on macOS since 0.1.0-alpha.2, AU and CLAP next (D-098) |
 
 Milestone 7 is a separate DSP track and must not delay earlier milestones.
 
@@ -182,7 +182,7 @@ Milestone 7 is a separate DSP track and must not delay earlier milestones.
 
 ```
 Alpha release (v0.1.0)
-  → VST3 / AU / CLAP plugins (milestone 12; VST3 and Visona Sync done)
+  → VST3 / AU / CLAP plugins (milestone 12; VST3 and Visona Sync done, AU and CLAP built)
   → UX polish and open issues from alpha use
   → Touch UI (milestone 5) and Pi appliance hardening (milestone 6)
   → Sync precision focus area (D-035)

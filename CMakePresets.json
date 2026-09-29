@@ -18,7 +18,7 @@
     },
     {
       "name": "xcode",
-      "displayName": "macOS: app, VST3 plugin and tests, Xcode project",
+      "displayName": "macOS: app, plugins and tests, Xcode project",
       "inherits": ["base", "macos-only"],
       "generator": "Xcode",
       "cacheVariables": {
@@ -28,7 +28,7 @@
     },
     {
       "name": "macos",
-      "displayName": "macOS: app, VST3 plugin and tests, Ninja, Release",
+      "displayName": "macOS: app, plugins and tests, Ninja, Release",
       "inherits": ["base", "macos-only"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -38,7 +38,7 @@
     },
     {
       "name": "macos-plugin",
-      "displayName": "macOS: VST3 plugin and tests only, Ninja, Release",
+      "displayName": "macOS: plugins and tests only, Ninja, Release",
       "inherits": ["base", "macos-only"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",

@@ -1,6 +1,6 @@
 # Visona
 
-**Visona** is a beat-synced stereo oscilloscope for music production. It shows your audio as a musical sweep scope locked to MIDI Clock from your DAW, with manual tempo when no clock is present. As a VST3 plugin it follows the DAW's transport directly.
+**Visona** is a beat-synced stereo oscilloscope for music production. It shows your audio as a musical sweep scope locked to MIDI Clock from your DAW, with manual tempo when no clock is present. As a VST3, AU or CLAP plugin it follows the DAW's transport directly.
 
 ![Visona scope in action](docs/images/visona-scope.png)
 
@@ -11,8 +11,8 @@ Pre-built binaries are published on **[GitHub Releases](https://github.com/steph
 | Platform | Requirement | Package |
 | --- | --- | --- |
 | **macOS** | Apple Silicon, macOS 14 or later | `Visona-macos-arm64.zip` — unzip and open `Visona.app` |
-| **macOS VST3** | Apple Silicon, macOS 14 or later | `Visona-vst3-macos-arm64.zip` — copy `Visona.vst3` to `~/Library/Audio/Plug-Ins/VST3/` ([plugin guide](docs/plugins.md)) |
-| **macOS VST3, Visona Sync** | Apple Silicon, macOS 14 or later | `Visona-sync-vst3-macos-arm64.zip` — copy `Visona Sync.vst3` to the same folder ([sidechain sync](docs/plugins.md#sidechain-sync-visona-sync)) |
+| **macOS plugin, Visona** | Apple Silicon, macOS 14 or later | `Visona-vst3-macos-arm64.zip`, `Visona-au-macos-arm64.zip` or `Visona-clap-macos-arm64.zip` — see the install folders below ([plugin guide](docs/plugins.md)) |
+| **macOS plugin, Visona Sync** | Apple Silicon, macOS 14 or later | `Visona-sync-vst3-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip` or `Visona-sync-clap-macos-arm64.zip` ([sidechain sync](docs/plugins.md#sidechain-sync-visona-sync)) |
 | **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64 | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
 
 Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove the quarantine flag:
@@ -21,18 +21,32 @@ Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove th
 xattr -cr /path/to/Visona.app
 ```
 
-For the VST3 plugins, remove the quarantine flag after copying them, then sign them ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt:
+Copy each plugin bundle into the folder for its format:
+
+| Format | Bundles | Install folder |
+| --- | --- | --- |
+| VST3 | `Visona.vst3`, `Visona Sync.vst3` | `~/Library/Audio/Plug-Ins/VST3/` |
+| AU | `Visona.component`, `Visona Sync.component` | `~/Library/Audio/Plug-Ins/Components/` |
+| CLAP | `Visona.clap`, `Visona Sync.clap` | `~/Library/Audio/Plug-Ins/CLAP/` |
+
+Then remove the quarantine flag and sign the bundles ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt. For the formats you installed:
 
 ```sh
-xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
-xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
-codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
-codesign --force --sign - --deep ~/Library/Audio/Plug-Ins/VST3/Visona\ Sync.vst3
+cd ~/Library/Audio/Plug-Ins
+xattr -cr VST3/Visona.vst3 VST3/Visona\ Sync.vst3
+xattr -cr Components/Visona.component Components/Visona\ Sync.component
+xattr -cr CLAP/Visona.clap CLAP/Visona\ Sync.clap
+codesign --force --sign - --deep VST3/Visona.vst3
+codesign --force --sign - --deep VST3/Visona\ Sync.vst3
+codesign --force --sign - --deep Components/Visona.component
+codesign --force --sign - --deep Components/Visona\ Sync.component
+codesign --force --sign - --deep CLAP/Visona.clap
+codesign --force --sign - --deep CLAP/Visona\ Sync.clap
 ```
 
-Then restart the DAW or rescan its plugins.
+Then restart the DAW or rescan its plugins. If a new AU does not show up, refresh macOS's AU cache with `killall -9 AudioComponentRegistrar` and restart the DAW; see the [plugin guide](docs/plugins.md#if-a-daw-does-not-show-the-au).
 
-The **VST3 plugin** (pass-through stereo effect, host transport) ships alongside the standalone app on macOS. **Visona Sync**, a companion instrument, puts a bar impulse on the plugin's sidechain so Visona can measure how late audio arrives after plugins with latency in Ableton Live, and draw it on the grid. AU and CLAP are planned next. See [docs/plugins.md](docs/plugins.md).
+The **plugin** (pass-through stereo effect, host transport) ships as VST3, AU and CLAP alongside the standalone app on macOS. **Visona Sync**, a companion instrument, puts a bar impulse on the plugin's sidechain so Visona can measure how late audio arrives after plugins with latency in Ableton Live, and draw it on the grid. Ableton Live loads the VST3 or AU; for CLAP, use a host such as Reaper or Bitwig Studio. See [docs/plugins.md](docs/plugins.md).
 
 ## What you get
 

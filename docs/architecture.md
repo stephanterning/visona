@@ -11,8 +11,8 @@ Visona is a platform-independent real-time engine for musical audio analysis and
 - **The long-term goal is a dedicated studio meter.** A Raspberry Pi with a small touchscreen should eventually be able to replace a hardware loudness and stereo meter.
 - **Targets:**
   - MVP 1.0 is a macOS standalone app on Apple Silicon (D-033, D-044).
-  - A VST3 plugin for macOS follows the DAW's transport (D-096), with the Visona Sync companion instrument (D-097). A Linux ARM64 build runs on the Raspberry Pi.
-  - The Raspberry Pi appliance, AU and CLAP plugins, and Windows and Linux desktop apps come later, all on the same analysis engine and UI.
+  - A VST3, AU and CLAP plugin for macOS follows the DAW's transport (D-096), with the Visona Sync companion instrument (D-097, D-098). A Linux ARM64 build runs on the Raspberry Pi.
+  - The Raspberry Pi appliance, and Windows and Linux desktop apps and plugins, come later, all on the same analysis engine and UI.
 - **More inputs than stereo.** Inputs are modeled as *sources*, each a group of 1..N channels. MVP 1.0 has exactly one stereo source, but the core never hardcodes two channels (D-049, D-052).
 - **Free software.** Visona is licensed under AGPLv3 and is not a commercial product (D-042).
 
@@ -56,7 +56,7 @@ Visona is a platform-independent real-time engine for musical audio analysis and
 
   Keeping JUCE out makes the core testable on Linux without a GUI, enforces the platform boundary, and lets the core be reused in plugins and on the Raspberry Pi.
 - **`app/` (JUCE):** audio device management, audio callback, MIDI input, the analysis thread, settings and wiring.
-- **`plugin/` (JUCE):** the Visona VST3 effect (`PluginProcessor`, its analysis thread and `ScopeEditor`) and the Visona Sync instrument (`SyncProcessor`, `SyncEditor`). See 3.7.
+- **`plugin/` (JUCE):** the Visona effect (`PluginProcessor`, its analysis thread and `ScopeEditor`) and the Visona Sync instrument (`SyncProcessor`, `SyncEditor`). See 3.7.
 - **`ui/` (JUCE):** `ScopeView`, `StatusBar`, `ControlBar`, `SettingsPanel` and `DiagnosticsOverlay`, shared by the app and the plugin.
 
 ### 3.2 Threads and data flow
@@ -240,16 +240,16 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 
 ### 3.7 Plugin
 
-The Visona VST3 plugin is a pass-through stereo effect with the same sweep, snapshots and UI as the app. Only the transport and the wiring differ (D-096).
+The Visona plugin is a pass-through stereo effect, built as VST3, AU and CLAP (D-098), with the same sweep, snapshots and UI as the app. Only the transport and the wiring differ (D-096).
 
 - **Audio thread (`processBlock`).** Copies the main input into the ring, as the app's callback does, and queues the host playhead with the stream index of the block's first frame, where hosts report it, in an SPSC queue. It never allocates, locks or waits.
 - **Analysis thread.** `HostAnalysisPipeline` hands each playhead to `HostTransport`, which builds the same kind of span timeline as the MIDI Clock transport: musical spans between consecutive playheads, a pending span after the newest one, and frozen spans while the host is stopped. A relocation starts the sweep over.
 - **Editor.** `ScopeEditor` shows the same status bar, scope and control bar without the BPM control or full screen, and a settings panel with the waveform colour only. The waveform mode and colour are saved per instance in the DAW project.
-- **Sidechain sync** (D-097). The effect has an optional mono sidechain input. Visona Sync, a separate VST3 instrument, writes a −6 dBFS impulse at every bar line of the host playhead. `SidechainSyncDetector` measures, on the audio thread, how many frames after the playhead's nearest bar line the impulse arrives. The pipeline then places each playhead that many frames later on the audio timeline, so audio that passed plugins with latency lands on the grid.
+- **Sidechain sync** (D-097). The effect has an optional mono sidechain input. Visona Sync, a separate instrument plugin, writes a −6 dBFS impulse at every bar line of the host playhead. `SidechainSyncDetector` measures, on the audio thread, how many frames after the playhead's nearest bar line the impulse arrives. The pipeline then places each playhead that many frames later on the audio timeline, so audio that passed plugins with latency lands on the grid.
 
 ## 4. Build and CI
 
-- **CMake ≥ 3.22.** The `VISONA_BUILD_APP` option is ON on macOS and OFF in the Linux job, so JUCE is never fetched there. `VISONA_BUILD_PLUGIN` builds the VST3 plugins; the `macos`, `macos-plugin` and `xcode` presets turn it on.
+- **CMake ≥ 3.22.** The `VISONA_BUILD_APP` option is ON on macOS and OFF in the Linux job, so JUCE is never fetched there. `VISONA_BUILD_PLUGIN` builds the VST3, AU and CLAP plugins, and fetches [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) for CLAP (D-098); the `macos`, `macos-plugin` and `xcode` presets turn it on.
 - **JUCE 9.0.2**, pinned to the exact tag via `FetchContent`. 8.0.15 is the fallback if the skeleton does not build cleanly (D-055).
 - **macOS:**
   - `CMAKE_OSX_ARCHITECTURES=arm64` and `CMAKE_OSX_DEPLOYMENT_TARGET=14.0` (D-053).
@@ -258,7 +258,7 @@ The Visona VST3 plugin is a pass-through stereo effect with the same sweep, snap
   - Ad-hoc signing is enough for the proof of concept.
 - **GitHub Actions (D-043, D-095):**
   - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs.
-  - `Release` on published GitHub releases or manual trigger: the macOS arm64 app bundle, the Visona and Visona Sync VST3 bundles (ad-hoc signed), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` on published GitHub releases or manual trigger: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), and the Linux arm64 Pi binary tarball with the kiosk scripts.
   - macOS app builds locally with the `macos` or `xcode` preset while developing the GUI.
 - **Test framework:** Catch2 v3 via `FetchContent`. Its BSL-1.0 license is AGPL-compatible (D-054).
 - **Style:** `.clang-format`; warnings are errors in `core/`.
@@ -267,10 +267,10 @@ The Visona VST3 plugin is a pass-through stereo effect with the same sweep, snap
 ```
 visona/
 ├── CMakeLists.txt
-├── cmake/       JUCE setup and warning flags
+├── cmake/       JUCE and CLAP setup, warning flags
 ├── core/        C++20, no JUCE (include/visona/…, src/)
 ├── app/         JUCE app: main, audio/MIDI engine, settings
-├── plugin/      JUCE VST3 plugins: Visona and Visona Sync
+├── plugin/      JUCE plugins (VST3, AU, CLAP): Visona and Visona Sync
 ├── ui/          JUCE components, shared by app and plugin
 ├── tests/       Catch2, core only
 ├── scripts/pi/  Pi kiosk scripts

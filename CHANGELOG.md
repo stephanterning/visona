@@ -3,6 +3,17 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- AU and CLAP builds of Visona (AU effect with sidechain) and Visona Sync (AU instrument), for macOS arm64. CLAP is built with clap-juce-extensions, since JUCE 9.0.2 has no CLAP support (D-098).
+- Release workflow validates the AUs with `auval` and the CLAPs with `clap-validator`, and publishes `Visona-au-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip`, `Visona-clap-macos-arm64.zip` and `Visona-sync-clap-macos-arm64.zip`.
+
+### Changed
+
+- Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
+
 ## [0.1.0-alpha.2] - 2026-09-28
 
 ### Added
