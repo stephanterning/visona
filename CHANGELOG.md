@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
-- Auto gain, off by default, in the app's settings panel and the plugin's Appearance panel. At each bar line it zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out at once when a peak goes past the edge, in after the peaks have stayed low for 10, 30 or 60 s (30 s by default). Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off.
+- Auto gain, off by default, in the app's settings panel and the plugin's Appearance panel. It zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out as soon as a peak goes past the edge, and in at a bar line after the peaks have stayed low for 10, 30 or 60 s (30 s by default). Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off.
 
 ### Changed
 

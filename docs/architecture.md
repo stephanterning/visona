@@ -218,7 +218,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Controls (bottom):** no knobs.
   - WINDOW is an always-visible segmented control.
   - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
-  - GAIN is `[−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB. With auto gain on, the label reads `AUTO` and the gain moves in 3 dB steps at bar lines; a change by hand turns auto gain off (D-098).
+  - GAIN is `[−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB. With auto gain on, the label reads `AUTO` and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, in at bar lines; a change by hand turns auto gain off (D-098).
   - WAVE `[STD][PRECISE][DJ]` chooses the drawing mode (D-091).
   - Secondary buttons: Diagnostics and Full screen, next to ⚙.
   - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
