@@ -258,7 +258,7 @@ jobs:
         run: cmake --preset windows-plugin
 
       - name: Build
-        run: cmake --build --preset windows-plugin -- -k 0
+        run: cmake --build --preset windows-plugin
 
       - name: Test
         run: ctest --preset windows-plugin
