@@ -7,7 +7,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- AU and CLAP builds of Visona (AU effect with sidechain) and Visona Sync (AU instrument), for macOS arm64. CLAP is built with clap-juce-extensions, since JUCE 9.0.2 has no CLAP support (D-098).
+- Release workflow validates the AUs with `auval` and the CLAPs with `clap-validator`, and publishes `Visona-au-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip`, `Visona-clap-macos-arm64.zip` and `Visona-sync-clap-macos-arm64.zip`.
+
+- VST3 and CLAP builds of both plugins for Windows x64 and Linux x86_64, validated with pluginval and `clap-validator` and published as `Visona-{vst3,clap}-windows-x64.zip`, `Visona-sync-{vst3,clap}-windows-x64.zip`, `Visona-{vst3,clap}-linux-x86_64.tar.gz` and `Visona-sync-{vst3,clap}-linux-x86_64.tar.gz` (D-099).
+- `windows-plugin` and `linux-plugin` CMake presets.
 - The standalone app hides the mouse cursor after three seconds of inactivity in fullscreen and kiosk mode.
+
+### Changed
+
+- Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 
 ## [0.1.0-alpha.2] - 2026-09-28
 
