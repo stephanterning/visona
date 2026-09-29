@@ -4,6 +4,8 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+  push:
+    branches: [cursor/au-clap-plugins-7a59]
 
 permissions:
   contents: write
@@ -161,6 +163,7 @@ jobs:
 
   linux-arm64:
     name: Linux arm64 app (Pi)
+    if: github.event_name != 'push'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
