@@ -159,6 +159,150 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  linux-x64-plugins:
+    name: Linux x86_64 plugins
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      VISONA_ARTEFACTS: build/linux-plugin/plugin/VisonaPlugin_artefacts/Release
+      SYNC_ARTEFACTS: build/linux-plugin/plugin/VisonaSyncPlugin_artefacts/Release
+      CLAP_VALIDATOR_URL: https://github.com/free-audio/clap-validator/releases/download/0.4.1/clap-validator-0.4.1-127-g152b982-ubuntu-22.04.zip
+      PLUGINVAL_URL: https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Linux.zip
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential cmake ninja-build pkg-config xvfb \
+            libasound2-dev libfreetype6-dev libfontconfig1-dev \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxcomposite-dev libxi-dev libgl1-mesa-dev
+
+      - name: Configure
+        run: cmake --preset linux-plugin
+
+      - name: Build
+        run: cmake --build --preset linux-plugin
+
+      - name: Test
+        run: ctest --preset linux-plugin
+
+      - name: Validate VST3 plugins
+        run: |
+          curl -fsSL -o pluginval.zip "$PLUGINVAL_URL"
+          unzip -q pluginval.zip -d pluginval
+          chmod +x pluginval/pluginval
+          for bundle in "$VISONA_ARTEFACTS/VST3/Visona.vst3" "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3"; do
+            xvfb-run -a pluginval/pluginval --strictness-level 5 --skip-gui-tests --validate-in-process --validate "$bundle"
+          done
+
+      - name: Validate CLAP plugins
+        run: |
+          curl -fsSL -o clap-validator.zip "$CLAP_VALIDATOR_URL"
+          unzip -q clap-validator.zip -d clap-validator
+          find clap-validator -name '*.tar.gz' -exec tar -xzf {} -C clap-validator \;
+          validator="$(find clap-validator -type f -name clap-validator | head -n 1)"
+          chmod +x "$validator"
+          # param-conversions divides by zero in the validator itself for plugins without parameters.
+          "$validator" validate --exclude '^param-conversions$' \
+            "$VISONA_ARTEFACTS/CLAP/Visona.clap" "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap"
+
+      - name: Package plugins
+        run: |
+          tar czf Visona-vst3-linux-x86_64.tar.gz -C "$VISONA_ARTEFACTS/VST3" Visona.vst3
+          tar czf Visona-sync-vst3-linux-x86_64.tar.gz -C "$SYNC_ARTEFACTS/VST3" "Visona Sync.vst3"
+          tar czf Visona-clap-linux-x86_64.tar.gz -C "$VISONA_ARTEFACTS/CLAP" Visona.clap
+          tar czf Visona-sync-clap-linux-x86_64.tar.gz -C "$SYNC_ARTEFACTS/CLAP" "Visona Sync.clap"
+
+      - name: Upload Linux plugin artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Visona-plugins-linux-x86_64
+          path: Visona-*-linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Visona-*-linux-x86_64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows-x64-plugins:
+    name: Windows x64 plugins
+    runs-on: windows-2025
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      VISONA_ARTEFACTS: build/windows-plugin/plugin/VisonaPlugin_artefacts/Release
+      SYNC_ARTEFACTS: build/windows-plugin/plugin/VisonaSyncPlugin_artefacts/Release
+      CLAP_VALIDATOR_URL: https://github.com/free-audio/clap-validator/releases/download/0.4.1/clap-validator-0.4.1-127-g152b982-windows.zip
+      PLUGINVAL_URL: https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        run: cmake --preset windows-plugin
+
+      - name: Build
+        run: cmake --build --preset windows-plugin
+
+      - name: Test
+        run: ctest --preset windows-plugin
+
+      - name: Validate VST3 plugins
+        shell: bash
+        run: |
+          curl -fsSL -o pluginval.zip "$PLUGINVAL_URL"
+          unzip -q pluginval.zip -d pluginval
+          for bundle in "$VISONA_ARTEFACTS/VST3/Visona.vst3" "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3"; do
+            pluginval/pluginval.exe --strictness-level 5 --skip-gui-tests --validate-in-process --validate "$bundle"
+          done
+
+      - name: Validate CLAP plugins
+        shell: bash
+        run: |
+          curl -fsSL -o clap-validator.zip "$CLAP_VALIDATOR_URL"
+          unzip -q clap-validator.zip -d clap-validator
+          validator="$(find clap-validator -type f -name clap-validator.exe | head -n 1)"
+          test -n "$validator"
+          # param-conversions divides by zero in the validator itself for plugins without parameters.
+          "$validator" validate --exclude '^param-conversions$' \
+            "$VISONA_ARTEFACTS/CLAP/Visona.clap" "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap"
+
+      - name: Package plugins
+        run: |
+          Compress-Archive -Path "$env:VISONA_ARTEFACTS/VST3/Visona.vst3" -DestinationPath Visona-vst3-windows-x64.zip
+          Compress-Archive -Path "$env:SYNC_ARTEFACTS/VST3/Visona Sync.vst3" -DestinationPath Visona-sync-vst3-windows-x64.zip
+          Compress-Archive -Path "$env:VISONA_ARTEFACTS/CLAP/Visona.clap" -DestinationPath Visona-clap-windows-x64.zip
+          Compress-Archive -Path "$env:SYNC_ARTEFACTS/CLAP/Visona Sync.clap" -DestinationPath Visona-sync-clap-windows-x64.zip
+
+      - name: Upload Windows plugin artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Visona-plugins-windows-x64
+          path: Visona-*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Visona-*-windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   linux-arm64:
     name: Linux arm64 app (Pi)
     runs-on: ubuntu-24.04-arm
