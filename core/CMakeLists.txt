@@ -4,7 +4,9 @@ add_library(visona_core STATIC
     include/visona/AnalysisPipeline.h
     include/visona/AudioInputWriter.h
     include/visona/AudioRingBuffer.h
+    include/visona/AutoGain.h
     include/visona/Band.h
+    include/visona/BarPeaks.h
     include/visona/BandSplitter.h
     include/visona/BlockTiming.h
     include/visona/CacheLine.h
@@ -33,7 +35,9 @@ add_library(visona_core STATIC
     src/AnalysisPipeline.cpp
     src/AudioInputWriter.cpp
     src/AudioRingBuffer.cpp
+    src/AutoGain.cpp
     src/BandSplitter.cpp
+    src/BarPeaks.cpp
     src/ClockTimeMapper.cpp
     src/BarImpulseScheduler.cpp
     src/HostAnalysisPipeline.cpp

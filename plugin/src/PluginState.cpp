@@ -2,6 +2,10 @@
 
 #include "ui/Palette.h"
 
+#include <visona/LaneMapping.h>
+
+#include <algorithm>
+
 namespace visona
 {
 
@@ -88,6 +92,10 @@ void PluginGlobalDefaults::setWaveformColour(std::size_t index)
 void PluginInstanceState::writeTo(juce::XmlElement& root) const
 {
     root.setAttribute("gainDb", gainDb);
+    root.setAttribute("autoGain", autoGain);
+    root.setAttribute(
+        "autoGainHoldSeconds",
+        AutoGain::holdChoices[std::min(autoGainHold, AutoGain::holdChoices.size() - 1)]);
     root.setAttribute("window", static_cast<int>(window));
     root.setAttribute("waveformMode", modeToString(waveformMode));
     root.setAttribute("waveformColour", static_cast<int>(waveformColour));
@@ -96,7 +104,15 @@ void PluginInstanceState::writeTo(juce::XmlElement& root) const
 
 void PluginInstanceState::readFrom(const juce::XmlElement& root, PluginGlobalDefaults& defaults)
 {
-    gainDb = root.getIntAttribute("gainDb", gainDb);
+    gainDb = DisplayGain::clampDb(root.getIntAttribute("gainDb", gainDb));
+    autoGain = root.getBoolAttribute("autoGain", false);
+    const auto holdSeconds = root.getIntAttribute(
+        "autoGainHoldSeconds", AutoGain::holdChoices[AutoGain::defaultHoldChoice]);
+    const auto hold =
+        std::find(AutoGain::holdChoices.begin(), AutoGain::holdChoices.end(), holdSeconds);
+    autoGainHold = hold != AutoGain::holdChoices.end()
+                       ? static_cast<std::size_t>(hold - AutoGain::holdChoices.begin())
+                       : AutoGain::defaultHoldChoice;
     window = static_cast<std::size_t>(root.getIntAttribute("window", static_cast<int>(window)));
     waveformMode = modeFromString(root.getStringAttribute("waveformMode",
                                                           modeToString(defaults.waveformMode())));

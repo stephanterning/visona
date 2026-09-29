@@ -110,6 +110,12 @@ SettingsPanel::SettingsPanel(AudioSettings& settings)
     addAndMakeVisible(colourLabel_);
     addAndMakeVisible(colourSwatches_);
 
+    autoGainLabel_.setText("Auto gain", juce::dontSendNotification);
+    autoGainLabel_.setColour(juce::Label::textColourId, palette::textDim);
+    autoGainLabel_.setFont(juce::FontOptions(15.0f));
+    addAndMakeVisible(autoGainLabel_);
+    addAndMakeVisible(autoGain_);
+
     viewLabel_.setText("View", juce::dontSendNotification);
     viewLabel_.setColour(juce::Label::textColourId, palette::textDim);
     viewLabel_.setFont(juce::FontOptions(15.0f));
@@ -166,8 +172,8 @@ void SettingsPanel::setViewToggles(bool diagnostics, bool fullScreen)
 
 int SettingsPanel::preferredHeight() const
 {
-    // The input rows, MIDI, the waveform colour and the view controls.
-    auto rows = static_cast<int>(inputRows_.size()) + 2 + (viewLabel_.isVisible() ? 1 : 0);
+    // The input rows, MIDI, the waveform colour, auto gain and the view controls.
+    auto rows = static_cast<int>(inputRows_.size()) + 3 + (viewLabel_.isVisible() ? 1 : 0);
     for (const auto* row : {&deviceTypeRow_, &deviceRow_, &sampleRateRow_, &bufferSizeRow_})
         if (row->choices.isVisible())
             ++rows;
@@ -224,6 +230,11 @@ void SettingsPanel::resized()
     auto colourRow = area.removeFromTop(rowHeight);
     colourLabel_.setBounds(colourRow.removeFromLeft(labelWidth));
     colourSwatches_.setBounds(colourRow);
+    area.removeFromTop(rowGap);
+
+    auto autoGainRow = area.removeFromTop(rowHeight);
+    autoGainLabel_.setBounds(autoGainRow.removeFromLeft(labelWidth));
+    autoGain_.setBounds(autoGainRow);
     area.removeFromTop(rowGap);
 
     if (viewLabel_.isVisible())

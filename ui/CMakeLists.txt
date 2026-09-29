@@ -3,6 +3,8 @@
 
 set(visona_ui_sources
     AudioSettings.h
+    AutoGainSettings.cpp
+    AutoGainSettings.h
     Banner.cpp
     Banner.h
     ChannelNames.cpp

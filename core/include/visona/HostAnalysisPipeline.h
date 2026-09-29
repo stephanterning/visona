@@ -1,6 +1,7 @@
 #pragma once
 
 #include <visona/AudioRingBuffer.h>
+#include <visona/BarPeaks.h>
 #include <visona/HostTransport.h>
 #include <visona/MidiClockTransport.h>
 #include <visona/SpscQueue.h>
@@ -87,6 +88,7 @@ private:
     void publish() noexcept;
 
     SweepAnalyzer analyzer_;
+    BarPeakMeter barPeaks_;
     TripleBuffer<SweepSnapshot> snapshots_;
     HostTransport transport_;
     SpscQueue<TimedPlayhead> playheads_;

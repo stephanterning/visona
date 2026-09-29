@@ -70,11 +70,14 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     appearancePanel_.addAndMakeVisible(appearanceClose_);
     appearancePanel_.addAndMakeVisible(colourLabel_);
     appearancePanel_.addAndMakeVisible(colourSwatches_);
+    appearancePanel_.addAndMakeVisible(autoGainLabel_);
+    appearancePanel_.addAndMakeVisible(autoGainSettings_);
 
     appearanceTitle_.setText("Appearance", juce::dontSendNotification);
     appearanceTitle_.setFont(juce::Font(juce::FontOptions(18.0f, juce::Font::bold)));
     appearanceClose_.setButtonText("Close");
     colourLabel_.setText("Waveform colour", juce::dontSendNotification);
+    autoGainLabel_.setText("Auto gain", juce::dontSendNotification);
     appearancePanel_.setOpaque(true);
     appearancePanel_.setVisible(false);
 
@@ -96,15 +99,25 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     {
         if (zoomOverview_.isVisible())
             zoomOverview_.setHead(scope_.headPosition());
+        followAutoGain();
     };
     zoomOverview_.onReset = [this] { scope_.resetZoom(); };
     zoomOverview_.onPan = [this](SweepZoom zoom) { scope_.setZoom(zoom); };
 
     appearanceClose_.onClick = [this] { showAppearance(false); };
     colourSwatches_.onColourChange = [this](std::size_t index) { setWaveformColour(index); };
+    autoGainSettings_.onAutoGainChange = [this](bool isOn) { setAutoGain(isOn); };
+    autoGainSettings_.onHoldChange = [this](std::size_t choice) { setAutoGainHold(choice); };
 
-    scope_.setGainDb(state_.gainDb);
-    controlBar_.gain().setGainDb(state_.gainDb);
+    auto& autoGain = processor_.autoGain();
+    autoGain.setHoldSeconds(AutoGain::holdChoices[state_.autoGainHold]);
+    if (state_.autoGain && !processor_.autoGainStarted)
+        autoGain.reset(state_.gainDb);
+    processor_.autoGainStarted = processor_.autoGainStarted || state_.autoGain;
+    autoGainSettings_.setAutoGain(state_.autoGain);
+    autoGainSettings_.setHoldChoice(state_.autoGainHold);
+    controlBar_.gain().setAuto(state_.autoGain);
+    showGainDb(shownGainDb());
     controlBar_.window().setWindow(state_.window);
     controlBar_.waveform().setMode(state_.waveformMode);
     scope_.setWaveformMode(state_.waveformMode);
@@ -155,7 +168,7 @@ void ScopeEditor::resized()
     banner_.setBounds(bannerBounds);
     diagnostics_.setBounds(scope_.getBounds().reduced(margin));
 
-    const auto panelHeight = 180;
+    const auto panelHeight = 240;
     appearancePanel_.setBounds(getWidth() - panelWidth - margin, margin + statusHeight, panelWidth,
                                panelHeight);
     auto panelArea = appearancePanel_.getLocalBounds().reduced(margin);
@@ -163,6 +176,8 @@ void ScopeEditor::resized()
     appearanceClose_.setBounds(panelArea.removeFromTop(28).removeFromRight(72));
     colourLabel_.setBounds(panelArea.removeFromTop(24));
     colourSwatches_.setBounds(panelArea.removeFromTop(48));
+    autoGainLabel_.setBounds(panelArea.removeFromTop(24));
+    autoGainSettings_.setBounds(panelArea.removeFromTop(32));
 }
 
 bool ScopeEditor::keyPressed(const juce::KeyPress& key)
@@ -201,14 +216,67 @@ void ScopeEditor::timerCallback()
 
 void ScopeEditor::setGainDb(int gainDb)
 {
+    if (state_.autoGain)
+        setAutoGain(false);
     gainDb = DisplayGain::clampDb(gainDb);
     if (gainDb == state_.gainDb)
         return;
-    scope_.setGainDb(gainDb);
-    controlBar_.gain().setGainDb(gainDb);
     state_.gainDb = gainDb;
+    showGainDb(gainDb);
     notifyStateChange();
     updateStatus();
+}
+
+int ScopeEditor::shownGainDb()
+{
+    return state_.autoGain ? processor_.autoGain().gainDb() : state_.gainDb;
+}
+
+void ScopeEditor::showGainDb(int gainDb)
+{
+    scope_.setGainDb(gainDb);
+    controlBar_.gain().setGainDb(gainDb);
+}
+
+void ScopeEditor::setAutoGain(bool isOn)
+{
+    if (isOn == state_.autoGain)
+        return;
+    auto& autoGain = processor_.autoGain();
+    if (isOn)
+    {
+        autoGain.reset(state_.gainDb);
+        processor_.autoGainStarted = true;
+    }
+    else
+    {
+        // The gain stays where auto gain left it.
+        state_.gainDb = autoGain.gainDb();
+    }
+    state_.autoGain = isOn;
+    autoGainSettings_.setAutoGain(isOn);
+    controlBar_.gain().setAuto(isOn);
+    showGainDb(shownGainDb());
+    notifyStateChange();
+    updateStatus();
+}
+
+void ScopeEditor::setAutoGainHold(std::size_t choice)
+{
+    choice = std::min(choice, AutoGain::holdChoices.size() - 1);
+    processor_.autoGain().setHoldSeconds(AutoGain::holdChoices[choice]);
+    autoGainSettings_.setHoldChoice(choice);
+    state_.autoGainHold = choice;
+    notifyStateChange();
+}
+
+void ScopeEditor::followAutoGain()
+{
+    if (state_.autoGain && processor_.autoGain().follow(scope_.snapshot().barPeaks))
+    {
+        showGainDb(processor_.autoGain().gainDb());
+        updateStatus();
+    }
 }
 
 void ScopeEditor::setWindow(std::size_t window)
@@ -307,7 +375,7 @@ void ScopeEditor::updateStatus()
     if (snapshot.hasStream && snapshot.sampleRate > 0.0)
         values.sampleRate = formatSampleRate(snapshot.sampleRate);
     values.window = WindowControl::describe(window_);
-    values.gain = GainControl::format(state_.gainDb);
+    values.gain = GainControl::format(shownGainDb(), state_.autoGain);
     if (scope_.zoom().isZoomed())
         values.zoom = ZoomOverview::describe(scope_.zoom(), snapshot);
     statusBar_.setValues(values);

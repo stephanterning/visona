@@ -156,9 +156,9 @@ A lightweight log of decisions and open questions. The architecture is described
   - Before the first Start: a free-running sweep with a fixed time window.
 
   These are the explicit defaults required by D-016.
-- **D-046 — MVP UI:** `Active`
+- **D-046 — MVP UI:** `Amended by D-100`
   - Status at the top: BPM, MIDI state, sample rate, window and gain.
-  - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB.
+  - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB (+18 dB since D-100).
   - A settings panel for audio device, input channel pair and MIDI input, with persisted settings.
   - A resizable window with fullscreen.
   - L/R stacked, with L on top.
@@ -411,6 +411,19 @@ A lightweight log of decisions and open questions. The architecture is described
   - Windows links the MSVC runtime statically, so no Visual C++ redistributable is needed. The Windows build does not copy the plugins into `Common Files`, which needs administrator rights.
   - Linux is built on Ubuntu 24.04, so the plugins need glibc 2.38 and GCC 13's libstdc++ or later. The binaries are unsigned; nothing on either platform has been tested in a DAW yet.
   - Extends D-044 for the plugins only; the standalone app stays on macOS and the Pi.
+- **D-100 — Auto gain: an optional setting that zooms the display gain in 3 dB steps, out at once and in at bar lines.** `Active`
+  - The maintainer asked for it. It answers Q-014. It is off by default, and is set in the settings panel of the app and the Appearance panel of the plugin, per instance there, and saved.
+  - Display gain now goes up to +18 dB, by hand as well as by auto gain. By hand it still moves in 1 dB steps.
+  - Auto gain looks at the peak of each bar, the loudest sample over both channels:
+    - As soon as the peak of the bar in progress lands above the top of the lane, the gain drops to the highest 3 dB step that fits it, so the peak is within the top 3 dB of the lane. The maintainer first asked for this at the next bar line, then for at once, since a bar is up to 6 s at 40 BPM. It costs one value in the snapshot and one comparison per frame.
+    - At the end of each bar, once the gain has held for the hold time, it rises at once to the highest step that fits the loudest peak of the last hold time, if that is higher. The hold time is 10, 30 or 60 s, 30 s by default.
+    - Bars at or below −50 dBFS do not count when rising, so silence does not zoom in.
+  - A loud peak keeps the gain down for a whole hold time after it, so the view does not "breathe" without a separate hysteresis.
+  - A bar ends when the transport moves into the next one. While MIDI Clock or the host is stopped, no bar ends and the gain holds; in `FREE` the bars run on at the free tempo. A bar cut short by a new Start, or by a new tempo or window in `FREE`, is dropped for rising, but its peaks still zoom out while it plays.
+  - `AUTO` replaces `GAIN` in the control bar, and the status bar shows `AUTO +9 dB`. Setting the gain by hand, with the buttons, drag, scroll, a double-click or the keys, turns auto gain off at the gain it had.
+  - The analysis measures each bar's peak and hands the latest 16 bars, and the peak of the bar in progress, to the UI in the snapshot (`BarPeaks.h`); the decision is in `AutoGain.h` and runs on the message thread. Both are in the core and tested there. The plugin keeps its `AutoGain` in the processor, so that it carries on when the editor is closed and opened again.
+
+  Amends D-046.
 
 ---
 
@@ -424,8 +437,6 @@ A lightweight log of decisions and open questions. The architecture is described
   Not needed for the MVP (4/4 default).
 - **Q-012 — Which strategy for controls on small screens: auto-hide, overlay, a settings drawer or tap-to-show?**
   Relevant for the 7" Pi. Responsive chrome on the Mac is already part of the MVP.
-- **Q-014 — What should auto vertical gain target (~80 % of the height?), and how slow must it be to avoid visible "breathing"?**
-  A later feature; manual gain comes first.
 - **Q-015 — What should the Pi display stack and rendering backend be (OS image, X11/Wayland/KMS-DRM, GPU backend, kiosk mode, touch input)?**
   After the MVP; part of the Pi hardware spike.
 - **Q-016 — Should the Pi use ALSA directly or JACK for audio and MIDI?**

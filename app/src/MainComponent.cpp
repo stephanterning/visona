@@ -73,6 +73,9 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     statusBar_.onStateClick = [this] { runFree(); };
     controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
     settingsPanel_.onWaveformColourChange = [this](std::size_t index) { setWaveformColour(index); };
+    settingsPanel_.autoGain().onAutoGainChange = [this](bool isOn) { setAutoGain(isOn); };
+    settingsPanel_.autoGain().onHoldChange = [this](std::size_t choice)
+    { setAutoGainHold(choice); };
     scope_.onTransportChange = [this]
     {
         zoomOverview_.setTimeline(scope_.snapshot());
@@ -84,6 +87,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     {
         if (zoomOverview_.isVisible())
             zoomOverview_.setHead(scope_.headPosition());
+        followAutoGain();
     };
     zoomOverview_.onReset = [this] { scope_.resetZoom(); };
     zoomOverview_.onPan = [this](SweepZoom zoom) { scope_.setZoom(zoom); };
@@ -104,6 +108,8 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
         settings_.waveformColour(palette::waveformColours.size(), palette::defaultWaveformColour);
     settingsPanel_.setWaveformColour(colour);
     scope_.setWaveformColour(palette::waveformColours[colour].colour);
+    setAutoGainHold(settings_.autoGainHold());
+    setAutoGain(settings_.autoGain());
 
     setWantsKeyboardFocus(true);
     setSize(1280, 720);
@@ -232,6 +238,13 @@ void MainComponent::timerCallback()
 
 void MainComponent::setGainDb(int gainDb)
 {
+    if (autoGainOn_)
+        setAutoGain(false);
+    showGainDb(gainDb);
+}
+
+void MainComponent::showGainDb(int gainDb)
+{
     gainDb = DisplayGain::clampDb(gainDb);
     if (gainDb == gainDb_)
         return;
@@ -239,6 +252,31 @@ void MainComponent::setGainDb(int gainDb)
     scope_.setGainDb(gainDb_);
     controlBar_.gain().setGainDb(gainDb_);
     updateStatus();
+}
+
+void MainComponent::setAutoGain(bool isOn)
+{
+    autoGainOn_ = isOn;
+    if (isOn)
+        autoGain_.reset(gainDb_);
+    controlBar_.gain().setAuto(isOn);
+    settingsPanel_.autoGain().setAutoGain(isOn);
+    settings_.setAutoGain(isOn);
+    updateStatus();
+}
+
+void MainComponent::setAutoGainHold(std::size_t choice)
+{
+    choice = std::min(choice, AutoGain::holdChoices.size() - 1);
+    autoGain_.setHoldSeconds(AutoGain::holdChoices[choice]);
+    settingsPanel_.autoGain().setHoldChoice(choice);
+    settings_.setAutoGainHold(choice);
+}
+
+void MainComponent::followAutoGain()
+{
+    if (autoGainOn_ && autoGain_.follow(scope_.snapshot().barPeaks))
+        showGainDb(autoGain_.gainDb());
 }
 
 void MainComponent::setWindow(std::size_t window)
@@ -392,7 +430,7 @@ void MainComponent::updateStatus()
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
     values.window = WindowControl::describe(window_);
-    values.gain = GainControl::format(gainDb_);
+    values.gain = GainControl::format(gainDb_, autoGainOn_);
     if (scope_.zoom().isZoomed())
         values.zoom = ZoomOverview::describe(scope_.zoom(), snapshot);
     statusBar_.setValues(values);

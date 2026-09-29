@@ -3,12 +3,12 @@
 namespace visona
 {
 
-/** Display gain in whole decibels, from 0 to +36 dB. It is presentation only: it never changes
-    audio, analysis or buffered data (D-024, D-046). */
+/** Display gain in whole decibels, from 0 to +18 dB, set by hand or by AutoGain. It is
+    presentation only: it never changes audio, analysis or buffered data (D-024, D-046, D-100). */
 struct DisplayGain
 {
     static constexpr int minDb = 0;
-    static constexpr int maxDb = 36;
+    static constexpr int maxDb = 18;
 
     [[nodiscard]] static constexpr int clampDb(int db) noexcept
     {

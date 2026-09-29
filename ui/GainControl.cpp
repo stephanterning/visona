@@ -5,6 +5,7 @@
 
 #include <visona/LaneMapping.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace visona
@@ -20,6 +21,16 @@ constexpr float smoothWheelPerStep = 0.06f;
 juce::FontOptions valueFont(float height)
 {
     return juce::FontOptions(height, juce::Font::bold).withFeatureEnabled("tnum");
+}
+
+juce::FontOptions labelFont(float height)
+{
+    return juce::FontOptions(height - 1.0f, juce::Font::bold);
+}
+
+juce::String signedDb(int gainDb)
+{
+    return (gainDb > 0 ? "+" : "") + juce::String(gainDb);
 }
 
 } // namespace
@@ -53,6 +64,17 @@ void GainControl::setGainDb(int gainDb)
     repaint(valueArea_);
 }
 
+void GainControl::setAuto(bool isAuto)
+{
+    if (isAuto == isAuto_)
+        return;
+    isAuto_ = isAuto;
+    setTooltip(isAuto_ ? "Auto gain. Drag, scroll or use + and - to set the gain by hand, which "
+                         "turns auto gain off."
+                       : "Display gain. Drag, scroll or use + and -; double-click resets to 0 dB.");
+    repaint();
+}
+
 void GainControl::setShowsLabel(bool showsLabel)
 {
     if (showsLabel == showsLabel_)
@@ -73,24 +95,22 @@ int GainControl::preferredWidth(int height) const
 {
     auto width = 2 * height + valueWidth();
     if (showsLabel_)
-        width += juce::GlyphArrangement::getStringWidthInt(
-                     juce::FontOptions(fontHeight_ - 1.0f, juce::Font::bold), "GAIN") +
-                 juce::roundToInt(labelGap);
+        width += labelWidth() + juce::roundToInt(labelGap);
     return width;
 }
 
-juce::String GainControl::format(int gainDb)
+juce::String GainControl::format(int gainDb, bool isAuto)
 {
-    return (gainDb > 0 ? "+" : "") + juce::String(gainDb) + " dB";
+    return (isAuto ? "AUTO " : "") + signedDb(gainDb) + " dB";
 }
 
 void GainControl::paint(juce::Graphics& g)
 {
     if (showsLabel_)
     {
-        g.setColour(palette::textDim);
-        g.setFont(juce::FontOptions(fontHeight_ - 1.0f, juce::Font::bold));
-        g.drawText("GAIN", labelArea_, juce::Justification::centredLeft, false);
+        g.setColour(isAuto_ ? palette::text : palette::textDim);
+        g.setFont(labelFont(fontHeight_));
+        g.drawText(isAuto_ ? "AUTO" : "GAIN", labelArea_, juce::Justification::centredLeft, false);
     }
 
     const auto control = valueArea_.getUnion(minus_->getBounds()).getUnion(plus_->getBounds());
@@ -99,7 +119,7 @@ void GainControl::paint(juce::Graphics& g)
 
     g.setColour(palette::text);
     g.setFont(valueFont(fontHeight_ + 1.0f));
-    g.drawText(format(gainDb_), valueArea_, juce::Justification::centred, false);
+    g.drawText(valueText(), valueArea_, juce::Justification::centred, false);
 }
 
 void GainControl::resized()
@@ -108,10 +128,7 @@ void GainControl::resized()
     const auto height = area.getHeight();
     labelArea_ = {};
     if (showsLabel_)
-        labelArea_ = area.removeFromLeft(
-            juce::GlyphArrangement::getStringWidthInt(
-                juce::FontOptions(fontHeight_ - 1.0f, juce::Font::bold), "GAIN") +
-            juce::roundToInt(labelGap));
+        labelArea_ = area.removeFromLeft(labelWidth() + juce::roundToInt(labelGap));
     minus_->setBounds(area.removeFromLeft(height));
     valueArea_ = area.removeFromLeft(valueWidth());
     plus_->setBounds(area.removeFromLeft(height));
@@ -125,8 +142,9 @@ void GainControl::mouseDown(const juce::MouseEvent&)
 void GainControl::mouseDrag(const juce::MouseEvent& event)
 {
     const auto offset = event.getOffsetFromDragStart().toFloat();
-    const auto steps = std::round((offset.x - offset.y) / dragPixelsPerStep);
-    request(dragStartGainDb_ + static_cast<int>(steps));
+    const auto steps = static_cast<int>(std::round((offset.x - offset.y) / dragPixelsPerStep));
+    if (steps != 0 || dragStartGainDb_ != gainDb_)
+        request(dragStartGainDb_ + steps);
 }
 
 void GainControl::mouseDoubleClick(const juce::MouseEvent&)
@@ -158,13 +176,30 @@ void GainControl::mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheel
 void GainControl::request(int gainDb)
 {
     gainDb = DisplayGain::clampDb(gainDb);
-    if (gainDb != gainDb_ && onGainChange)
+    // While auto gain sets the gain, even the same value is a change by hand.
+    if ((gainDb != gainDb_ || isAuto_) && onGainChange)
         onGainChange(gainDb);
+}
+
+juce::String GainControl::valueText() const
+{
+    return isAuto_ && !showsLabel_ ? "AUTO " + signedDb(gainDb_) : format(gainDb_);
+}
+
+int GainControl::labelWidth() const
+{
+    const auto font = labelFont(fontHeight_);
+    return std::max(juce::GlyphArrangement::getStringWidthInt(font, "GAIN"),
+                    juce::GlyphArrangement::getStringWidthInt(font, "AUTO"));
 }
 
 int GainControl::valueWidth() const
 {
-    return juce::GlyphArrangement::getStringWidthInt(valueFont(fontHeight_ + 1.0f), "+36 dB") + 16;
+    const auto font = valueFont(fontHeight_ + 1.0f);
+    auto width = juce::GlyphArrangement::getStringWidthInt(font, "+18 dB");
+    if (!showsLabel_)
+        width = std::max(width, juce::GlyphArrangement::getStringWidthInt(font, "AUTO +18"));
+    return width + 16;
 }
 
 } // namespace visona

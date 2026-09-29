@@ -1,5 +1,6 @@
 #pragma once
 
+#include <visona/BarPeaks.h>
 #include <visona/MidiClockTransport.h>
 #include <visona/SweepBuffer.h>
 #include <visona/TimeSignature.h>
@@ -56,6 +57,9 @@ struct SweepSnapshot
     /** How many frames the low, mid and high band levels lag the full band, while band splitting
         is on, so the renderer can line the colours up with the shape (D-092). */
     std::array<double, 3> bandDelayFrames{};
+
+    /** The peaks of the latest bars that have ended, for auto gain (D-100). */
+    RecentBarPeaks barPeaks;
 
     /** MIDI Clock messages received, and Song Position Pointers ignored while running. */
     std::uint64_t midiEvents = 0;
