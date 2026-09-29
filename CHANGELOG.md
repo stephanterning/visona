@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Auto gain, off by default, in the app's settings panel and the plugin's Appearance panel. At each bar line it zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out at once when a peak goes past the edge, in after the peaks have stayed low for 10, 30 or 60 s (30 s by default). Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off.
+
+### Changed
+
+- Display gain goes up to +18 dB instead of +36 dB.
+
 ## [0.1.0-alpha.2] - 2026-09-28
 
 ### Added

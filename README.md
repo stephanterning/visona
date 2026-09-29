@@ -41,7 +41,7 @@ The **VST3 plugin** (pass-through stereo effect, host transport) ships alongside
 - **FREE mode** — free-running sweep at a manual BPM when MIDI Clock is absent
 - **Windows** from ¼ bar to 4 bars, **horizontal zoom** and a **measurement ruler**
 - **Waveform modes** STD, PRECISE and DJ (frequency colouring in DJ mode)
-- **Display gain** 0–36 dB, settings persistence, fullscreen
+- **Display gain** 0–18 dB, with optional **auto gain** in 3 dB steps, settings persistence, fullscreen
 
 Works with professional USB audio interfaces. Development and testing use an **RME Babyface Pro FS**; on Linux and Raspberry Pi the interface must run in **USB Class Compliant mode**.
 
