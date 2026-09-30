@@ -14,12 +14,19 @@ All notable changes to this project are documented here. The format is based on
 - `windows-plugin` and `linux-plugin` CMake presets.
 - Running the Release workflow by hand builds only the artifacts ticked, from any branch, and publishes them to the Development builds prerelease, named after the branch and commit (D-104).
 - The standalone app hides the mouse cursor after three seconds of inactivity in fullscreen and kiosk mode.
+- The app opens the saved audio device and MIDI input again when they are plugged back in, on macOS and on the Pi, and also when they were missing at startup. While the audio device is missing, `NO AUDIO INPUT` says so and no other device is opened (D-102).
 - Auto gain, off by default, in the app's settings panel and the plugin's Appearance panel. It zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out as soon as a peak goes past the edge, and in at a bar line after the peaks have stayed low for 10, 30 or 60 s (30 s by default). Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off.
 
 ### Changed
 
 - Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 - Display gain goes up to +18 dB instead of +36 dB.
+- When the chosen audio device disappears on macOS, the app no longer switches to the default input (D-102).
+
+### Fixed
+
+- In kiosk mode on the Pi, the window stays fullscreen when the display is switched on after boot, switched off and on again, or changes resolution. It used to shrink into a corner with a title bar (D-103).
+- On the Pi, an audio interface that is unplugged no longer leaves a frozen view that still looks as if it were running (D-102).
 
 ## [0.1.0-alpha.2] - 2026-09-28
 

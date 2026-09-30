@@ -114,7 +114,7 @@ A lightweight log of decisions and open questions. The architecture is described
 
 ### Planning review, round 1
 
-- **D-033 — MVP 1.0 is a macOS standalone app with the reference audio interface connected at startup; there is no hotplug or reconnect.** `Active`
+- **D-033 — MVP 1.0 is a macOS standalone app with the reference audio interface connected at startup; there is no hotplug or reconnect.** `Amended by D-102`
   Keeps the MVP small and on the primary development environment. The Raspberry Pi (a hardware spike, the appliance and the 7" touch UI, i.e. milestones 5–6) moves to after the MVP.
 - **D-034 — The scope uses a sweep display.** `Active`
   - The bar grid is fixed.
@@ -223,7 +223,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - The settings panel has one choice per source channel (Left and Right), so any two inputs can form the pair, in either order. The reference interface's S/PDIF input, for example, is not on inputs 1 and 2.
   - A new choice takes effect at the next block without restarting the device, so `sampleIndex` and the overrun counters keep running.
   - Copying every input channel costs little, even on interfaces with many inputs.
-- **D-064 — The device Visona opens on its first start is saved as the chosen device. If the saved device is missing at a later start, no other device is opened and `NO AUDIO INPUT` is shown.** `Active`
+- **D-064 — The device Visona opens on its first start is saved as the chosen device. If the saved device is missing at a later start, no other device is opened and `NO AUDIO INPUT` is shown.** `Amended by D-102`
   Visona restores the last device instead of following the system's default input, and never silently shows another device's audio after a start. A device that disappears while Visona runs is handled by JUCE, which opens the default input; hotplug is Q-018.
 - **D-065 — Block host times use the audio device's time base. On macOS the fallback clock is `CLOCK_UPTIME_RAW` (`mach_absolute_time()`), not `std::chrono::steady_clock`.** `Active`
   CoreAudio host time stops while the Mac sleeps, but libc++'s `steady_clock` uses `CLOCK_MONOTONIC_RAW`, which keeps counting. `ClockTimeMapper` needs one time base, and JUCE's MIDI timestamps on macOS are also based on `mach_absolute_time()`.
@@ -424,6 +424,25 @@ A lightweight log of decisions and open questions. The architecture is described
   - The analysis measures each bar's peak and hands the latest 16 bars, and the peak of the bar in progress, to the UI in the snapshot (`BarPeaks.h`); the decision is in `AutoGain.h` and runs on the message thread. Both are in the core and tested there. The plugin keeps its `AutoGain` in the processor, so that it carries on when the editor is closed and opened again.
 
   Amends D-046.
+- **D-102 — The app follows the chosen audio device and MIDI input when they are unplugged and plugged in again.** `Active`
+  - The maintainer asked for the Pi, and the Mac as well, to tolerate interfaces being plugged in and out.
+  - While the chosen audio device is missing, no other device is opened. JUCE opens the default input in place of a device that disappears on macOS; Visona closes it again, so the view never shows another device's audio in its place. `NO AUDIO INPUT` says the device is not connected and will be opened when it is plugged in.
+  - When the chosen device is listed again, it is opened with its saved setup, as at startup. A device that is listed but does not open is tried again every 2 s. This also applies to a saved device that is missing at startup.
+  - A running device that has delivered no audio for 2 s is closed as lost and then opened again. JUCE's ALSA thread ends without telling anyone when its card is unplugged or fails, and the device still reports that it is playing, so the view would otherwise freeze.
+  - JUCE lists ALSA devices only once. On Linux, Visona checks `/proc/asound/cards` twice a second, and when it changes it replaces JUCE's device types with fresh ones, which list the devices there are now. An open device keeps running if it is still there.
+  - The chosen MIDI input is closed when it disappears and opened again when it returns. ALSA may give a replugged interface a new identifier, so it is found by identifier first and then by name, and the new identifier is saved.
+  - A choice in the settings panel stops the waiting, so a device the user just failed to open is not retried behind the error the panel shows.
+
+  Amends D-033 and D-064, and answers part of Q-018.
+- **D-103 — In kiosk mode the window follows display changes and, on Linux, asks the window manager for real fullscreen.** `Active`
+  - The maintainer found the window small and decorated in a corner when the display was switched on after the Pi had booted.
+  - JUCE's `setFullScreen()` on Linux only sizes the window to the display. labwc treats such a window as fullscreen until the output changes, then gives it back its own size and a title bar. JUCE on Linux also reads the displays only at startup.
+  - On Linux the kiosk window asks for `_NET_WM_STATE_FULLSCREEN`, so the compositor keeps it covering its output, and Visona polls the X screen size twice a second. When it changes, JUCE's displays are read again and the window is fitted to its display. Full screen chosen with F follows too, but does not ask the window manager.
+  - On macOS JUCE notices display changes itself, and the kiosk window covers its display again.
+  - Without a display at startup, the window is filled when one appears.
+  - Checked with labwc 0.7 and XWayland on a headless output: starting with the output off, switching it on, and changing its mode.
+
+  Answers part of Q-018.
 - **D-104 — A manual run of the Release workflow builds only the artifacts ticked, and publishes them to a Development builds prerelease.** `Active`
   - The maintainer wants to test a branch, or a `develop` branch composed of several, without merging to `main`, and to build only what the test needs: macOS minutes are wasted on a change tested on the Pi. Nothing is built automatically on `develop` or any other branch.
   - "Run workflow" has one checkbox per artifact: the macOS app, the macOS VST3, AU and CLAP plugins, the Windows and Linux VST3 and CLAP plugins, and the Raspberry Pi app. A platform's job runs only if one of its boxes is ticked, builds only those CMake targets and the core tests, and runs only the checks for them (`auval` for AU, `clap-validator` for CLAP, `pluginval` for VST3).
@@ -452,8 +471,8 @@ A lightweight log of decisions and open questions. The architecture is described
   After the MVP.
 - **Q-017 — How is the JUCE app built for the Pi (arm64 Linux): natively, cross-compiled or in CI?**
   The core and tests already build on Linux in CI (D-043).
-- **Q-018 — How should the app behave when the interface is missing, unplugged or returns, when MIDI is missing, when the sample rate changes, or when the display reconnects?**
-  After the MVP. The MVP assumes the interface is connected at startup.
+- **Q-018 — How should the app behave when the sample rate changes under it?**
+  Missing, unplugged and returning audio and MIDI devices are answered by D-102, and display changes by D-103.
 - **Q-020 — What form should a Pi diagnostic mode and logging take, and how is it reached without a keyboard?**
   After the MVP.
 - **Q-021 — Which library should Auto BPM use (tempo, beat and ideally downbeat detection), with an acceptable license?**
@@ -463,4 +482,4 @@ A lightweight log of decisions and open questions. The architecture is described
 - **Q-023 — Which loudness library: libebur128 or an alternative, for LUFS, True Peak and LRA?**
   Evaluated in milestone 11.
 - **Q-026 — In which order do the parts moved out of the MVP come back, and how do they fit the post-v1 order?**
-  The candidates are the Pi work, sync precision and hotplug/reconnect. Manual BPM came back into the MVP (D-090).
+  The candidates are the Pi work and sync precision; hotplug and reconnect came back with D-102. Manual BPM came back into the MVP (D-090).

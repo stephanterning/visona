@@ -93,7 +93,7 @@ cat <<'EOF'
 
 Next steps:
 1. Reboot the Pi (or log out and back in).
-2. Connect the Babyface Pro FS in Class Compliant mode before boot, if you want audio at startup.
+2. Use the Babyface Pro FS in Class Compliant mode. It can be plugged in before or after boot.
 3. To disable kiosk autostart: rm ~/.config/autostart/visona-kiosk.desktop
 
 See docs/pi-kiosk.md for details.

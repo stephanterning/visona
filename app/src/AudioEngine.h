@@ -35,10 +35,16 @@ class Settings;
     from 0. The analysis thread follows the current stream and publishes sweep snapshots. The device
     state and the input channels are saved in Settings whenever they change. Public functions are
     for the message thread.
+
+    The chosen device survives being unplugged (D-102). While it is missing, no other device is
+    opened, and it is opened again as soon as it is back. A device that stops calling back counts as
+    lost. JUCE lists ALSA devices only once, so on Linux the device list is scanned again whenever
+    the sound cards change. The chosen MIDI input is followed the same way.
 */
 class AudioEngine final : public AudioSettings,
                           private juce::AudioIODeviceCallback,
-                          private juce::ChangeListener
+                          private juce::ChangeListener,
+                          private juce::Timer
 {
 public:
     explicit AudioEngine(Settings& settings);
@@ -49,8 +55,9 @@ public:
 
     /**
         Opens the saved audio device, or the default input device if none has been saved. If the
-        saved device is missing, no device is opened: there is no fallback to another device.
-        Also opens the saved MIDI input.
+        saved device is missing, no device is opened: there is no fallback to another device, and
+        the saved device is opened when it is plugged in. Also opens the saved MIDI input, and
+        starts following device changes.
     */
     void openSavedDevice();
 
@@ -133,8 +140,21 @@ private:
                                      const juce::AudioIODeviceCallbackContext& context) override;
     void audioDeviceStopped() override;
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
+    void timerCallback() override;
 
     juce::String applySetup(juce::AudioDeviceManager::AudioDeviceSetup setup);
+
+    // Each returns true if it opened or closed a device.
+    /** Closes a device that is not the chosen one or has gone, and opens the chosen device while it
+        is missing and listed again. */
+    bool followChosenDevice();
+    /** Closes a running device that has delivered nothing for stallTicks timer ticks. */
+    bool closeStalledDevice();
+    /** Replaces the device types with fresh ones, which list the devices there are now. */
+    void rescanDevices();
+
+    [[nodiscard]] bool isListed(const juce::String& typeName,
+                                const juce::String& inputDeviceName) const;
 
     // Both need lock_. A saved channel the device does not have falls back to the default.
     [[nodiscard]] int effectiveInputChannel(std::size_t channel, int numDeviceInputs) const;
@@ -152,6 +172,16 @@ private:
 
     juce::AudioDeviceManager deviceManager_;
     juce::String lastError_;
+
+    // The chosen device was lost or missing at startup, and is opened when it is back. A choice in
+    // the settings panel clears it, so a device that failed to open is not retried behind the
+    // error it shows.
+    bool waitingForChosen_ = false;
+    juce::uint32 nextOpenAttemptMs_ = 0;
+    std::uint64_t lastFramesDelivered_ = 0;
+    int stalledTicks_ = 0;
+    juce::String soundCards_;
+    juce::MidiDeviceListConnection midiDevicesChanged_;
 
     // Guards everything below it. The audio callback never takes it.
     mutable std::mutex lock_;

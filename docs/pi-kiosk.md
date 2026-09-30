@@ -63,15 +63,19 @@ sudo raspi-config nonint do_boot_behaviour B4
 
 Or run the binary directly: `./Visona --kiosk` from the tarball, or `./build/pi/app/Visona_artefacts/Release/Visona --kiosk` from a source build.
 
-## Babyface at startup
+## Babyface and MIDI interface
 
-Visona restores the **last saved** audio device and MIDI port (same as macOS). For a working scope at boot:
+Visona restores the **last saved** audio device and MIDI port (same as macOS):
 
 1. Run Visona once, select Babyface and the correct channels in Settings, then quit normally so settings are saved.
-2. Connect the Babyface in **Class Compliant mode** before powering the Pi (or before login).
+2. Use the Babyface in **Class Compliant mode**.
 3. Use a **powered USB hub** or external PSU for the interface.
 
-If the saved device is missing at startup, Visona shows **NO AUDIO INPUT** until you open Settings (touch ⚙).
+The interfaces can be plugged in before or after boot, and unplugged and plugged in again while Visona runs (D-102). While the saved audio device is missing, Visona shows **NO AUDIO INPUT** and opens no other device; a few seconds after the device appears, the scope runs again. The MIDI input reconnects the same way; until it does, the status bar shows **MIDI CLOCK LOST** or **FREE**.
+
+## Display
+
+The display can be switched on after the Pi has booted, switched off and on, or changed to another resolution: the kiosk window asks the compositor for fullscreen and follows the display (D-103).
 
 ## Disable kiosk autostart
 
@@ -96,12 +100,11 @@ killall wf-panel-pi 2>/dev/null || true
 | Screen goes blank | Wrapper runs `xset`; install `x11-xserver-utils` if missing: `sudo apt install x11-xserver-utils`. |
 | System menubar still visible | Kiosk uses `setFullScreen(true)` on Linux so labwc hides the panel. Press **f** or the fullscreen button once to check, and update to the latest release or rebuild after `git pull`. As a fallback, `./scripts/pi/install-kiosk.sh` disables `wf-panel-pi` autostart. |
 | `server does not have extension for -dpms` | Harmless on Wayland/XWayland; screen blanking is handled elsewhere. |
-| Window not fullscreen | Update to the latest release or rebuild after `git pull`; kiosk uses the full display, not JUCE's Linux work-area fullscreen. |
+| Window not fullscreen, or small with a title bar | Update to the latest release or rebuild after `git pull`. Kiosk asks the compositor for fullscreen and follows display changes (D-103). |
 | Quit without a close button | From SSH: `pkill Visona`. Kiosk mode has no window chrome. |
-| Wrong audio device | Open Settings once with keyboard/touch, save Babyface, restart. |
+| Wrong audio device | Open Settings once with keyboard/touch and choose Babyface; the choice is saved at once. |
 
 ## Limitations
 
 - Requires the **desktop session** (X11 / XWayland). Pure headless or Wayland-only kiosk is not supported yet.
-- No automatic **hotplug** if the interface is plugged in after boot (MVP behaviour, D-033).
 - **Escape** still resets zoom; there is no PIN or lock screen.

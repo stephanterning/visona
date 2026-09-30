@@ -3,6 +3,7 @@
 #include "HostTime.h"
 #include "Settings.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace visona
@@ -47,49 +48,83 @@ MidiClockInput::MidiClockInput(Settings& settings)
 
 MidiClockInput::~MidiClockInput()
 {
-    if (input_ != nullptr)
-        input_->stop();
+    close();
 }
 
-void MidiClockInput::openSaved()
+bool MidiClockInput::reconnect()
 {
     if (identifier_.isEmpty())
-        return;
-    for (const auto& device : juce::MidiInput::getAvailableDevices())
-        if (device.identifier == identifier_)
-        {
-            select(identifier_);
-            return;
-        }
+        return false;
+
+    const auto devices = juce::MidiInput::getAvailableDevices();
+    const auto withIdentifier = [&devices](const juce::String& identifier)
+    {
+        return std::find_if(devices.begin(), devices.end(), [&identifier](const auto& device)
+                            { return device.identifier == identifier; });
+    };
+
+    if (input_ != nullptr)
+    {
+        if (withIdentifier(identifier_) != devices.end())
+            return false;
+        close();
+        return true;
+    }
+
+    auto device = withIdentifier(identifier_);
+    if (device == devices.end() && name_.isNotEmpty())
+        device = std::find_if(devices.begin(), devices.end(),
+                              [this](const auto& candidate) { return candidate.name == name_; });
+    if (device == devices.end())
+        return false;
+
+    const auto identifier = device->identifier;
+    const auto name = device->name;
+    if (!open(identifier))
+        return false;
+    if (identifier != identifier_ || name != name_)
+    {
+        identifier_ = identifier;
+        name_ = name;
+        settings_.setMidiInput({identifier_, name_});
+    }
+    return true;
 }
 
 juce::String MidiClockInput::select(const juce::String& identifier)
 {
-    // The old input stops calling back before the new one starts, so the queue always has a
-    // single producer.
-    if (input_ != nullptr)
-    {
-        input_->stop();
-        input_.reset();
-    }
+    close();
 
     identifier_ = identifier;
     name_.clear();
     if (identifier.isNotEmpty())
-    {
         for (const auto& device : juce::MidiInput::getAvailableDevices())
             if (device.identifier == identifier)
                 name_ = device.name;
-        input_ = juce::MidiInput::openDevice(identifier, this);
-    }
     settings_.setMidiInput({identifier_, name_});
 
-    if (identifier.isNotEmpty() && input_ == nullptr)
+    if (identifier.isNotEmpty() && !open(identifier))
         return "The MIDI input \"" + (name_.isNotEmpty() ? name_ : identifier) +
                "\" could not be opened.";
-    if (input_ != nullptr)
-        input_->start();
     return {};
+}
+
+void MidiClockInput::close()
+{
+    if (input_ == nullptr)
+        return;
+    input_->stop();
+    input_.reset();
+}
+
+bool MidiClockInput::open(const juce::String& identifier)
+{
+    close();
+    input_ = juce::MidiInput::openDevice(identifier, this);
+    if (input_ == nullptr)
+        return false;
+    input_->start();
+    return true;
 }
 
 void MidiClockInput::handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& message)
