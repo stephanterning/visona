@@ -21,7 +21,10 @@ class Settings;
     converts it to its millisecond counter, which is the host clock in milliseconds wrapping at
     2^32. The callback turns it back into host nanoseconds in the audio's time base (D-065, D-077).
 
-    The choice is saved in Settings. Public functions are for the message thread.
+    The choice is saved in Settings and survives the input being unplugged: reconnect() closes it
+    when it disappears and opens it again when it returns, found by its identifier or, since ALSA
+    may give a replugged interface a new one, by its name (D-102). Public functions are for the
+    message thread.
 */
 class MidiClockInput final : private juce::MidiInputCallback
 {
@@ -38,8 +41,9 @@ public:
         return queue_;
     }
 
-    /** Opens the saved input, if it is there. */
-    void openSaved();
+    /** Follows the MIDI device list: closes the chosen input if it has gone, and opens it if it is
+        there and not open. Returns true if the input was opened or closed. */
+    bool reconnect();
 
     /** Opens the input with `identifier`, or none if it is empty, and saves the choice. Returns an
         error message, or an empty string on success. */
@@ -70,6 +74,11 @@ public:
 private:
     void handleIncomingMidiMessage(juce::MidiInput* source,
                                    const juce::MidiMessage& message) override;
+
+    // The old input stops calling back before a new one starts, so the queue always has a single
+    // producer.
+    void close();
+    bool open(const juce::String& identifier);
 
     Settings& settings_;
     MidiClockQueue queue_;

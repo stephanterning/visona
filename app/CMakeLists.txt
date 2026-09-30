@@ -33,6 +33,12 @@ target_sources(Visona PRIVATE
     src/Settings.cpp
     src/Settings.h)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(Visona PRIVATE
+        src/X11Display.cpp
+        src/X11Display.h)
+endif()
+
 target_compile_definitions(Visona PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0

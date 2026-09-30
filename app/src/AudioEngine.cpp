@@ -27,6 +27,25 @@ constexpr double ringSeconds = 1.0;
 // The frames fill up before the timings unless blocks average fewer frames than this.
 constexpr std::size_t framesPerTimingSlot = 16;
 
+constexpr int devicePollMs = 500;
+
+// A running device that delivers nothing for this long is lost. JUCE's ALSA thread ends without
+// telling anyone when its device is unplugged or fails, and the device still reports that it plays.
+constexpr int stallTicks = 4;
+
+// How often opening the chosen device is tried while it is listed but does not open.
+constexpr juce::uint32 openRetryMs = 2'000;
+
+/** The sound cards there are, as text that changes whenever one is added or removed. */
+juce::String soundCards()
+{
+#if JUCE_LINUX
+    return juce::File("/proc/asound/cards").loadFileAsString();
+#else
+    return {};
+#endif
+}
+
 std::size_t ringCapacityFrames(double sampleRate, int bufferSize)
 {
     const auto oneSecond =
@@ -81,6 +100,7 @@ AudioEngine::AudioEngine(Settings& settings)
 
 AudioEngine::~AudioEngine()
 {
+    stopTimer();
     deviceManager_.removeChangeListener(this);
     deviceManager_.removeAudioCallback(this);
     deviceManager_.closeAudioDevice();
@@ -88,6 +108,7 @@ AudioEngine::~AudioEngine()
 
 void AudioEngine::openSavedDevice()
 {
+    soundCards_ = soundCards();
     const auto savedState = settings_.audioDeviceState();
     lastError_ = deviceManager_.initialise(allInputChannels, 0, savedState.get(), false);
 
@@ -100,7 +121,17 @@ void AudioEngine::openSavedDevice()
         deviceManager_.closeAudioDevice();
         applySetup(setup);
     }
-    midi_.openSaved();
+    waitingForChosen_ = deviceManager_.getCurrentAudioDevice() == nullptr;
+    nextOpenAttemptMs_ = juce::Time::getMillisecondCounter() + openRetryMs;
+
+    midi_.reconnect();
+    midiDevicesChanged_ = juce::MidiDeviceListConnection::make(
+        [this]
+        {
+            if (midi_.reconnect())
+                deviceManager_.sendChangeMessage();
+        });
+    startTimer(devicePollMs);
 }
 
 bool AudioEngine::isInputRunning() const
@@ -121,8 +152,10 @@ juce::String AudioEngine::noInputReason() const
     if (const auto state = deviceManager_.createStateXml())
     {
         const auto savedDevice = state->getStringAttribute("audioInputDeviceName");
-        if (savedDevice.isNotEmpty() && !availableDevices.contains(savedDevice))
-            return "The saved audio device \"" + savedDevice + "\" was not found.";
+        if (savedDevice.isNotEmpty() &&
+            !isListed(state->getStringAttribute("deviceType"), savedDevice))
+            return "The audio device \"" + savedDevice + "\" is not connected." +
+                   (waitingForChosen_ ? " Visona opens it when it is plugged in." : "");
     }
     if (lastError_.isNotEmpty())
         return lastError_;
@@ -210,6 +243,7 @@ juce::String AudioEngine::selectDeviceType(const juce::String& typeName)
     // A new type starts from its default setup, which uses the default (all) input channels.
     deviceManager_.setCurrentAudioDeviceType(typeName, true);
     lastError_.clear();
+    waitingForChosen_ = false;
     return {};
 }
 
@@ -320,10 +354,31 @@ void AudioEngine::audioDeviceStopped()
 
 void AudioEngine::changeListenerCallback(juce::ChangeBroadcaster*)
 {
+    // When the chosen device disappears, JUCE opens the default device in its place; this closes
+    // it again before the other listeners see it.
+    if (isTimerRunning() && followChosenDevice())
+        deviceManager_.sendChangeMessage();
+
     // The state is the last device the user chose. JUCE keeps it when the saved device is missing,
     // so a missing device stays saved for the next start.
     if (const auto state = deviceManager_.createStateXml())
         settings_.setAudioDeviceState(*state);
+}
+
+void AudioEngine::timerCallback()
+{
+    bool changed = false;
+    if (const auto cards = soundCards(); cards != soundCards_)
+    {
+        soundCards_ = cards;
+        rescanDevices();
+        changed = true;
+    }
+    changed = closeStalledDevice() || changed;
+    changed = followChosenDevice() || changed;
+    changed = midi_.reconnect() || changed;
+    if (changed)
+        deviceManager_.sendChangeMessage();
 }
 
 juce::String AudioEngine::applySetup(juce::AudioDeviceManager::AudioDeviceSetup setup)
@@ -332,7 +387,99 @@ juce::String AudioEngine::applySetup(juce::AudioDeviceManager::AudioDeviceSetup 
     setup.useDefaultInputChannels = true;
     setup.useDefaultOutputChannels = true;
     lastError_ = deviceManager_.setAudioDeviceSetup(setup, true);
+    waitingForChosen_ = false;
     return lastError_;
+}
+
+bool AudioEngine::followChosenDevice()
+{
+    const auto chosen = deviceManager_.createStateXml();
+    if (chosen == nullptr)
+        return false;
+    const auto typeName = chosen->getStringAttribute("deviceType");
+    const auto deviceName = chosen->getStringAttribute("audioInputDeviceName");
+    if (deviceName.isEmpty())
+        return false;
+
+    bool changed = false;
+    if (auto* const device = deviceManager_.getCurrentAudioDevice())
+    {
+        const bool isChosen = device->getTypeName() == typeName &&
+                              deviceManager_.getAudioDeviceSetup().inputDeviceName == deviceName;
+        if (isChosen && isListed(typeName, deviceName))
+        {
+            waitingForChosen_ = false;
+            return false;
+        }
+        deviceManager_.closeAudioDevice();
+        waitingForChosen_ = true;
+        lastError_.clear();
+        changed = true;
+    }
+
+    const auto now = juce::Time::getMillisecondCounter();
+    if (!waitingForChosen_ || !isListed(typeName, deviceName) ||
+        static_cast<std::int32_t>(now - nextOpenAttemptMs_) < 0)
+        return changed;
+
+    nextOpenAttemptMs_ = now + openRetryMs;
+    lastError_ = deviceManager_.initialise(allInputChannels, 0, chosen.get(), false);
+    if (deviceManager_.getCurrentAudioDevice() != nullptr)
+        waitingForChosen_ = false;
+    return true;
+}
+
+bool AudioEngine::closeStalledDevice()
+{
+    const auto status = streamStatus();
+    if (!status.has_value() || !isInputRunning() || status->framesDelivered != lastFramesDelivered_)
+    {
+        lastFramesDelivered_ = status.has_value() ? status->framesDelivered : 0;
+        stalledTicks_ = 0;
+        return false;
+    }
+    if (++stalledTicks_ < stallTicks)
+        return false;
+
+    stalledTicks_ = 0;
+    deviceManager_.closeAudioDevice();
+    waitingForChosen_ = true;
+    lastError_ = "The audio device stopped delivering audio.";
+    // It may be back already, so it is opened again at once if it is listed.
+    nextOpenAttemptMs_ = juce::Time::getMillisecondCounter();
+    return true;
+}
+
+void AudioEngine::rescanDevices()
+{
+    // An open device does not depend on its type, so it keeps running if it is still there. The
+    // old types go first: JUCE's ALSA type resets the ALSA error handler that a new one sets.
+    juce::Array<juce::AudioIODeviceType*> oldTypes;
+    for (auto* const type : deviceManager_.getAvailableDeviceTypes())
+        oldTypes.add(type);
+    for (auto* const type : oldTypes)
+        deviceManager_.removeAudioDeviceType(type);
+
+    juce::OwnedArray<juce::AudioIODeviceType> newTypes;
+    deviceManager_.createAudioDeviceTypes(newTypes);
+    while (!newTypes.isEmpty())
+    {
+        std::unique_ptr<juce::AudioIODeviceType> type(newTypes.removeAndReturn(0));
+        type->scanForDevices();
+        deviceManager_.addAudioDeviceType(std::move(type));
+    }
+}
+
+bool AudioEngine::isListed(const juce::String& typeName, const juce::String& inputDeviceName) const
+{
+    // Not const in JUCE only because it creates the types on first use.
+    auto& deviceManager = const_cast<juce::AudioDeviceManager&>(deviceManager_);
+    for (auto* const type : deviceManager.getAvailableDeviceTypes())
+        if (type->getTypeName() == typeName)
+            for (const auto& name : type->getDeviceNames(true))
+                if (name.trim().equalsIgnoreCase(inputDeviceName.trim()))
+                    return true;
+    return false;
 }
 
 int AudioEngine::effectiveInputChannel(std::size_t channel, int numDeviceInputs) const
