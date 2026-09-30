@@ -258,7 +258,8 @@ The Visona plugin is a pass-through stereo effect, built as VST3, AU and CLAP (D
   - Ad-hoc signing is enough for the proof of concept.
 - **GitHub Actions (D-043, D-095):**
   - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs.
-  - `Release` on published GitHub releases or manual trigger: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` on published GitHub releases: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` run by hand on any branch builds only the artifacts ticked and publishes them to the `dev-builds` prerelease, named after the branch and commit (D-104).
   - macOS app builds locally with the `macos` or `xcode` preset while developing the GUI.
 - **Test framework:** Catch2 v3 via `FetchContent`. Its BSL-1.0 license is AGPL-compatible (D-054).
 - **Style:** `.clang-format`; warnings are errors in `core/`.

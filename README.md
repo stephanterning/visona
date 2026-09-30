@@ -79,3 +79,14 @@ AGPL-3.0-or-later. See [LICENSE](LICENSE).
 ## Developers
 
 Build and test instructions are in [AGENTS.md](AGENTS.md). Architecture, roadmap and decisions live under [docs/](docs/).
+
+### Development builds
+
+To test a branch without merging it, or a `develop` branch you have put together from several, open **Actions → Release → Run workflow**, choose the branch and tick the artifacts you need. Only the jobs for those artifacts run. The files are published to the **[Development builds](https://github.com/stephanterning/visona/releases/tag/dev-builds)** prerelease, named after the artifact, the branch and the commit, and the run's summary links them. A new build of the same artifact from the same branch replaces the earlier one (D-104).
+
+On the Pi, for example:
+
+```sh
+curl -fLO https://github.com/stephanterning/visona/releases/download/dev-builds/Visona-linux-arm64-pi-develop-abc1234.tar.gz
+tar xzf Visona-linux-arm64-pi-develop-abc1234.tar.gz -C ~/visona
+```
