@@ -90,6 +90,18 @@ public:
         triggerAsyncUpdate();
     }
 
+    void resized() override
+    {
+        DocumentWindow::resized();
+#if JUCE_LINUX
+        // F in kiosk mode goes back to the window manager's full screen.
+        const bool fullScreen = isFullScreen();
+        if (kiosk_ && fullScreen && !wasFullScreen_)
+            triggerAsyncUpdate();
+        wasFullScreen_ = fullScreen;
+#endif
+    }
+
 private:
     void handleAsyncUpdate() override
     {
@@ -153,6 +165,7 @@ private:
 #if JUCE_LINUX
     static constexpr int displayPollMs = 500;
     std::optional<juce::Rectangle<int>> screenBounds_;
+    bool wasFullScreen_ = false;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainWindow)
