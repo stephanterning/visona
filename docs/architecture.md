@@ -235,7 +235,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The input channel for Left and for Right is chosen separately (D-063).
   - It is a separate overlay that never forces the scope to repaint.
   - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
-  - If the saved audio device is missing at startup, `NO AUDIO INPUT` is shown and no other device is opened (D-064).
+  - If the saved audio device is missing, at startup or after it is unplugged, `NO AUDIO INPUT` is shown and no other device is opened. It is opened again when it is plugged in, and so is the MIDI input (D-064, D-102).
 - **Window:** freely resizable, with native fullscreen.
 
 ### 3.7 Plugin
