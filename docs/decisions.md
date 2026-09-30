@@ -380,7 +380,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - The readout has no levels for now. Mega Scope also shows start, end and delta dB from the rectangle's height; the maintainer asked to leave them out until further notice.
   - Precision is one pixel: at 120 BPM and 96 kHz on a scope about 1,500 logical pixels wide, about 1.3 ms at 1 bar unzoomed and 0.04 ms at 32×. With MIDI Clock the tempo estimate adds a small error, and a tempo change within the window is read at the current tempo.
   - The calculations are in the core (`Ruler.h`) and tested there; `ScopeView` draws the rectangle and the readout.
-- **D-095 — Pull-request CI runs the Linux core jobs only; the macOS app, the VST3 plugins and the Pi binary are built by the Release workflow.** `Active`
+- **D-095 — Pull-request CI runs the Linux core jobs only; the macOS app, the VST3 plugins and the Pi binary are built by the Release workflow.** `Amended by D-104`
   - Made in the alpha preparation ([#22](https://github.com/stephanterning/visona/pull/22)) to save the private repository's macOS Actions minutes.
   - The Release workflow runs when a GitHub release is published, or on a manual trigger, which also works on a branch to check a macOS build before merging.
   - Until then, the maintainer's local Mac build is the check that the JUCE targets compile.
@@ -443,6 +443,15 @@ A lightweight log of decisions and open questions. The architecture is described
   - Checked with labwc 0.7 and XWayland on a headless output: starting with the output off, switching it on, and changing its mode.
 
   Answers part of Q-018.
+- **D-104 — A manual run of the Release workflow builds only the artifacts ticked, and publishes them to a Development builds prerelease.** `Active`
+  - The maintainer wants to test a branch, or a `develop` branch composed of several, without merging to `main`, and to build only what the test needs: macOS minutes are wasted on a change tested on the Pi. Nothing is built automatically on `develop` or any other branch.
+  - "Run workflow" has one checkbox per artifact: the macOS app, the macOS VST3, AU and CLAP plugins, the Windows and Linux VST3 and CLAP plugins, and the Raspberry Pi app. A platform's job runs only if one of its boxes is ticked, builds only those CMake targets and the core tests, and runs only the checks for them (`auval` for AU, `clap-validator` for CLAP, `pluginval` for VST3).
+  - The files go to one prerelease for all branches, `dev-builds` ("Development builds"), named after the artifact, the branch and the commit, such as `Visona-linux-arm64-pi-develop-abc1234.tar.gz`. A new build of the same artifact from the same branch replaces the earlier one. The run's summary links the files.
+  - The repository is public, so the files download without logging in, for example with `curl -LO` on the Pi.
+  - A published release still builds everything and attaches it to the release. The build files are no longer uploaded as Actions artifacts.
+  - The checkboxes only appear when running from a branch that has this workflow, such as `main` or a branch made from it after this change.
+
+  Amends D-095.
 
 ---
 
