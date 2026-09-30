@@ -1,0 +1,65 @@
+name: Publish
+description: >
+  Uploads every file in a directory to the published release, or, for a manual run, to the
+  Development builds prerelease, named after the branch and commit.
+
+inputs:
+  directory:
+    description: The directory whose files are uploaded.
+    default: dist
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        DIRECTORY: ${{ inputs.directory }}
+        EVENT: ${{ github.event_name }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+        BRANCH: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        files=("$DIRECTORY"/*)
+        test "${#files[@]}" -gt 0
+
+        if [[ "$EVENT" == release ]]; then
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
+          exit 0
+        fi
+
+        tag=dev-builds
+        if ! gh release view "$tag" >/dev/null 2>&1; then
+          # Jobs running at the same time may both try to create it.
+          gh release create "$tag" --prerelease --latest=false --title "Development builds" \
+            --notes "Builds from manual runs of the Release workflow, for testing. Each file is named after the branch and the commit it was built from, and a new build of the same artifact from the same branch replaces it. They are not releases: nothing here is tested beyond the workflow's checks." \
+            || gh release view "$tag" >/dev/null
+        fi
+
+        slug="${BRANCH//\//-}"
+        short="${SHA:0:7}"
+        existing="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+        echo "### Development builds from \`$BRANCH\` at \`$short\`" >> "$GITHUB_STEP_SUMMARY"
+        for file in "${files[@]}"; do
+          name="$(basename "$file")"
+          case "$name" in
+            *.tar.gz) extension=.tar.gz ;;
+            *) extension=".${name##*.}" ;;
+          esac
+          stem="${name%"$extension"}"
+          published="$stem-$slug-$short$extension"
+          cp "$file" "$RUNNER_TEMP/$published"
+          gh release upload "$tag" "$RUNNER_TEMP/$published" --clobber
+
+          # The branch's earlier builds of the same artifact.
+          while IFS= read -r asset; do
+            if [[ "$asset" == "$stem-$slug-"???????"$extension" && "$asset" != "$published" ]]; then
+              gh release delete-asset "$tag" "$asset" --yes
+            fi
+          done <<< "$existing"
+
+          echo "- [$published](https://github.com/$GH_REPO/releases/download/$tag/$published)" >> "$GITHUB_STEP_SUMMARY"
+        done
