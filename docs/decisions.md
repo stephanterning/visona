@@ -451,6 +451,12 @@ A lightweight log of decisions and open questions. The architecture is described
   - A published release still builds everything and attaches it to the release. The build files are no longer uploaded as Actions artifacts.
   - The checkboxes only appear when running from a branch that has this workflow, such as `main` or a branch made from it after this change.
 
+- **D-105 — Kiosk mode is the touch appliance: no full-screen button, a control bar at twice the size, and multitouch turned on in labwc.** `Active`
+  - The maintainer found the bottom controls too small to hit on a 10" Waveshare touchscreen, a pinch did not zoom, and the full-screen button did nothing useful in kiosk mode.
+  - In kiosk mode the full-screen button is hidden in the control bar and in the settings panel. F still works from a keyboard.
+  - In kiosk mode the control bar is laid out for half the window's width and height and drawn at twice the size, so its controls, text, padding and rows all double. The bar picks its own step (narrow labels, wrapping rows, secondary buttons in settings) from the halved size. The status bar, the zoom strip and the settings panel keep their size.
+  - Raspberry Pi OS sets `mouseEmulation="yes"` for touchscreens in labwc, which turns touches into mouse events: tap and drag work, but there is only ever one pointer, so a pinch cannot exist. JUCE 9 already reads XInput 2.2 touch events through XWayland, and `ScopeView` already zooms on a two-finger pinch (D-085). `install-kiosk.sh` sets `mouseEmulation="no"` in the user's `~/.config/labwc/rc.xml`, starting from the system copy if there is none, and keeps a backup. This also affects other desktop apps for that user, for example double-tap in the file manager, which is acceptable on an appliance.
+
   Amends D-095.
 
 ---

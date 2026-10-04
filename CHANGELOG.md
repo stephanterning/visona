@@ -22,11 +22,13 @@ All notable changes to this project are documented here. The format is based on
 - Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 - Display gain goes up to +18 dB instead of +36 dB.
 - When the chosen audio device disappears on macOS, the app no longer switches to the default input (D-102).
+- In kiosk mode the control bar is twice the size, for touchscreens, and the full-screen button is hidden (D-105).
 
 ### Fixed
 
 - In kiosk mode on the Pi, the window stays fullscreen when the display is switched on after boot, switched off and on again, or changes resolution. It used to shrink into a corner with a title bar (D-103).
 - On the Pi, an audio interface that is unplugged no longer leaves a frozen view that still looks as if it were running (D-102).
+- On the Pi, a two-finger pinch on the touchscreen zooms. `install-kiosk.sh` turns off labwc's touch mouse emulation, which Raspberry Pi OS turns on and which hides multitouch from apps (D-105).
 
 ## [0.1.0-alpha.2] - 2026-09-28
 
