@@ -51,6 +51,9 @@ public:
     void setViewControlsVisible(bool visible);
     void setViewToggles(bool diagnostics, bool fullScreen);
 
+    /** Hides the full-screen button in the view controls (for example in kiosk mode). */
+    void setFullScreenVisible(bool visible);
+
     /** The height that fits every row. */
     [[nodiscard]] int preferredHeight() const;
 
@@ -99,6 +102,7 @@ private:
     juce::TextButton diagnosticsButton_;
     juce::TextButton fullScreenButton_;
     juce::Label errorLabel_;
+    bool fullScreenVisible_ = true;
 
     juce::StringArray deviceTypes_;
     juce::StringArray devices_;

@@ -27,6 +27,9 @@ constexpr int margin = 12;
 constexpr int bannerWidth = 560;
 constexpr int bannerHeight = 76;
 constexpr int settingsWidth = 480;
+// In kiosk mode the control bar is laid out at a fraction of the window and scaled up, so its
+// controls are large enough for a finger on a small touchscreen (D-105).
+constexpr int kioskControlScale = 2;
 
 double nowSeconds()
 {
@@ -111,6 +114,10 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     setAutoGainHold(settings_.autoGainHold());
     setAutoGain(settings_.autoGain());
 
+    // The kiosk window always covers its display.
+    controlBar_.setFullScreenVisible(!kioskMode_);
+    settingsPanel_.setFullScreenVisible(!kioskMode_);
+
     setWantsKeyboardFocus(true);
     setSize(1280, 720);
 
@@ -135,15 +142,22 @@ void MainComponent::resized()
 {
     auto area = getLocalBounds();
     const auto step = chromeStepFor(getWidth(), getHeight());
+    const auto controlScale = kioskMode_ ? kioskControlScale : 1;
+    const auto controlWidth = (getWidth() + controlScale - 1) / controlScale;
     statusBar_.setStep(step);
     zoomOverview_.setStep(step);
-    controlBar_.setStep(step);
+    controlBar_.setStep(chromeStepFor(controlWidth, getHeight() / controlScale));
     settingsPanel_.setViewControlsVisible(!controlBar_.showsSecondaryControls());
 
     statusBar_.setBounds(area.removeFromTop(statusBar_.preferredHeight()));
     if (zoomOverview_.isVisible())
         zoomOverview_.setBounds(area.removeFromTop(zoomOverview_.preferredHeight()));
-    controlBar_.setBounds(area.removeFromBottom(controlBar_.preferredHeight(area.getWidth())));
+    const auto controlHeight = controlBar_.preferredHeight(controlWidth);
+    controlBar_.setBounds(0, 0, controlWidth, controlHeight);
+    controlBar_.setTransform(
+        juce::AffineTransform::scale(static_cast<float>(controlScale))
+            .translated(0.0f, static_cast<float>(area.getBottom() - controlHeight * controlScale)));
+    area.removeFromBottom(controlHeight * controlScale);
     scope_.setBounds(area);
 
     banner_.setBounds(

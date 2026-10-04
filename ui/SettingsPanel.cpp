@@ -155,8 +155,14 @@ void SettingsPanel::setViewControlsVisible(bool visible)
         return;
     viewLabel_.setVisible(visible);
     diagnosticsButton_.setVisible(visible);
-    fullScreenButton_.setVisible(visible);
+    fullScreenButton_.setVisible(visible && fullScreenVisible_);
     notifyPreferredHeight();
+}
+
+void SettingsPanel::setFullScreenVisible(bool visible)
+{
+    fullScreenVisible_ = visible;
+    fullScreenButton_.setVisible(viewLabel_.isVisible() && visible);
 }
 
 void SettingsPanel::setWaveformColour(std::size_t index)
