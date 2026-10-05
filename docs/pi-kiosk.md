@@ -4,6 +4,31 @@ This guide makes a Raspberry Pi boot into the desktop and start **Visona fullscr
 
 Requires Visona on the Pi: either the unpacked `Visona-linux-arm64-pi.tar.gz` from [GitHub Releases](https://github.com/stephanterning/visona/releases), which holds the binary and these scripts, or a source build — see [pi-build.md](pi-build.md) and [pi-setup.md](pi-setup.md).
 
+## Install or upgrade over SSH
+
+`scripts/pi/install-visona.sh` downloads a tarball, unpacks it to `~/visona`, and runs `install-kiosk.sh`. Settings in `~/.config/Visona/` are kept.
+
+Latest **release** (no argument):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/stephanterning/visona/main/scripts/pi/install-visona.sh | bash
+```
+
+A **Development builds** URL from the workflow summary (copy the full link):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/stephanterning/visona/main/scripts/pi/install-visona.sh | bash -s -- \
+  'https://github.com/stephanterning/visona/releases/download/dev-builds/Visona-linux-arm64-pi-cursor-kiosk-touch-807e-df72c7b.tar.gz'
+```
+
+If the script is already on the Pi (inside `~/visona` after a previous install):
+
+```sh
+~/visona/scripts/pi/install-visona.sh 'https://github.com/…/Visona-linux-arm64-pi-….tar.gz'
+```
+
+Add `--enable-autologin` before the URL when piping, or after `bash -s --`. Reboot when the script finishes so labwc reloads touch settings.
+
 ## What gets installed
 
 1. **`--kiosk` flag** — Visona starts without window chrome and enters compositor fullscreen on Linux (hides the Pi menubar on labwc).
