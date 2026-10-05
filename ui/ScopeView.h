@@ -1,6 +1,7 @@
 #pragma once
 
 #include <visona/ColumnReduction.h>
+#include <visona/HeadPacer.h>
 #include <visona/Ruler.h>
 #include <visona/SourceLayout.h>
 #include <visona/SweepSnapshot.h>
@@ -58,12 +59,18 @@ namespace visona
 
     Rendering (D-054): the lanes are rasterized on the CPU at physical pixel resolution into
     vertical image tiles. Frames follow the display's vertical blank, capped at 60 per second, and
-    only when there is a new snapshot. A frame redraws only the columns the head passed since the
-    previous frame, so only the tiles holding them change; a new stream, size, gain or zoom
+    only when there is something new to show. A frame redraws only the columns the head passed since
+   the previous frame, so only the tiles holding them change; a new stream, size, gain or zoom
     redraws everything. The component is opaque and never repaints what did not change.
 
     On Linux, JUCE's vertical blank is a timer that does not follow the display. Where the window
     is drawn with OpenGL, the owner calls displayFrame() after each buffer swap instead (D-107).
+
+    The analysis writes the sweep a device block at a time, so the head as written moves by one
+    block in some frames and two in others. The view shows a head paced at the sweep's tempo
+    instead, a block or so behind (D-108), and draws the sweep only up to it, so that the head
+    moves the same distance every frame. Frames are drawn while it moves, with or without a new
+    snapshot.
 */
 class ScopeView final : public juce::Component
 {
@@ -117,7 +124,7 @@ public:
     /** Called when the zoom changes. */
     std::function<void()> onZoomChange;
 
-    /** Called after each frame drawn from a new snapshot. */
+    /** Called after each frame drawn. */
     std::function<void()> onFrame;
 
     /** Draws a frame for a buffer swap the display has just shown, with the time of the swap on
@@ -140,6 +147,10 @@ public:
         double frameIntervalMaxMs = 0.0;
         /** Whether frames follow displayFrame() rather than JUCE's vertical blank. */
         bool displayFrames = false;
+        /** Whether the head shown is paced (D-108), and how far at most it was behind the head
+            as written. */
+        bool headPaced = false;
+        double headLagMsMax = 0.0;
         int imageWidth = 0;
         int imageHeight = 0;
         float scale = 1.0f;
@@ -208,8 +219,14 @@ private:
 
     void onVBlank(double timestampSeconds);
     [[nodiscard]] bool followsDisplayFrames() const noexcept;
-    /** Draws a frame if one is due within `tolerance` seconds and there is a new snapshot. */
+    /** Draws a frame if one is due within `tolerance` seconds and there is a new snapshot or the
+        head shown has moved. */
     void drawFrame(double timestampSeconds, double tolerance);
+    /** Moves the head shown on to where the pacer puts it at `timestampSeconds`. Returns true if
+        it moved. */
+    bool paceHead(double timestampSeconds);
+    /** How many bins a second the sweep moves while running, or 0 if that is not known. */
+    [[nodiscard]] double binsPerSecond() const noexcept;
     void updateStats(double timestampSeconds);
     void noticeTransport();
     void updateGrid();
@@ -231,15 +248,18 @@ private:
     /** Brings the tiles up to date with the current snapshot and repaints what changed. */
     void renderChanges();
     void renderAll();
-    void renderColumns(int first, int last);
-    void drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, int first, int last);
+    /** Draws columns [first, last]. A full redraw also leaves out the bins written beyond the head
+        shown, since what they replaced is gone. */
+    void renderColumns(int first, int last, bool full = false);
+    void drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, int first, int last,
+                         bool full);
 
     /** How many bins each band is read later in DJ colouring, to line it up with the shape. */
     [[nodiscard]] std::array<std::size_t, 3> bandShifts() const noexcept;
 
-    /** The first column of the head line and the last column of the erase gap after it, or -1
-        for both if nothing has been written or the head is out of view. */
-    [[nodiscard]] std::pair<int, int> headColumns(const SweepBuffer& sweep) const noexcept;
+    /** The first column of the head line shown and the last column of the erase gap after it, or
+        -1 for both if nothing is shown or the head is out of view. */
+    [[nodiscard]] std::pair<int, int> headColumns() const noexcept;
     [[nodiscard]] juce::Rectangle<int> logicalColumns(int first, int last) const noexcept;
     void drawLabels(juce::Graphics& g) const;
 
@@ -285,6 +305,16 @@ private:
     int gapWidth_ = 0;
     int markerHeight_ = 1;
     bool needsFullRender_ = true;
+
+    // The head shown (D-108), in the same terms as SweepBuffer's: pass 0 shows nothing. The
+    // stream, generation and position written it was paced from.
+    HeadPacer pacer_;
+    std::uint64_t shownPass_ = 0;
+    std::size_t shownHead_ = 0;
+    std::uint64_t pacedStream_ = 0;
+    std::uint64_t pacedGeneration_ = 0;
+    double pacedWritten_ = 0.0;
+    double headLagMsMax_ = 0.0;
 
     // What the tiles show.
     bool rendered_ = false;

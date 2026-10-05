@@ -468,6 +468,13 @@ A lightweight log of decisions and open questions. The architecture is described
 
   Amends D-054. Answers the rendering backend part of Q-015 for the Pi.
 
+- **D-108 — The head the scope shows moves at the sweep's tempo, behind the head as written.** `Active`
+  - Steady frames were not enough. Filmed in slow motion on the Pi, in free-running mode and without the window changing, the head line still landed at uneven distances. The analysis writes the sweep a whole device block at a time and publishes it on its 3 ms poll. With 512-frame blocks at 48 kHz a block is 10.7 ms, so a frame at 60 Hz advances by one block or by two: about 10 px, then 21 px.
+  - `HeadPacer`, in the core, keeps a line moving at the tempo that slowly follows the head as written. Against that line the head as written is a staircase, and the paced head aims just below its lowest step, held long enough that one late poll does not pull it down. It never goes past the head as written, and never backwards. That puts it about one block, plus the poll and a few milliseconds, behind the audio just analysed. Because the line keeps following, a tempo that is slightly off does not make the paced head drift away.
+  - With no tempo to follow, or when the head as written jumps by more than 0.25 s or goes backwards, the scope shows the head as written at once. When the head as written stops, the paced head goes on to it.
+  - The scope draws the sweep only up to the paced head, including across the end of the window, and draws a frame when that head moves even if no new snapshot has arrived. A full redraw leaves the bins already written beyond the paced head empty, since what they replaced is gone. The diagnostics overlay shows the pacing and how far behind it is.
+  - The app and the plugins both do this. It does not depend on the frame clock (D-107).
+
 ---
 
 ## Open questions

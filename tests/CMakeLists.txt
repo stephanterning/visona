@@ -14,6 +14,7 @@ add_executable(visona_core_tests
     BandSplitterTests.cpp
     ClockTimeMapperTests.cpp
     BarImpulseSchedulerTests.cpp
+    HeadPacerTests.cpp
     HostAnalysisPipelineTests.cpp
     HostTransportTests.cpp
     SidechainSyncDetectorTests.cpp

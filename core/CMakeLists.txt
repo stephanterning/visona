@@ -12,6 +12,7 @@ add_library(visona_core STATIC
     include/visona/CacheLine.h
     include/visona/ClockTimeMapper.h
     include/visona/BarImpulseScheduler.h
+    include/visona/HeadPacer.h
     include/visona/HostAnalysisPipeline.h
     include/visona/HostTransport.h
     include/visona/SidechainSyncDetector.h
@@ -40,6 +41,7 @@ add_library(visona_core STATIC
     src/BarPeaks.cpp
     src/ClockTimeMapper.cpp
     src/BarImpulseScheduler.cpp
+    src/HeadPacer.cpp
     src/HostAnalysisPipeline.cpp
     src/HostTransport.cpp
     src/SidechainSyncDetector.cpp

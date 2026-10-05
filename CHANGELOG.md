@@ -20,12 +20,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- On Linux, the app draws its window with OpenGL, and the scope's frames follow the display's buffer swaps. `--renderer=cpu` keeps the timer (D-107).
 - Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 - Display gain goes up to +18 dB instead of +36 dB.
 - When the chosen audio device disappears on macOS, the app no longer switches to the default input (D-102).
 
 ### Fixed
 
+- The scope's head line stepped unevenly, one device block in some frames and two in others, however steady the frames were. It now moves at the sweep's tempo, about one block behind the audio just analysed (D-108).
 - In kiosk mode on the Pi, the window stays fullscreen when the display is switched on after boot, switched off and on again, or changes resolution. It used to shrink into a corner with a title bar (D-103).
 - On the Pi, an audio interface that is unplugged no longer leaves a frozen view that still looks as if it were running (D-102).
 

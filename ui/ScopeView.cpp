@@ -251,7 +251,8 @@ void ScopeView::drawFrame(double timestampSeconds, double tolerance)
     if (tiles_.empty() || timestampSeconds + tolerance < nextFrameSeconds_)
         return;
     const bool fresh = snapshots_.fetch();
-    if (!fresh && !needsFullRender_)
+    const bool moved = paceHead(timestampSeconds);
+    if (!fresh && !moved && !needsFullRender_)
         return;
     // Frames are due at a steady 60 per second; after a stall, the schedule restarts from now
     // instead of catching up with a burst.
@@ -274,6 +275,53 @@ void ScopeView::drawFrame(double timestampSeconds, double tolerance)
     lastFrameSeconds_ = timestampSeconds;
     if (onFrame)
         onFrame();
+}
+
+bool ScopeView::paceHead(double timestampSeconds)
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    const auto& sweep = snapshot.sweep;
+    const auto numBins = sweep.numBins();
+    const auto previousPass = shownPass_;
+    const auto previousHead = shownHead_;
+    if (sweep.pass() == 0 || numBins == 0)
+    {
+        pacer_.reset();
+        shownPass_ = 0;
+        shownHead_ = 0;
+        return shownPass_ != previousPass;
+    }
+
+    // Positions count bins since the start of the first pass, up to and including the head.
+    const auto bins = static_cast<double>(numBins);
+    const auto written =
+        static_cast<double>(sweep.pass() - 1) * bins + static_cast<double>(sweep.head()) + 1.0;
+    // A relocation starts a later pass wherever the new position is, and is shown at once.
+    if (snapshot.streamId != pacedStream_ || sweep.generation() != pacedGeneration_ ||
+        written - pacedWritten_ > 0.5 * bins)
+        pacer_.reset();
+    pacedStream_ = snapshot.streamId;
+    pacedGeneration_ = sweep.generation();
+    pacedWritten_ = written;
+
+    const auto rate = binsPerSecond();
+    const auto shown = pacer_.update(timestampSeconds, written, rate);
+    if (rate > 0.0)
+        headLagMsMax_ = std::max(headLagMsMax_, (written - shown) / rate * 1000.0);
+    const auto index = static_cast<std::uint64_t>(std::max(std::floor(shown), 1.0)) - 1;
+    shownPass_ = index / numBins + 1;
+    shownHead_ = static_cast<std::size_t>(index % numBins);
+    return shownPass_ != previousPass || shownHead_ != previousHead;
+}
+
+double ScopeView::binsPerSecond() const noexcept
+{
+    const auto& snapshot = snapshots_.readBuffer();
+    if (!snapshot.musical || !(snapshot.bpm > 0.0) || !(snapshot.windowTicks > 0.0))
+        return 0.0;
+    const auto windowSeconds =
+        snapshot.windowTicks * 60.0 / (TimeSignature::ticksPerQuarterNote * snapshot.bpm);
+    return static_cast<double>(snapshot.sweep.numBins()) / windowSeconds;
 }
 
 void ScopeView::noticeTransport()
@@ -326,8 +374,10 @@ void ScopeView::updateStats(double timestampSeconds)
             paintTiming_.count > 0 ? paintTiming_.totalMs / paintTiming_.count : 0.0;
         stats_.paintMsMax = paintTiming_.maxMs;
         stats_.frameIntervalMaxMs = frameIntervalMaxMs_;
+        stats_.headLagMsMax = headLagMsMax_;
     }
     stats_.displayFrames = followsDisplayFrames();
+    stats_.headPaced = binsPerSecond() > 0.0;
     stats_.imageWidth = width_;
     stats_.imageHeight = height_;
     stats_.scale = scale_;
@@ -337,6 +387,7 @@ void ScopeView::updateStats(double timestampSeconds)
     vblanks_ = 0;
     fullRedraws_ = 0;
     frameIntervalMaxMs_ = 0.0;
+    headLagMsMax_ = 0.0;
     renderTiming_ = {};
     paintTiming_ = {};
 }
@@ -389,13 +440,14 @@ void ScopeView::renderChanges()
     const auto& sweep = snapshot.sweep;
     const bool sameSweep = rendered_ && !needsFullRender_ && snapshot.streamId == renderedStream_ &&
                            sweep.generation() == renderedGeneration_;
-    if (sameSweep && sweep.pass() == 0)
+    if (sameSweep && shownPass_ == 0)
         return;
 
     // Within a window, the head only changes the bins it passes. Both passes look the same, so
-    // the start of a new pass changes only the bins across the end of the window.
-    const bool samePass = sweep.pass() == renderedPass_ && sweep.head() >= renderedHead_;
-    const bool nextPass = sweep.pass() == renderedPass_ + 1 && sweep.head() < renderedHead_;
+    // the start of a new pass changes only the bins across the end of the window. The bins
+    // written beyond the head shown keep what the tiles show until it gets there.
+    const bool samePass = shownPass_ == renderedPass_ && shownHead_ >= renderedHead_;
+    const bool nextPass = shownPass_ == renderedPass_ + 1 && shownHead_ < renderedHead_;
     if (!sameSweep || renderedPass_ == 0 || !(samePass || nextPass))
     {
         renderAll();
@@ -408,18 +460,18 @@ void ScopeView::renderChanges()
     std::array<ColumnMapping::ColumnRange, 4> dirty;
     std::array<ColumnMapping::ColumnRange, 2> passed;
     std::size_t count = 0;
-    const auto passedCount = mapping_.columnsOf(renderedHead_, sweep.head(), passed);
+    const auto passedCount = mapping_.columnsOf(renderedHead_, shownHead_, passed);
     for (std::size_t range = 0; range < passedCount; ++range)
         dirty[count++] = passed[range];
-    const auto [headStart, gapEnd] = headColumns(sweep);
+    const auto [headStart, gapEnd] = headColumns();
     if (renderedHeadStart_ >= 0)
         dirty[count++] = {static_cast<std::size_t>(renderedHeadStart_),
                           static_cast<std::size_t>(std::min(
                               renderedHeadStart_ + headWidth_ + gapWidth_ - 1, width_ - 1))};
     if (headStart >= 0)
         dirty[count++] = {static_cast<std::size_t>(headStart), static_cast<std::size_t>(gapEnd)};
-    renderedPass_ = sweep.pass();
-    renderedHead_ = sweep.head();
+    renderedPass_ = shownPass_;
+    renderedHead_ = shownHead_;
     renderedHeadStart_ = headStart;
 
     std::sort(dirty.begin(), dirty.begin() + static_cast<std::ptrdiff_t>(count),
@@ -442,19 +494,19 @@ void ScopeView::renderAll()
         return;
     const auto& snapshot = snapshots_.readBuffer();
     const auto& sweep = snapshot.sweep;
-    renderColumns(0, width_ - 1);
+    renderColumns(0, width_ - 1, true);
 
     rendered_ = true;
     renderedStream_ = snapshot.streamId;
     renderedGeneration_ = sweep.generation();
-    renderedPass_ = sweep.pass();
-    renderedHead_ = sweep.head();
-    renderedHeadStart_ = headColumns(sweep).first;
+    renderedPass_ = shownPass_;
+    renderedHead_ = shownHead_;
+    renderedHeadStart_ = headColumns().first;
     needsFullRender_ = false;
     ++fullRedraws_;
 }
 
-void ScopeView::renderColumns(int first, int last)
+void ScopeView::renderColumns(int first, int last, bool full)
 {
     const auto& sweep = snapshots_.readBuffer().sweep;
     if (lanes_.size() != std::max<std::size_t>(sweep.numChannels(), 1))
@@ -479,17 +531,32 @@ void ScopeView::renderColumns(int first, int last)
         const auto tileStart = tile * tileWidth;
         juce::Image::BitmapData pixels(image, juce::Image::BitmapData::writeOnly);
         drawTileColumns(pixels, tileStart, std::max(first, tileStart),
-                        std::min(last, tileStart + image.getWidth() - 1));
+                        std::min(last, tileStart + image.getWidth() - 1), full);
     }
 }
 
-void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, int first, int last)
+void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, int first, int last,
+                                bool full)
 {
     const auto& sweep = snapshots_.readBuffer().sweep;
     const auto& colour = colours();
     const TileCanvas canvas(pixels, tileStart);
     const auto gain = DisplayGain::toLinear(gainDb_);
-    const auto [headStart, gapEnd] = headColumns(sweep);
+    const auto [headStart, gapEnd] = headColumns();
+
+    // In a full redraw, the bins written beyond the head shown are left empty like the erase gap.
+    // The columns of the head's own bin still show it.
+    std::array<ColumnMapping::ColumnRange, 2> unshown;
+    std::array<ColumnMapping::ColumnRange, 2> shownHeadBin;
+    std::size_t unshownCount = 0;
+    if (full && shownPass_ > 0 && sweep.numBins() > 0 && mapping_.numBins() == sweep.numBins() &&
+        (shownPass_ != sweep.pass() || shownHead_ != sweep.head()))
+    {
+        unshownCount =
+            mapping_.columnsOf((shownHead_ + 1) % sweep.numBins(), sweep.head(), unshown);
+        if (mapping_.columnsOf(shownHead_, shownHead_, shownHeadBin) == 0)
+            shownHeadBin[0] = {1, 0};
+    }
     const auto count = static_cast<std::size_t>(last - first + 1);
     const std::span spans(spans_.data(), count);
     const auto shifts = mode_ == WaveformMode::dj ? bandShifts() : std::array<std::size_t, 3>{};
@@ -555,7 +622,18 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
             if (rows.top <= rows.bottom)
                 canvas.fill(column, column, rows.top, rows.bottom, fill);
         };
-        const auto inGap = [&](int column) { return column >= headStart && column <= gapEnd; };
+        const auto inGap = [&](int column)
+        {
+            if (column >= headStart && column <= gapEnd)
+                return true;
+            const auto at = static_cast<std::size_t>(column);
+            if (unshownCount == 0 || (at >= shownHeadBin[0].first && at <= shownHeadBin[0].last))
+                return false;
+            for (std::size_t range = 0; range < unshownCount; ++range)
+                if (at >= unshown[range].first && at <= unshown[range].last)
+                    return true;
+            return false;
+        };
 
         if (mode_ == WaveformMode::standard)
         {
@@ -793,19 +871,19 @@ void ScopeView::drawStopped(juce::Graphics& g) const
     g.fillRoundedRectangle(mark.withTrimmedLeft(7.5f), 1.0f);
 }
 
-std::pair<int, int> ScopeView::headColumns(const SweepBuffer& sweep) const noexcept
+std::pair<int, int> ScopeView::headColumns() const noexcept
 {
-    if (sweep.pass() == 0 || sweep.numBins() == 0 || width_ <= 0 ||
-        mapping_.numBins() != sweep.numBins())
+    const auto numBins = snapshots_.readBuffer().sweep.numBins();
+    if (shownPass_ == 0 || numBins == 0 || width_ <= 0 || mapping_.numBins() != numBins)
         return {-1, -1};
 
     // Just after the newest column, but always on screen. A zoomed view shows the line only while
     // the head is in view, or just before it.
     std::array<ColumnMapping::ColumnRange, 2> columns;
     int afterHead = 0;
-    if (mapping_.columnsOf(sweep.head(), sweep.head(), columns) > 0)
+    if (mapping_.columnsOf(shownHead_, shownHead_, columns) > 0)
         afterHead = static_cast<int>(columns[0].last) + 1;
-    else if ((sweep.head() + 1) % sweep.numBins() != mapping_.firstBin(0) % sweep.numBins())
+    else if ((shownHead_ + 1) % numBins != mapping_.firstBin(0) % numBins)
         return {-1, -1};
     const auto start = std::max(0, std::min(afterHead, width_ - headWidth_));
     return {start, std::min(start + headWidth_ + gapWidth_ - 1, width_ - 1)};
@@ -813,11 +891,10 @@ std::pair<int, int> ScopeView::headColumns(const SweepBuffer& sweep) const noexc
 
 double ScopeView::headPosition() const noexcept
 {
-    const auto& sweep = snapshots_.readBuffer().sweep;
-    if (sweep.pass() == 0 || sweep.numBins() == 0)
+    const auto numBins = snapshots_.readBuffer().sweep.numBins();
+    if (shownPass_ == 0 || numBins == 0)
         return -1.0;
-    return static_cast<double>((sweep.head() + 1) % sweep.numBins()) /
-           static_cast<double>(sweep.numBins());
+    return static_cast<double>((shownHead_ + 1) % numBins) / static_cast<double>(numBins);
 }
 
 void ScopeView::setZoom(SweepZoom zoom)

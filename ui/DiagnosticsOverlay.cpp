@@ -27,7 +27,7 @@ constexpr int headingRows = 6;
 constexpr int audioRows = 7;
 constexpr int midiRows = 5;
 constexpr int analysisRows = 1;
-constexpr int renderingRows = 6;
+constexpr int renderingRows = 7;
 constexpr int processRows = 1;
 
 juce::String formatSampleRate(double sampleRate)
@@ -272,6 +272,9 @@ void DiagnosticsOverlay::paint(juce::Graphics& g)
                               " fps (display " +
                               juce::String(juce::roundToInt(rendering.vblanksPerSecond)) + " Hz)");
     drawRow("Frame interval", juce::String(rendering.frameIntervalMaxMs, 1) + " ms max");
+    drawRow("Head pacing", rendering.headPaced
+                               ? juce::String(rendering.headLagMsMax, 1) + " ms max behind"
+                               : juce::String("off (no tempo)"));
     drawRow("Render", formatMs(rendering.renderMsAverage, rendering.renderMsMax));
     drawRow("Paint", formatMs(rendering.paintMsAverage, rendering.paintMsMax));
     drawRow("Full redraws", juce::String(rendering.fullRedrawsPerSecond, 1) + " per second");

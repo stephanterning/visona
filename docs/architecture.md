@@ -50,6 +50,7 @@ Visona is a platform-independent real-time engine for musical audio analysis and
   - `MidiClockTransport` and `ClockTimeMapper`
   - `BandSplitter` and `SweepAnalyzer`
   - snapshot types and bin-to-pixel reduction
+  - `HeadPacer`, which paces the head the scope shows (D-108)
   - the measurement ruler's readout (`Ruler`, D-094)
   - `AnalysisPipeline`, the analysis thread's work without the thread: ring in, snapshots out
   - for the plugins: `HostTransport` and `HostAnalysisPipeline`, the same work driven by the host playhead (D-096), and `BarImpulseScheduler` and `SidechainSyncDetector` for Visona Sync (D-097)
@@ -173,7 +174,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - At the lane edge the waveform is clipped with a *neutral* marker, so display overshoot is not mistaken for audio clipping.
 - **Amplitude references.** A center line, plus faint lines where 0 dBFS and −6 dBFS land after display gain, and −12 dBFS and −18 dBFS from +4 dB and +10 dB of gain (D-088).
 - **Write head and passes** (D-068).
-  - The head is a thin line in an accent colour outside the waveform colours; there is no green preset.
+  - The head is a thin line in an accent colour outside the waveform colours; there is no green preset. It moves at the sweep's tempo, about one device block behind the head as written, so a 60 Hz frame always advances it by the same distance (D-108).
   - A small erase gap follows the head.
   - The previous pass ahead of the head is drawn at full brightness, like the new one; the head line and gap are enough to read the sweep.
 - **Grid.** Neutral gray, not blue.
@@ -188,8 +189,9 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Implementation** (D-054):
   - CPU rasterization into `juce::Image` tiles 64 physical pixels wide via `BitmapData`, at physical pixel resolution (HiDPI) (D-071).
   - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass and in a zoomed view. Resize, gain, zoom and window changes trigger a full redraw.
-  - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. Without a new snapshot, nothing is drawn.
+  - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. A frame is drawn when a new snapshot has arrived or the paced head has moved.
   - On Linux, where JUCE's vertical blank is a timer, the app's window is drawn with OpenGL and the scope's frames follow its buffer swaps instead (D-107). `--renderer=cpu` turns this off.
+  - The paced head comes from `HeadPacer` (D-108). The scope draws the sweep only up to it. Without a known tempo, it shows the head as written.
 
 ### 3.6 UI layout
 

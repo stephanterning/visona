@@ -19,8 +19,8 @@ namespace visona
     - MIDI Clock: the input, the transport and its position, the tempo, the message counts and
       the offset between MIDI and audio time;
     - analysis: the analysis thread's load;
-    - rendering: what times the frames, the frame rate, the longest time between frames and time
-      per frame;
+    - rendering: what times the frames, the frame rate, the longest time between frames, how far
+      the paced head is behind, and time per frame;
     - process: Visona's total CPU use.
 
     It is opaque, so updating it never makes the scope behind it repaint.
