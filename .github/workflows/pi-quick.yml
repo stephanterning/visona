@@ -5,6 +5,8 @@ name: Pi quick build
 # Release workflow's Pi build, so install-visona.sh takes either URL.
 on:
   workflow_dispatch:
+  push:
+    branches: [cursor/fast-pi-build-ce94]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
