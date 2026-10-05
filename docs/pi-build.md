@@ -137,11 +137,11 @@ Press **D** to toggle the diagnostics overlay (block size, ring overruns, alloca
 
 | Topic | Status |
 | --- | --- |
-| **CI** | GitHub Actions builds the Pi binary on `ubuntu-24.04-arm` when a release is published or the Release workflow is triggered manually. Pull-request CI runs Linux `core/` tests only. Prefer downloading the release artifact instead of compiling on a 1 GB Pi. |
+| **CI** | GitHub Actions builds the Pi binary on `ubuntu-24.04-arm` when a release is published, or when the Release workflow is run by hand with **Raspberry Pi app** ticked. A manual run publishes `Visona-linux-arm64-pi-<branch>-<commit>.tar.gz` to the [Development builds](https://github.com/stephanterning/visona/releases/tag/dev-builds) prerelease (D-104). Pull-request CI runs Linux `core/` tests only. Prefer downloading a build instead of compiling on a 1 GB Pi. |
 | **Cross-compilation** | Not supported. Build natively on the Pi (or on another Linux machine with the same preset to check compilation only). |
 | **Wayland-native** | JUCE on Linux targets X11. Running under XWayland on Pi desktop sessions is expected; a pure Wayland kiosk setup is future work. |
 | **Device timestamps** | ALSA callbacks do not supply per-block host timestamps like CoreAudio. Visona falls back to `std::chrono::steady_clock` on Linux (see `app/src/HostTime.h`). MIDI/audio alignment may differ slightly from macOS until offset tuning is verified on Pi hardware. |
-| **Hotplug / reconnect** | Same as macOS MVP: no hotplug or automatic reconnect (D-033). |
+| **Hotplug / reconnect** | The saved audio device and MIDI input are opened again when they are plugged in, as on macOS (D-102). JUCE lists ALSA devices only once, so Visona scans them again when `/proc/asound/cards` changes. |
 | **Kiosk / autostart** | See [pi-kiosk.md](pi-kiosk.md). Requires desktop autologin plus `install-kiosk.sh`. |
 
 ## Troubleshooting

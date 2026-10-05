@@ -235,7 +235,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The input channel for Left and for Right is chosen separately (D-063).
   - It is a separate overlay that never forces the scope to repaint.
   - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
-  - If the saved audio device is missing at startup, `NO AUDIO INPUT` is shown and no other device is opened (D-064).
+  - If the saved audio device is missing, at startup or after it is unplugged, `NO AUDIO INPUT` is shown and no other device is opened. It is opened again when it is plugged in, and so is the MIDI input (D-064, D-102).
 - **Window:** freely resizable, with native fullscreen.
 
 ### 3.7 Plugin
@@ -258,7 +258,8 @@ The Visona plugin is a pass-through stereo effect, built as VST3, AU and CLAP (D
   - Ad-hoc signing is enough for the proof of concept.
 - **GitHub Actions (D-043, D-095):**
   - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs.
-  - `Release` on published GitHub releases or manual trigger: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` on published GitHub releases: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` run by hand on any branch builds only the artifacts ticked and publishes them to the `dev-builds` prerelease, named after the branch and commit (D-104).
   - macOS app builds locally with the `macos` or `xcode` preset while developing the GUI.
 - **Test framework:** Catch2 v3 via `FetchContent`. Its BSL-1.0 license is AGPL-compatible (D-054).
 - **Style:** `.clang-format`; warnings are errors in `core/`.

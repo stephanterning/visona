@@ -31,7 +31,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 
 - `Auto` (audio-based tempo detection) (D-036, D-037). Manual BPM is in scope as the tempo of `FREE` (D-090).
 - Raspberry Pi, the 7" touch UI and the appliance (D-033)
-- Hotplug and reconnect (D-033). A device missing at startup only shows `NO AUDIO INPUT`.
+- Hotplug and reconnect (D-033). A device missing at startup only shows `NO AUDIO INPUT`. Added after the MVP (D-102).
 - PLL and advanced jitter handling (D-035)
 - A sync offset in the UI. There is an internal offset constant.
 - Other display modes, multiple sources, and time signatures other than 4/4 in the UI. The model allows them (D-017, D-052).
@@ -142,7 +142,7 @@ v1 is the Raspberry Pi appliance: power on, the app starts fullscreen on a 7" to
 | v1 criterion | MVP 1.0 | Milestone |
 |---|---|---|
 | Pi boots straight into the app, fullscreen on 7" | After MVP | 6 |
-| Audio interface found automatically | Partly: connected at startup, last choice restored, no hotplug | 1 (6) |
+| Audio interface found automatically | Yes: last choice restored, and opened again when it is plugged in (D-102) | 1 (6) |
 | Stereo S/PDIF shown as a waveform | Yes | 1, 2 |
 | Choose MANUAL or MIDI clock | Partly: `FREE` runs at a manual tempo until MIDI Clock starts (D-090) | 3, 4 |
 | Set BPM manually | Yes, for `FREE` (D-090) | 3 |
@@ -193,7 +193,6 @@ Alpha release (v0.1.0)
 **Still open from the MVP defer list:**
 
 - Sync precision as a dedicated focus area: acceptance criteria, jitter handling, possibly a PLL, and a sync offset (D-035)
-- Hotplug and reconnect (D-033)
 - Step 8 file logging and written measurement notes (D-040)
 
 **Longer-term module order** (after plugins and v1 appliance):

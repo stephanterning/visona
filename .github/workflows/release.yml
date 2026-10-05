@@ -1,9 +1,49 @@
 name: Release
 
+# A published release builds everything and attaches it to the release. A manual run builds only
+# the artifacts ticked, from the branch chosen, and publishes them to the Development builds
+# prerelease (D-104).
 on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      macos_app:
+        description: macOS app
+        type: boolean
+        default: false
+      macos_vst3:
+        description: macOS VST3 plugins
+        type: boolean
+        default: false
+      macos_au:
+        description: macOS AU plugins
+        type: boolean
+        default: false
+      macos_clap:
+        description: macOS CLAP plugins
+        type: boolean
+        default: false
+      windows_vst3:
+        description: Windows VST3 plugins
+        type: boolean
+        default: false
+      windows_clap:
+        description: Windows CLAP plugins
+        type: boolean
+        default: false
+      linux_vst3:
+        description: Linux VST3 plugins
+        type: boolean
+        default: false
+      linux_clap:
+        description: Linux CLAP plugins
+        type: boolean
+        default: false
+      pi_app:
+        description: Raspberry Pi app
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -11,6 +51,7 @@ permissions:
 jobs:
   macos:
     name: macOS arm64 app and plugins
+    if: github.event_name == 'release' || inputs.macos_app || inputs.macos_vst3 || inputs.macos_au || inputs.macos_clap
     runs-on: macos-26
     timeout-minutes: 60
     env:
@@ -19,6 +60,10 @@ jobs:
       VISONA_ARTEFACTS: build/macos/plugin/VisonaPlugin_artefacts/Release
       SYNC_ARTEFACTS: build/macos/plugin/VisonaSyncPlugin_artefacts/Release
       CLAP_VALIDATOR_URL: https://github.com/free-audio/clap-validator/releases/download/0.4.1/clap-validator-0.4.1-127-g152b982-macos-15-aarch64.zip
+      BUILD_APP: ${{ github.event_name == 'release' || inputs.macos_app }}
+      BUILD_VST3: ${{ github.event_name == 'release' || inputs.macos_vst3 }}
+      BUILD_AU: ${{ github.event_name == 'release' || inputs.macos_au }}
+      BUILD_CLAP: ${{ github.event_name == 'release' || inputs.macos_clap }}
     steps:
       - uses: actions/checkout@v7
 
@@ -26,12 +71,22 @@ jobs:
         run: cmake --preset macos
 
       - name: Build
-        run: cmake --build --preset macos
+        run: |
+          targets=(visona_core_tests)
+          if [[ "$BUILD_APP" == true ]]; then targets+=(Visona); fi
+          for format in VST3 AU CLAP; do
+            enabled="BUILD_$format"
+            if [[ "${!enabled}" == true ]]; then
+              targets+=("VisonaPlugin_$format" "VisonaSyncPlugin_$format")
+            fi
+          done
+          cmake --build --preset macos --target "${targets[@]}"
 
       - name: Test
         run: ctest --preset macos
 
       - name: Check app bundle
+        if: env.BUILD_APP == 'true'
         run: |
           executable="$APP_BUNDLE/Contents/MacOS/Visona"
           test "$(lipo -archs "$executable")" = "arm64"
@@ -42,14 +97,25 @@ jobs:
           plutil -extract NSMicrophoneUsageDescription raw "$plist"
 
       - name: Package app
-        run: ditto -c -k --keepParent "$APP_BUNDLE" Visona-macos-arm64.zip
+        if: env.BUILD_APP == 'true'
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent "$APP_BUNDLE" dist/Visona-macos-arm64.zip
 
       - name: Sign plugin bundles
+        if: env.BUILD_VST3 == 'true' || env.BUILD_AU == 'true' || env.BUILD_CLAP == 'true'
         run: |
-          for bundle in \
-              "$VISONA_ARTEFACTS/VST3/Visona.vst3" "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3" \
-              "$VISONA_ARTEFACTS/AU/Visona.component" "$SYNC_ARTEFACTS/AU/Visona Sync.component" \
-              "$VISONA_ARTEFACTS/CLAP/Visona.clap" "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap"; do
+          bundles=()
+          if [[ "$BUILD_VST3" == true ]]; then
+            bundles+=("$VISONA_ARTEFACTS/VST3/Visona.vst3" "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3")
+          fi
+          if [[ "$BUILD_AU" == true ]]; then
+            bundles+=("$VISONA_ARTEFACTS/AU/Visona.component" "$SYNC_ARTEFACTS/AU/Visona Sync.component")
+          fi
+          if [[ "$BUILD_CLAP" == true ]]; then
+            bundles+=("$VISONA_ARTEFACTS/CLAP/Visona.clap" "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap")
+          fi
+          for bundle in "${bundles[@]}"; do
             test -d "$bundle"
             test "$(lipo -archs "$bundle/Contents/MacOS/$(basename "${bundle%.*}")")" = "arm64"
             codesign --force --sign - --timestamp=none --deep "$bundle"
@@ -57,6 +123,7 @@ jobs:
           done
 
       - name: Validate AU plugins
+        if: env.BUILD_AU == 'true'
         run: |
           components="$HOME/Library/Audio/Plug-Ins/Components"
           mkdir -p "$components"
@@ -68,6 +135,7 @@ jobs:
           auval -strict -v aumu Sync Ster
 
       - name: Validate CLAP plugins
+        if: env.BUILD_CLAP == 'true'
         run: |
           curl -fsSL -o clap-validator.zip "$CLAP_VALIDATOR_URL"
           mkdir clap-validator
@@ -80,87 +148,28 @@ jobs:
             "$VISONA_ARTEFACTS/CLAP/Visona.clap" "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap"
 
       - name: Package plugins
+        if: env.BUILD_VST3 == 'true' || env.BUILD_AU == 'true' || env.BUILD_CLAP == 'true'
         run: |
-          ditto -c -k --keepParent "$VISONA_ARTEFACTS/VST3/Visona.vst3" Visona-vst3-macos-arm64.zip
-          ditto -c -k --keepParent "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3" Visona-sync-vst3-macos-arm64.zip
-          ditto -c -k --keepParent "$VISONA_ARTEFACTS/AU/Visona.component" Visona-au-macos-arm64.zip
-          ditto -c -k --keepParent "$SYNC_ARTEFACTS/AU/Visona Sync.component" Visona-sync-au-macos-arm64.zip
-          ditto -c -k --keepParent "$VISONA_ARTEFACTS/CLAP/Visona.clap" Visona-clap-macos-arm64.zip
-          ditto -c -k --keepParent "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap" Visona-sync-clap-macos-arm64.zip
+          mkdir -p dist
+          if [[ "$BUILD_VST3" == true ]]; then
+            ditto -c -k --keepParent "$VISONA_ARTEFACTS/VST3/Visona.vst3" dist/Visona-vst3-macos-arm64.zip
+            ditto -c -k --keepParent "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3" dist/Visona-sync-vst3-macos-arm64.zip
+          fi
+          if [[ "$BUILD_AU" == true ]]; then
+            ditto -c -k --keepParent "$VISONA_ARTEFACTS/AU/Visona.component" dist/Visona-au-macos-arm64.zip
+            ditto -c -k --keepParent "$SYNC_ARTEFACTS/AU/Visona Sync.component" dist/Visona-sync-au-macos-arm64.zip
+          fi
+          if [[ "$BUILD_CLAP" == true ]]; then
+            ditto -c -k --keepParent "$VISONA_ARTEFACTS/CLAP/Visona.clap" dist/Visona-clap-macos-arm64.zip
+            ditto -c -k --keepParent "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap" dist/Visona-sync-clap-macos-arm64.zip
+          fi
 
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-macos-arm64
-          path: Visona-macos-arm64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload macOS VST3 artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-vst3-macos-arm64
-          path: Visona-vst3-macos-arm64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload macOS Visona Sync VST3 artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-sync-vst3-macos-arm64
-          path: Visona-sync-vst3-macos-arm64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload macOS AU artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-au-macos-arm64
-          path: Visona-au-macos-arm64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload macOS Visona Sync AU artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-sync-au-macos-arm64
-          path: Visona-sync-au-macos-arm64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload macOS CLAP artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-clap-macos-arm64
-          path: Visona-clap-macos-arm64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload macOS Visona Sync CLAP artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-sync-clap-macos-arm64
-          path: Visona-sync-clap-macos-arm64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload to release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            Visona-macos-arm64.zip
-            Visona-vst3-macos-arm64.zip
-            Visona-sync-vst3-macos-arm64.zip
-            Visona-au-macos-arm64.zip
-            Visona-sync-au-macos-arm64.zip
-            Visona-clap-macos-arm64.zip
-            Visona-sync-clap-macos-arm64.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish
+        uses: ./.github/actions/publish
 
   linux-x64-plugins:
     name: Linux x86_64 plugins
+    if: github.event_name == 'release' || inputs.linux_vst3 || inputs.linux_clap
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -168,6 +177,8 @@ jobs:
       SYNC_ARTEFACTS: build/linux-plugin/plugin/VisonaSyncPlugin_artefacts/Release
       CLAP_VALIDATOR_URL: https://github.com/free-audio/clap-validator/releases/download/0.4.1/clap-validator-0.4.1-127-g152b982-ubuntu-22.04.zip
       PLUGINVAL_URL: https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Linux.zip
+      BUILD_VST3: ${{ github.event_name == 'release' || inputs.linux_vst3 }}
+      BUILD_CLAP: ${{ github.event_name == 'release' || inputs.linux_clap }}
     steps:
       - uses: actions/checkout@v7
 
@@ -184,12 +195,21 @@ jobs:
         run: cmake --preset linux-plugin
 
       - name: Build
-        run: cmake --build --preset linux-plugin
+        run: |
+          targets=(visona_core_tests)
+          for format in VST3 CLAP; do
+            enabled="BUILD_$format"
+            if [[ "${!enabled}" == true ]]; then
+              targets+=("VisonaPlugin_$format" "VisonaSyncPlugin_$format")
+            fi
+          done
+          cmake --build --preset linux-plugin --target "${targets[@]}"
 
       - name: Test
         run: ctest --preset linux-plugin
 
       - name: Validate VST3 plugins
+        if: env.BUILD_VST3 == 'true'
         run: |
           curl -fsSL -o pluginval.zip "$PLUGINVAL_URL"
           unzip -q pluginval.zip -d pluginval
@@ -199,6 +219,7 @@ jobs:
           done
 
       - name: Validate CLAP plugins
+        if: env.BUILD_CLAP == 'true'
         run: |
           curl -fsSL -o clap-validator.zip "$CLAP_VALIDATOR_URL"
           unzip -q clap-validator.zip -d clap-validator
@@ -211,29 +232,22 @@ jobs:
 
       - name: Package plugins
         run: |
-          tar czf Visona-vst3-linux-x86_64.tar.gz -C "$VISONA_ARTEFACTS/VST3" Visona.vst3
-          tar czf Visona-sync-vst3-linux-x86_64.tar.gz -C "$SYNC_ARTEFACTS/VST3" "Visona Sync.vst3"
-          tar czf Visona-clap-linux-x86_64.tar.gz -C "$VISONA_ARTEFACTS/CLAP" Visona.clap
-          tar czf Visona-sync-clap-linux-x86_64.tar.gz -C "$SYNC_ARTEFACTS/CLAP" "Visona Sync.clap"
+          mkdir -p dist
+          if [[ "$BUILD_VST3" == true ]]; then
+            tar czf dist/Visona-vst3-linux-x86_64.tar.gz -C "$VISONA_ARTEFACTS/VST3" Visona.vst3
+            tar czf dist/Visona-sync-vst3-linux-x86_64.tar.gz -C "$SYNC_ARTEFACTS/VST3" "Visona Sync.vst3"
+          fi
+          if [[ "$BUILD_CLAP" == true ]]; then
+            tar czf dist/Visona-clap-linux-x86_64.tar.gz -C "$VISONA_ARTEFACTS/CLAP" Visona.clap
+            tar czf dist/Visona-sync-clap-linux-x86_64.tar.gz -C "$SYNC_ARTEFACTS/CLAP" "Visona Sync.clap"
+          fi
 
-      - name: Upload Linux plugin artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-plugins-linux-x86_64
-          path: Visona-*-linux-x86_64.tar.gz
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload to release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: Visona-*-linux-x86_64.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish
+        uses: ./.github/actions/publish
 
   windows-x64-plugins:
     name: Windows x64 plugins
+    if: github.event_name == 'release' || inputs.windows_vst3 || inputs.windows_clap
     runs-on: windows-2025
     timeout-minutes: 60
     defaults:
@@ -244,6 +258,8 @@ jobs:
       SYNC_ARTEFACTS: build/windows-plugin/plugin/VisonaSyncPlugin_artefacts/Release
       CLAP_VALIDATOR_URL: https://github.com/free-audio/clap-validator/releases/download/0.4.1/clap-validator-0.4.1-127-g152b982-windows.zip
       PLUGINVAL_URL: https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip
+      BUILD_VST3: ${{ github.event_name == 'release' || inputs.windows_vst3 }}
+      BUILD_CLAP: ${{ github.event_name == 'release' || inputs.windows_clap }}
     steps:
       - uses: actions/checkout@v7
 
@@ -255,12 +271,17 @@ jobs:
         run: cmake --preset windows-plugin
 
       - name: Build
-        run: cmake --build --preset windows-plugin
+        run: |
+          $targets = @('visona_core_tests')
+          if ($env:BUILD_VST3 -eq 'true') { $targets += 'VisonaPlugin_VST3', 'VisonaSyncPlugin_VST3' }
+          if ($env:BUILD_CLAP -eq 'true') { $targets += 'VisonaPlugin_CLAP', 'VisonaSyncPlugin_CLAP' }
+          cmake --build --preset windows-plugin --target @targets
 
       - name: Test
         run: ctest --preset windows-plugin
 
       - name: Validate VST3 plugins
+        if: env.BUILD_VST3 == 'true'
         shell: bash
         run: |
           curl -fsSL -o pluginval.zip "$PLUGINVAL_URL"
@@ -270,6 +291,7 @@ jobs:
           done
 
       - name: Validate CLAP plugins
+        if: env.BUILD_CLAP == 'true'
         shell: bash
         run: |
           curl -fsSL -o clap-validator.zip "$CLAP_VALIDATOR_URL"
@@ -282,29 +304,22 @@ jobs:
 
       - name: Package plugins
         run: |
-          Compress-Archive -Path "$env:VISONA_ARTEFACTS/VST3/Visona.vst3" -DestinationPath Visona-vst3-windows-x64.zip
-          Compress-Archive -Path "$env:SYNC_ARTEFACTS/VST3/Visona Sync.vst3" -DestinationPath Visona-sync-vst3-windows-x64.zip
-          Compress-Archive -Path "$env:VISONA_ARTEFACTS/CLAP/Visona.clap" -DestinationPath Visona-clap-windows-x64.zip
-          Compress-Archive -Path "$env:SYNC_ARTEFACTS/CLAP/Visona Sync.clap" -DestinationPath Visona-sync-clap-windows-x64.zip
+          New-Item -ItemType Directory -Force dist | Out-Null
+          if ($env:BUILD_VST3 -eq 'true') {
+            Compress-Archive -Path "$env:VISONA_ARTEFACTS/VST3/Visona.vst3" -DestinationPath dist/Visona-vst3-windows-x64.zip
+            Compress-Archive -Path "$env:SYNC_ARTEFACTS/VST3/Visona Sync.vst3" -DestinationPath dist/Visona-sync-vst3-windows-x64.zip
+          }
+          if ($env:BUILD_CLAP -eq 'true') {
+            Compress-Archive -Path "$env:VISONA_ARTEFACTS/CLAP/Visona.clap" -DestinationPath dist/Visona-clap-windows-x64.zip
+            Compress-Archive -Path "$env:SYNC_ARTEFACTS/CLAP/Visona Sync.clap" -DestinationPath dist/Visona-sync-clap-windows-x64.zip
+          }
 
-      - name: Upload Windows plugin artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-plugins-windows-x64
-          path: Visona-*-windows-x64.zip
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload to release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: Visona-*-windows-x64.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish
+        uses: ./.github/actions/publish
 
   linux-arm64:
     name: Linux arm64 app (Pi)
+    if: github.event_name == 'release' || inputs.pi_app
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
@@ -330,22 +345,10 @@ jobs:
 
       - name: Package Pi binary and kiosk scripts
         run: |
-          tar czf Visona-linux-arm64-pi.tar.gz \
+          mkdir -p dist
+          tar czf dist/Visona-linux-arm64-pi.tar.gz \
             -C build/pi/app/Visona_artefacts/Release Visona \
             -C "$GITHUB_WORKSPACE" scripts/pi docs/pi-kiosk.md docs/pi-build.md docs/pi-setup.md
 
-      - name: Upload Pi artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Visona-linux-arm64-pi
-          path: Visona-linux-arm64-pi.tar.gz
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload to release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: Visona-linux-arm64-pi.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish
+        uses: ./.github/actions/publish

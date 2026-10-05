@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch latest main, build the macOS app and VST3 plugins, install plugins, and launch the app.
+# Fetch latest main, build the macOS app and plugins, install all formats, and launch the app.
 set -euo pipefail
 
 SKIP_GIT=false
@@ -10,9 +10,9 @@ usage() {
     cat <<'EOF'
 Usage: build-and-install.sh [options]
 
-Fetch origin/main, build Visona.app and both VST3 plugins with the macos preset,
-install the plugins into ~/Library/Audio/Plug-Ins/VST3/, ad-hoc sign everything,
-clear Gatekeeper quarantine on the app bundle, and open the app.
+Fetch origin/main, build Visona.app and both plugins (VST3, AU and CLAP) with the macos
+preset, install the bundles into ~/Library/Audio/Plug-Ins/, ad-hoc sign everything, refresh
+the macOS AU cache, clear Gatekeeper quarantine on the app bundle, and open the app.
 
 Options:
   --skip-git      Do not fetch or update the repository.
@@ -98,25 +98,63 @@ if [[ "${SKIP_TESTS}" == false ]]; then
 fi
 
 APP_BUNDLE="${REPO_ROOT}/build/macos/app/Visona_artefacts/Release/Visona.app"
-VISONA_VST3="${REPO_ROOT}/build/macos/plugin/VisonaPlugin_artefacts/Release/VST3/Visona.vst3"
-SYNC_VST3="${REPO_ROOT}/build/macos/plugin/VisonaSyncPlugin_artefacts/Release/VST3/Visona Sync.vst3"
-VST3_DIR="${HOME}/Library/Audio/Plug-Ins/VST3"
+BUILD_PLUGIN_DIR="${REPO_ROOT}/build/macos/plugin"
+VISONA_ARTEFACTS="${BUILD_PLUGIN_DIR}/VisonaPlugin_artefacts/Release"
+SYNC_ARTEFACTS="${BUILD_PLUGIN_DIR}/VisonaSyncPlugin_artefacts/Release"
 
-for path in "${APP_BUNDLE}" "${VISONA_VST3}" "${SYNC_VST3}"; do
+PLUGIN_BUNDLES=(
+    "${VISONA_ARTEFACTS}/VST3/Visona.vst3"
+    "${SYNC_ARTEFACTS}/VST3/Visona Sync.vst3"
+    "${VISONA_ARTEFACTS}/AU/Visona.component"
+    "${SYNC_ARTEFACTS}/AU/Visona Sync.component"
+    "${VISONA_ARTEFACTS}/CLAP/Visona.clap"
+    "${SYNC_ARTEFACTS}/CLAP/Visona Sync.clap"
+)
+
+for path in "${APP_BUNDLE}" "${PLUGIN_BUNDLES[@]}"; do
     if [[ ! -e "${path}" ]]; then
         echo "Build output missing: ${path}" >&2
         exit 1
     fi
 done
 
-echo "==> Installing VST3 plugins into ${VST3_DIR}"
-mkdir -p "${VST3_DIR}"
-rm -rf "${VST3_DIR}/Visona.vst3" "${VST3_DIR}/Visona Sync.vst3"
-cp -R "${VISONA_VST3}" "${SYNC_VST3}" "${VST3_DIR}/"
+PLUGINS_DIR="${HOME}/Library/Audio/Plug-Ins"
+VST3_DIR="${PLUGINS_DIR}/VST3"
+AU_DIR="${PLUGINS_DIR}/Components"
+CLAP_DIR="${PLUGINS_DIR}/CLAP"
 
-echo "==> Ad-hoc signing plugins"
+echo "==> Installing plugins into ${PLUGINS_DIR}"
+mkdir -p "${VST3_DIR}" "${AU_DIR}" "${CLAP_DIR}"
+rm -rf \
+    "${VST3_DIR}/Visona.vst3" \
+    "${VST3_DIR}/Visona Sync.vst3" \
+    "${AU_DIR}/Visona.component" \
+    "${AU_DIR}/Visona Sync.component" \
+    "${CLAP_DIR}/Visona.clap" \
+    "${CLAP_DIR}/Visona Sync.clap"
+
+cp -R "${VISONA_ARTEFACTS}/VST3/Visona.vst3" "${SYNC_ARTEFACTS}/VST3/Visona Sync.vst3" "${VST3_DIR}/"
+cp -R "${VISONA_ARTEFACTS}/AU/Visona.component" "${SYNC_ARTEFACTS}/AU/Visona Sync.component" "${AU_DIR}/"
+cp -R "${VISONA_ARTEFACTS}/CLAP/Visona.clap" "${SYNC_ARTEFACTS}/CLAP/Visona Sync.clap" "${CLAP_DIR}/"
+
+echo "==> Clearing quarantine and ad-hoc signing plugins"
+xattr -cr \
+    "${VST3_DIR}/Visona.vst3" \
+    "${VST3_DIR}/Visona Sync.vst3" \
+    "${AU_DIR}/Visona.component" \
+    "${AU_DIR}/Visona Sync.component" \
+    "${CLAP_DIR}/Visona.clap" \
+    "${CLAP_DIR}/Visona Sync.clap"
+
 codesign --force --sign - --timestamp=none --deep "${VST3_DIR}/Visona.vst3"
 codesign --force --sign - --timestamp=none --deep "${VST3_DIR}/Visona Sync.vst3"
+codesign --force --sign - --timestamp=none --deep "${AU_DIR}/Visona.component"
+codesign --force --sign - --timestamp=none --deep "${AU_DIR}/Visona Sync.component"
+codesign --force --sign - --timestamp=none --deep "${CLAP_DIR}/Visona.clap"
+codesign --force --sign - --timestamp=none --deep "${CLAP_DIR}/Visona Sync.clap"
+
+echo "==> Refreshing macOS AU cache"
+killall -9 AudioComponentRegistrar 2>/dev/null || true
 
 echo "==> Clearing Gatekeeper quarantine and signing app"
 xattr -cr "${APP_BUNDLE}"
@@ -125,11 +163,15 @@ codesign --verify --strict --verbose=2 "${APP_BUNDLE}"
 
 echo
 echo "Build complete."
-echo "  App:     ${APP_BUNDLE}"
-echo "  VST3:    ${VST3_DIR}/Visona.vst3"
-echo "  Sync:    ${VST3_DIR}/Visona Sync.vst3"
+echo "  App:   ${APP_BUNDLE}"
+echo "  VST3:  ${VST3_DIR}/Visona.vst3"
+echo "         ${VST3_DIR}/Visona Sync.vst3"
+echo "  AU:    ${AU_DIR}/Visona.component"
+echo "         ${AU_DIR}/Visona Sync.component"
+echo "  CLAP:  ${CLAP_DIR}/Visona.clap"
+echo "         ${CLAP_DIR}/Visona Sync.clap"
 echo
-echo "Restart your DAW or rescan plugins before testing the new VST3 bundles."
+echo "Restart your DAW or rescan plugins before testing. Do not delete DAW preference folders."
 
 if [[ "${SKIP_LAUNCH}" == false ]]; then
     echo "==> Launching Visona"

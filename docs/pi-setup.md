@@ -131,7 +131,6 @@ Diagnostics in Visona: press **D** (needs a keyboard once, or map touch to keybo
 ## What is not ready yet
 
 - **Autostart / fullscreen on boot** — see [pi-kiosk.md](pi-kiosk.md).
-- **Auto-select Babyface** — same as macOS MVP: last saved device is restored; if missing at startup, Visona shows **NO AUDIO INPUT** (D-064).
 - **Headless-only** — Visona needs X11/XWayland; the 7" HDMI desktop session is the right test setup.
 
 ## Troubleshooting
