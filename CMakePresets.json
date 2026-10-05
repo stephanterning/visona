@@ -134,16 +134,21 @@
       }
     },
     {
+      "name": "pi-ci",
+      "displayName": "Linux ARM64 app and tests, parallel build (CI Pi build), GCC, Release",
+      "inherits": "pi",
+      "environment": {
+        "CMAKE_BUILD_PARALLEL_LEVEL": null
+      }
+    },
+    {
       "name": "pi-quick",
       "displayName": "Linux ARM64 app only, no tests, parallel build (CI quick Pi build), GCC, Release",
-      "inherits": "pi",
+      "inherits": "pi-ci",
       "cacheVariables": {
         "VISONA_BUILD_TESTS": "OFF",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
-      },
-      "environment": {
-        "CMAKE_BUILD_PARALLEL_LEVEL": null
       }
     }
   ],
@@ -158,6 +163,7 @@
     { "name": "core-sanitize", "configurePreset": "core-sanitize" },
     { "name": "core-tsan", "configurePreset": "core-tsan" },
     { "name": "pi", "configurePreset": "pi", "jobs": 1 },
+    { "name": "pi-ci", "configurePreset": "pi-ci" },
     { "name": "pi-quick", "configurePreset": "pi-quick", "targets": ["Visona"] }
   ],
   "testPresets": [
@@ -191,6 +197,7 @@
         "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1"
       }
     },
-    { "name": "pi", "inherits": "base", "configurePreset": "pi" }
+    { "name": "pi", "inherits": "base", "configurePreset": "pi" },
+    { "name": "pi-ci", "inherits": "base", "configurePreset": "pi-ci" }
   ]
 }
