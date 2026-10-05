@@ -78,7 +78,37 @@ void ChoiceControl::paint(juce::Graphics& g)
                                              juce::PathStrokeType::rounded));
 }
 
-void ChoiceControl::mouseDown(const juce::MouseEvent&)
+void ChoiceControl::mouseDown(const juce::MouseEvent& event)
+{
+    if (menuOpen_)
+        return;
+    // On a touchscreen the menu must not open while the finger is still down. JUCE's popup menu
+    // ignores the first release after it appears, and treats a release over the control that
+    // opened it as dismiss-only, so a second tap on an item often never selects (D-108).
+    if (event.source.isTouch())
+    {
+        touchPressPending_ = getLocalBounds().contains(event.getPosition());
+        return;
+    }
+    beginMenuOpen();
+}
+
+void ChoiceControl::mouseDrag(const juce::MouseEvent& event)
+{
+    if (event.source.isTouch() && event.mouseWasDraggedSinceMouseDown())
+        touchPressPending_ = false;
+}
+
+void ChoiceControl::mouseUp(const juce::MouseEvent& event)
+{
+    if (!event.source.isTouch() || !touchPressPending_ || menuOpen_)
+        return;
+    touchPressPending_ = false;
+    if (!event.mouseWasDraggedSinceMouseDown() && getLocalBounds().contains(event.getPosition()))
+        beginMenuOpen();
+}
+
+void ChoiceControl::beginMenuOpen()
 {
     if (menuOpen_)
         return;
@@ -101,11 +131,14 @@ void ChoiceControl::showMenu()
     for (int index = 0; index < choices_.size(); ++index)
         menu.addItem(index + 1, choices_[index], true, index == selected_);
 
+    const auto selectedId = selected_ + 1;
     menu.showMenuAsync(
         juce::PopupMenu::Options()
             .withTargetComponent(this)
             .withMinimumWidth(getWidth())
             .withStandardItemHeight(getHeight())
+            .withInitiallySelectedItem(selectedId)
+            .withItemThatMustBeVisible(selectedId)
             .withPreferredPopupDirection(juce::PopupMenu::Options::PopupDirection::upwards),
         [safe = juce::Component::SafePointer<ChoiceControl>(this)](int result)
         {

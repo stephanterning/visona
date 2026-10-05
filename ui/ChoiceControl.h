@@ -32,12 +32,15 @@ public:
 
     void paint(juce::Graphics& g) override;
     void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
 
 protected:
     /** Called with the index of the choice the user picks, when it is not the current one. */
     virtual void choose(int index) = 0;
 
 private:
+    void beginMenuOpen();
     void showMenu();
 
     juce::String caption_;
@@ -45,6 +48,8 @@ private:
     int selected_ = 0;
     float fontHeight_ = 14.0f;
     bool menuOpen_ = false;
+    /** A touch press waiting for finger up before the menu opens (D-108). */
+    bool touchPressPending_ = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChoiceControl)
 };
