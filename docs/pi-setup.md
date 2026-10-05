@@ -92,7 +92,13 @@ aconnect -l
 
 ## Step 5 — Install or build Visona
 
-**Release tarball (recommended).** Download `Visona-linux-arm64-pi.tar.gz` from [GitHub Releases](https://github.com/stephanterning/visona/releases) and unpack it on the Pi:
+**Release tarball (recommended).** On the Pi over SSH, run `install-visona.sh` (see [pi-kiosk.md](pi-kiosk.md#install-or-upgrade-over-ssh)) to download the latest release, unpack to `~/visona`, and set up kiosk autostart:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/stephanterning/visona/main/scripts/pi/install-visona.sh | bash
+```
+
+Or download `Visona-linux-arm64-pi.tar.gz` from [GitHub Releases](https://github.com/stephanterning/visona/releases) by hand and unpack:
 
 ```sh
 mkdir -p ~/visona && tar xzf Visona-linux-arm64-pi.tar.gz -C ~/visona

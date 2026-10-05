@@ -335,19 +335,19 @@ jobs:
             libxcursor-dev libxcomposite-dev libxi-dev libgl1-mesa-dev
 
       - name: Configure
-        run: cmake --preset pi
+        run: cmake --preset pi-ci
 
       - name: Build
-        run: cmake --build --preset pi
+        run: cmake --build --preset pi-ci
 
       - name: Test
-        run: ctest --preset pi
+        run: ctest --preset pi-ci
 
       - name: Package Pi binary and kiosk scripts
         run: |
           mkdir -p dist
           tar czf dist/Visona-linux-arm64-pi.tar.gz \
-            -C build/pi/app/Visona_artefacts/Release Visona \
+            -C build/pi-ci/app/Visona_artefacts/Release Visona \
             -C "$GITHUB_WORKSPACE" scripts/pi docs/pi-kiosk.md docs/pi-build.md docs/pi-setup.md
 
       - name: Publish
