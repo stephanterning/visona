@@ -12,7 +12,7 @@ namespace visona
     - compact: secondary controls move into the settings panel, and the bars get slimmer.
 
     At every step the control bar keeps its controls on one row as long as they fit, dropping the
-    buttons' labels before anything else (D-107).
+    buttons' labels before anything else (D-108).
 
     The status bar also drops values from its end, down to the state, whenever they do not fit.
 */

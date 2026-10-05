@@ -16,25 +16,25 @@ All notable changes to this project are documented here. The format is based on
 - Running the Release workflow by hand builds only the artifacts ticked, from any branch, and publishes them to the Development builds prerelease, named after the branch and commit (D-104).
 - The standalone app hides the mouse cursor after three seconds of inactivity in fullscreen and kiosk mode.
 - The app opens the saved audio device and MIDI input again when they are plugged back in, on macOS and on the Pi, and also when they were missing at startup. While the audio device is missing, `NO AUDIO INPUT` says so and no other device is opened (D-102).
-- Auto gain, off by default, turned on and off with the AUTO button next to the gain, which is lit while it is on. It zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out as soon as a peak goes past the edge, and in at a bar line after the peaks have stayed low for 10 s. Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off (D-100, D-107).
-- On a touchscreen, a finger held still on a control for half a second shows its tooltip, which goes away when the finger lifts or moves (D-107).
+- Auto gain, off by default, turned on and off with the AUTO button next to the gain, which is lit while it is on. It zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out as soon as a peak goes past the edge, and in at a bar line after the peaks have stayed low for 10 s. Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off (D-100, D-108).
+- On a touchscreen, a finger held still on a control for half a second shows its tooltip, which goes away when the finger lifts or moves (D-108).
 
 ### Changed
 
 - Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 - Display gain goes up to +18 dB instead of +36 dB.
 - When the chosen audio device disappears on macOS, the app no longer switches to the default input (D-102).
-- In kiosk mode the control bar is up to twice the size, for touchscreens, and the full-screen button is hidden. On smaller screens it is scaled up less, so it stays on one row (D-105, D-107).
-- The control bar stays on one row: WINDOW and WAVE are select menus that open upwards, each control has its caption inside it, and the buttons show only their icons when their labels do not fit. It wraps only in desktop windows narrower than about 710 pixels (D-107).
-- A two-finger pinch keeps what is between the fingers under them, so moving both fingers also moves the zoomed view, as on iOS (D-107).
-- While the settings panel is open, the rest of the window is dimmed, and a click or tap outside the panel closes it (D-107).
+- In kiosk mode the control bar is up to twice the size, for touchscreens, and the full-screen button is hidden. On smaller screens it is scaled up less, so it stays on one row (D-105, D-108).
+- The control bar stays on one row: WINDOW and WAVE are select menus that open upwards, each control has its caption inside it, and the buttons show only their icons when their labels do not fit. It wraps only in desktop windows narrower than about 710 pixels (D-108).
+- A two-finger pinch keeps what is between the fingers under them, so moving both fingers also moves the zoomed view, as on iOS (D-108).
+- While the settings panel is open, the rest of the window is dimmed, and a click or tap outside the panel closes it (D-108).
 
 ### Fixed
 
 - In kiosk mode on the Pi, the window stays fullscreen when the display is switched on after boot, switched off and on again, or changes resolution. It used to shrink into a corner with a title bar (D-103).
 - On the Pi, an audio interface that is unplugged no longer leaves a frozen view that still looks as if it were running (D-102).
 - On the Pi, a two-finger pinch on the touchscreen zooms. `install-kiosk.sh` turns off labwc's touch mouse emulation, which Raspberry Pi OS turns on and which hides multitouch from apps (D-105).
-- On a touchscreen, hover tooltips no longer appear after a tap and stay on screen (D-107).
+- On a touchscreen, hover tooltips no longer appear after a tap and stay on screen (D-108).
 
 ## [0.1.0-alpha.2] - 2026-09-28
 

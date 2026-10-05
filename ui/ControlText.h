@@ -7,7 +7,7 @@
 
 /**
     The text inside the controls of the control bar: a small caption, such as GAIN, above the value
-    (D-107). The caption sits inside the control rather than beside it, so it costs no width.
+    (D-108). The caption sits inside the control rather than beside it, so it costs no width.
 */
 namespace visona::controlText
 {

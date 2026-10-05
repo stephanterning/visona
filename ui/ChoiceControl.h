@@ -6,7 +6,7 @@ namespace visona
 {
 
 /**
-    A select menu in the control bar (D-107): a caption above the current choice, such as WINDOW
+    A select menu in the control bar (D-108): a caption above the current choice, such as WINDOW
     above 2 BARS, and a small arrow. A click or tap opens the choices above it, with the current one
     ticked and each item as tall as the control, so it suits a finger.
 

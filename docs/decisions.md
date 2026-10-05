@@ -156,7 +156,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Before the first Start: a free-running sweep with a fixed time window.
 
   These are the explicit defaults required by D-016.
-- **D-046 — MVP UI:** `Amended by D-100 and D-107`
+- **D-046 — MVP UI:** `Amended by D-100 and D-108`
   - Status at the top: BPM, MIDI state, sample rate, window and gain.
   - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB (+18 dB since D-100).
   - A settings panel for audio device, input channel pair and MIDI input, with persisted settings.
@@ -238,7 +238,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Bins still carry their pass, so the column at the head shows only the new pass, and dimming could return as a setting.
   - Since the start of a new pass leaves the old columns as they are, it redraws only the columns across the end of the window.
   - The colour and sizes are a token in `ui/Palette.h` and constants in `ui/ScopeView.cpp`.
-- **D-069 — The chrome reflows in three steps with breakpoints at 760 and 480 logical pixels of width and 360 of height.** `Amended by D-107`
+- **D-069 — The chrome reflows in three steps with breakpoints at 760 and 480 logical pixels of width and 360 of height.** `Amended by D-108`
   - *Wide* (760 or wider): everything on one row with full labels.
   - *Narrow*: icon-only buttons; control groups wrap onto a second row if they do not fit.
   - *Compact* (narrower than 480 or lower than 360): the diagnostics and full-screen buttons move into the settings panel, and the bars get slimmer.
@@ -310,7 +310,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Where the line between two consecutive frames crosses a bin boundary, its value there goes into both bins, and a bin no sample falls in holds the piece of line through it. The waveform is one connected line at every zoom, as if the samples were joined by lines.
   - No line is drawn across a gap (D-067), a freeze or a relocation (D-079).
   - The bins still do not depend on how the audio is split into blocks.
-- **D-085 — Zoom.** `Amended by D-087, D-089, D-090 and D-107`
+- **D-085 — Zoom.** `Amended by D-087, D-089, D-090 and D-108`
   - Stepless, from the whole window down to 1/32 of it. A zoom within a zoom narrows the view further. There is no panning: zoom out and in again (amended by D-089).
   - Mouse: dragging across the scope zooms to the part selected, freely, without snapping; a drag under 8 pixels is a click and does nothing. The scroll wheel zooms around the pointer, up to zoom in. A trackpad pinch, and a two-finger pinch on a touchscreen, zoom around the point between the fingers.
   - Reset: Esc once the settings panel is closed, a double-click or double-tap on the scope, or the × of the overview strip. Choosing a window, and a switch between free-running and musical time, such as the first Start, reset it too. There are no zoom keys.
@@ -351,7 +351,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - `FREE` has the grid and the resolution label of D-087, with the free tempo's milliseconds.
 
   Amends D-036, D-045, D-080, D-085 and D-087, and supersedes D-060.
-- **D-091 — The waveform has three drawing modes: STD, PRECISE and DJ, modelled on Oszillos Mega Scope.** `Amended by D-107`
+- **D-091 — The waveform has three drawing modes: STD, PRECISE and DJ, modelled on Oszillos Mega Scope.** `Amended by D-108`
   - The maintainer asked for them in step 5, after using Mega Scope, whose Precise mode he uses most.
   - *PRECISE* is the filled full-band signed min/max of every column, as before (D-050). Nothing is missed, and it is the default.
   - *STD* is a thin line through the signal, sampled at each column edge. With many samples per column it is cheaper to draw, since it reads two bins per column instead of every bin, but it can miss peaks. At deep zoom it is exact, since the bins then hold the lines between samples (D-084). For it, every bin also records where the signal enters it.
@@ -411,12 +411,12 @@ A lightweight log of decisions and open questions. The architecture is described
   - Windows links the MSVC runtime statically, so no Visual C++ redistributable is needed. The Windows build does not copy the plugins into `Common Files`, which needs administrator rights.
   - Linux is built on Ubuntu 24.04, so the plugins need glibc 2.38 and GCC 13's libstdc++ or later. The binaries are unsigned; nothing on either platform has been tested in a DAW yet.
   - Extends D-044 for the plugins only; the standalone app stays on macOS and the Pi.
-- **D-100 — Auto gain: an optional setting that zooms the display gain in 3 dB steps, out at once and in at bar lines.** `Amended by D-107`
+- **D-100 — Auto gain: an optional setting that zooms the display gain in 3 dB steps, out at once and in at bar lines.** `Amended by D-108`
   - The maintainer asked for it. It answers Q-014. It is off by default, and is set in the settings panel of the app and the Appearance panel of the plugin, per instance there, and saved.
   - Display gain now goes up to +18 dB, by hand as well as by auto gain. By hand it still moves in 1 dB steps.
   - Auto gain looks at the peak of each bar, the loudest sample over both channels:
     - As soon as the peak of the bar in progress lands above the top of the lane, the gain drops to the highest 3 dB step that fits it, so the peak is within the top 3 dB of the lane. The maintainer first asked for this at the next bar line, then for at once, since a bar is up to 6 s at 40 BPM. It costs one value in the snapshot and one comparison per frame.
-    - At the end of each bar, once the gain has held for the hold time, it rises at once to the highest step that fits the loudest peak of the last hold time, if that is higher. The hold time is 10, 30 or 60 s, 30 s by default (fixed at 10 s since D-107).
+    - At the end of each bar, once the gain has held for the hold time, it rises at once to the highest step that fits the loudest peak of the last hold time, if that is higher. The hold time is 10, 30 or 60 s, 30 s by default (fixed at 10 s since D-108).
     - Bars at or below −50 dBFS do not count when rising, so silence does not zoom in.
   - A loud peak keeps the gain down for a whole hold time after it, so the view does not "breathe" without a separate hysteresis.
   - A bar ends when the transport moves into the next one. While MIDI Clock or the host is stopped, no bar ends and the gain holds; in `FREE` the bars run on at the free tempo. A bar cut short by a new Start, or by a new tempo or window in `FREE`, is dropped for rising, but its peaks still zoom out while it plays.
@@ -453,16 +453,16 @@ A lightweight log of decisions and open questions. The architecture is described
 
   Amends D-095.
 
-- **D-105 — Kiosk mode is the touch appliance: no full-screen button, a control bar at twice the size, and multitouch turned on in labwc.** `Amended by D-107`
+- **D-105 — Kiosk mode is the touch appliance: no full-screen button, a control bar at twice the size, and multitouch turned on in labwc.** `Amended by D-108`
   - The maintainer found the bottom controls too small to hit on a 10" Waveshare touchscreen, a pinch did not zoom, and the full-screen button did nothing useful in kiosk mode.
   - In kiosk mode the full-screen button is hidden in the control bar and in the settings panel. F still works from a keyboard.
-  - In kiosk mode the control bar is laid out for half the window's width and height and drawn at twice the size, so its controls, text, padding and rows all double (up to twice since D-107). The bar picks its own step (narrow labels, wrapping rows, secondary buttons in settings) from the halved size. The status bar, the zoom strip and the settings panel keep their size.
+  - In kiosk mode the control bar is laid out for half the window's width and height and drawn at twice the size, so its controls, text, padding and rows all double (up to twice since D-108). The bar picks its own step (narrow labels, wrapping rows, secondary buttons in settings) from the halved size. The status bar, the zoom strip and the settings panel keep their size.
   - Raspberry Pi OS sets `mouseEmulation="yes"` for touchscreens in labwc, which turns touches into mouse events: tap and drag work, but there is only ever one pointer, so a pinch cannot exist. JUCE 9 already reads XInput 2.2 touch events through XWayland, and `ScopeView` already zooms on a two-finger pinch (D-085). `install-kiosk.sh` sets `mouseEmulation="no"` in the user's `~/.config/labwc/rc.xml`, starting from the system copy if there is none, and keeps a backup. This also affects other desktop apps for that user, for example double-tap in the file manager, which is acceptable on an appliance.
 
 - **D-106 — `install-visona.sh` installs or upgrades Visona on the Pi over SSH.** `Active`
   - The maintainer installs Development builds on `visona-pi.local` and wants one command instead of curl, tar and `install-kiosk.sh` by hand.
   - With no URL the script asks the GitHub releases API for the newest release (including pre-releases) that has `Visona-linux-arm64-pi.tar.gz`, skipping the `dev-builds` tag, because `/releases/latest/` ignores pre-releases. With a URL it installs that tarball (for example a Development builds asset). It stops a running Visona, unpacks to `~/visona` (overwriting the binary and `scripts/pi/`), runs `install-kiosk.sh` from the unpacked tree so kiosk and labwc touch settings match the build, and keeps `~/.config/Visona/`. Options pass through `--enable-autologin` and allow `--install-dir`. A one-liner can bootstrap the script from `main` on GitHub with `curl | bash`.
-- **D-107 — Touch refinements: a one-row control bar with select menus and an AUTO button, a pinch that also pans, a tap outside the settings panel to close it, and tooltips for a held finger.** `Active`
+- **D-108 — Touch refinements: a one-row control bar with select menus and an AUTO button, a pinch that also pans, a tap outside the settings panel to close it, and tooltips for a held finger.** `Active`
   - The maintainer asked for them after using the kiosk build of D-105 on a 1920×1080 Waveshare touchscreen: the control bar wrapped onto two rows, auto gain was hard to see and was set in the settings, a pinch could not move the zoomed view, the settings panel only closed with Done, and tooltips appeared at odd times and stayed after a touch.
   - *One row.* Each control carries a small caption above its value, inside it: WINDOW, BPM, GAIN and WAVE. WINDOW and WAVE are select menus showing the current choice, such as `1 BAR` or `PRECISE`. A click or tap opens the list above the control, at the control bar's size, with the current choice ticked; the keys 1–5 and W still work. The Diagnostics, Full screen and Settings buttons show only their icons whenever their labels do not fit, at any step, and the gaps between the groups are 20, 10 and 8 logical pixels in the wide, narrow and compact steps. The groups wrap onto a second row only when even that does not fit, which a desktop window reaches below about 710 logical pixels of width. The plugin, without the BPM control and the full-screen button, fits on one row at its 640-pixel minimum.
   - *Kiosk scale.* The kiosk control bar is drawn at twice the size when it fits on one row, and otherwise at the largest scale that does, down to 1×, since the maintainer prefers slightly smaller controls to a second row. The step is still chosen from the size the bar is laid out at. In Xvfb it stayed at 2× at 1920×1080 and 1280×720, and was about 1.8× at 1024×600 and 1.4× at 800×480.

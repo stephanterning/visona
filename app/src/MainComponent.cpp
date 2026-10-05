@@ -29,7 +29,7 @@ constexpr int bannerHeight = 76;
 constexpr int settingsWidth = 480;
 // In kiosk mode the control bar is laid out at a fraction of the window and scaled up, so its
 // controls are large enough for a finger on a small touchscreen (D-105). It is scaled up less when
-// that is what keeps it on one row (D-107).
+// that is what keeps it on one row (D-108).
 constexpr float maxKioskControlScale = 2.0f;
 
 double nowSeconds()

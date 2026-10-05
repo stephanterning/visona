@@ -9,7 +9,7 @@ namespace visona
 {
 
 /**
-    The tooltips of a window, for both a mouse and a touchscreen (D-107).
+    The tooltips of a window, for both a mouse and a touchscreen (D-108).
 
     With a mouse they show on hover, as JUCE's TooltipWindow does. A finger shows a control's
     tooltip only while it is held still on the control for half a second, and hides it as soon as

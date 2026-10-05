@@ -11,7 +11,7 @@ namespace visona
 
 /**
     The waveform's drawing mode as a select menu, WAVE above `PRECISE`, with the choices STD,
-    PRECISE and DJ (D-091, D-107). Like WindowControl, it shows what setMode() says and asks for
+    PRECISE and DJ (D-091, D-108). Like WindowControl, it shows what setMode() says and asks for
     changes through onModeChange.
 */
 class WaveformControl final : public ChoiceControl

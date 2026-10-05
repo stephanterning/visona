@@ -10,7 +10,7 @@ namespace visona
 
 /**
     The window in bars as a select menu, WINDOW above `2 BARS`, with the choices ¼, ½, 1, 2 and 4
-    bars (D-046, D-107). Like GainControl, it shows what setWindow() says and asks for changes
+    bars (D-046, D-108). Like GainControl, it shows what setWindow() says and asks for changes
     through onWindowChange.
 */
 class WindowControl final : public ChoiceControl

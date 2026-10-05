@@ -30,7 +30,7 @@ public:
     static constexpr int stepDb = 3;
     static constexpr float thresholdDb = -50.0f;
 
-    /** How long the peaks must stay low before the gain rises, in seconds (D-107). */
+    /** How long the peaks must stay low before the gain rises, in seconds (D-108). */
     static constexpr double defaultHoldSeconds = 10.0;
 
     AutoGain() noexcept;

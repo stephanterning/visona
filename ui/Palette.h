@@ -80,7 +80,7 @@ inline const juce::Colour readoutBackground{0xeb17191e};
 // State
 inline const juce::Colour error{0xffc93b35};
 
-/** A mode in the chrome that is switched on, such as auto gain (D-107): lit like the head. */
+/** A mode in the chrome that is switched on, such as auto gain (D-108): lit like the head. */
 inline const juce::Colour active{0xff3fe08a};
 
 /** Colours for JUCE's own widgets, such as combo boxes and buttons. */

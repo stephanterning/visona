@@ -91,7 +91,7 @@ private:
     Banner banner_;
     DiagnosticsOverlay diagnostics_;
 
-    /** Dims everything under the settings panel; a click or tap on it closes the panel (D-107). */
+    /** Dims everything under the settings panel; a click or tap on it closes the panel (D-108). */
     struct Scrim final : juce::Component
     {
         std::function<void()> onClick;

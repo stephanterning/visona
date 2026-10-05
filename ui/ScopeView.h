@@ -46,7 +46,7 @@ namespace visona
     across the scope to zoom to the part selected; a drag under 8 pixels is a click and does
     nothing. The scroll wheel and a trackpad pinch zoom around the pointer. A two-finger touch
     pinch keeps what is between the fingers between them, so it zooms and, when both fingers move,
-    pans, round past either end of the window (D-107); lifting one finger stops it. Scrolling
+    pans, round past either end of the window (D-108); lifting one finger stops it. Scrolling
     sideways, or Shift with the wheel, moves the view the same way round (D-089). A double-click,
     Esc (handled by the main component) or a new window resets it. The head line shows only while
     the head is in view. Past the end of the window, bar numbers read on into the next one.

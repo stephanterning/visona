@@ -11,7 +11,7 @@ namespace visona
 class StepButton;
 
 /**
-    The tempo as `[− BPM 126.0 +]`, with the caption above the value (D-090, D-107). While the
+    The tempo as `[− BPM 126.0 +]`, with the caption above the value (D-090, D-108). While the
     sweep runs free it sets the free tempo, from 40 to 300 BPM: the buttons step it by whole BPM
     and repeat while held, and dragging the value up or right, or scrolling over it, fine-tunes it
     in steps of 0.1 BPM. While MIDI Clock sets the tempo, it shows that tempo dimmed and cannot be

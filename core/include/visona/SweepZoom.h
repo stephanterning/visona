@@ -47,7 +47,7 @@ struct SweepZoom
     [[nodiscard]] SweepZoom panned(double distance) const noexcept;
 
     /**
-        A two-finger pinch (D-107): zoomed by `factor` around `startAnchor`, where the point
+        A two-finger pinch (D-108): zoomed by `factor` around `startAnchor`, where the point
         between the fingers was when the pinch began, then moved so that what was there is at
         `anchor`, where that point is now. Both are fractions of the view. Moving both fingers
         therefore pans, round past either end of the window, while the zoom stays.

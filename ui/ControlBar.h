@@ -20,7 +20,7 @@ namespace visona
     waveform mode (D-091) on the left; diagnostics, full screen and settings on the right. No knobs,
     and touch-sized targets (D-025).
 
-    Everything stays on one row (D-107): each control carries its caption inside, the buttons drop
+    Everything stays on one row (D-108): each control carries its caption inside, the buttons drop
     their labels for their icons when the labels do not fit, and in the compact step the secondary
     buttons move into the settings panel. Only when even that does not fit do the groups flow onto
     more rows.
