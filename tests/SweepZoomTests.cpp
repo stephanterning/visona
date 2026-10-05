@@ -222,3 +222,37 @@ TEST_CASE("Centring puts the view's middle on a position, across the ends too", 
     CHECK_THAT(circularDistance(atStart.windowPositionOf(0.5), 0.0), WithinAbs(0.0, 1.0e-12));
     CHECK(atStart.span == zoom.span);
 }
+
+TEST_CASE("A pinch keeps what was between the fingers between them", "[zoom]")
+{
+    const auto start = GENERATE(SweepZoom{0.3, 0.25}, SweepZoom{0.9, 0.2}, SweepZoom{0.0, 0.5});
+    const auto startAnchor = GENERATE(0.2, 0.5, 0.8);
+    const auto anchor = GENERATE(0.1, 0.5, 0.95);
+    const auto factor = GENERATE(1.0, 1.5, 3.0);
+    CAPTURE(start.offset, start.span, startAnchor, anchor, factor);
+
+    const auto pinched = start.pinched(startAnchor, anchor, factor);
+    CHECK_THAT(pinched.span, WithinAbs(start.span / factor, 1.0e-12));
+    CHECK(circularDistance(pinched.windowPositionOf(anchor), start.windowPositionOf(startAnchor)) <
+          1.0e-12);
+    CHECK(pinched.offset >= 0.0);
+    CHECK(pinched.offset < 1.0);
+}
+
+TEST_CASE("Moving both fingers of a pinch pans, round the window's ends", "[zoom]")
+{
+    const SweepZoom start{0.1, 0.25};
+
+    // The fingers move a fifth of the view to the right, so the view moves earlier.
+    const auto moved = start.pinched(0.5, 0.7, 1.0);
+    CHECK(moved.span == start.span);
+    CHECK_THAT(moved.offset, WithinAbs(0.05, 1.0e-12));
+
+    // Further, and the view runs past the window's start, on from its end.
+    const auto past = start.pinched(0.2, 1.0, 1.0);
+    CHECK_THAT(past.offset, WithinAbs(0.9, 1.0e-12));
+
+    // The whole window stays where it is.
+    CHECK(isWholeWindow(SweepZoom{}.pinched(0.5, 0.9, 1.0)));
+    CHECK(SweepZoom{0.4, 0.5}.pinched(0.5, std::nan(""), 2.0).span == 0.5);
+}

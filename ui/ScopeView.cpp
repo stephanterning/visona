@@ -815,9 +815,6 @@ void ScopeView::mouseDown(const juce::MouseEvent& event)
             dragSource_.reset();
             pressSource_.reset();
             pinching_ = false;
-            pinchStartZoom_ = zoom_;
-            pinchAnchor_ = static_cast<double>((touches_[0].x + touches_[1].x) / 2.0f) /
-                           std::max(1, getWidth());
             return;
         }
     }
@@ -957,6 +954,8 @@ bool ScopeView::updatePinch()
     if (touches_[0].source < 0 || touches_[1].source < 0)
         return false;
     const auto distance = std::abs(touches_[1].x - touches_[0].x);
+    const auto anchor = static_cast<double>((touches_[0].x + touches_[1].x) / 2.0f) /
+                        static_cast<double>(std::max(1, getWidth()));
     if (!pinching_)
     {
         // Fingers that land close together measure nothing useful until they spread.
@@ -965,10 +964,11 @@ bool ScopeView::updatePinch()
         pinching_ = true;
         pinchStartDistance_ = distance;
         pinchStartZoom_ = zoom_;
+        pinchAnchor_ = anchor;
         return true;
     }
-    setZoom(pinchStartZoom_.zoomedAround(
-        pinchAnchor_, static_cast<double>(std::max(distance, 1.0f) / pinchStartDistance_)));
+    setZoom(pinchStartZoom_.pinched(
+        pinchAnchor_, anchor, static_cast<double>(std::max(distance, 1.0f) / pinchStartDistance_)));
     return true;
 }
 
