@@ -202,7 +202,8 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ├──────────────────────────────────────────────────────────────┤
 │ R  ~~~~~~~~~ sweep ~~~~~~~~~│                                 │
 ├──────────────────────────────────────────────────────────────┤
-│ WINDOW [¼][½][1][2][4] BPM [−]126.0[+] GAIN [−]+12 dB[+] [⚙] │  controls
+│  WINDOW       BPM         GAIN               WAVE            │
+│ [1 BAR ▴] [− 126.0 +] [− +12 dB +] [AUTO] [PRECISE ▴]    [⚙] │  controls
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -215,25 +216,29 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - `STOPPED` shows a freeze indicator and slightly dims the scope.
   - While zoomed, the zoom comes last, such as `ZOOM 4.0× · 1.3–1.4` (D-085).
 - **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom. Dragging anywhere on it moves the view, round past either end of the window, and a click outside the part in view centres the view there (D-089).
-- **Controls (bottom):** no knobs.
-  - WINDOW is an always-visible segmented control.
+- **Controls (bottom):** no knobs. Each control carries a small caption above its value: WINDOW, BPM, GAIN and WAVE (D-107).
+  - WINDOW is a select menu, `¼ BAR` to `4 BARS`, whose list opens above it (D-107).
   - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
-  - GAIN is `[−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB. With auto gain on, the label reads `AUTO` and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, in at bar lines; a change by hand turns auto gain off (D-100).
-  - WAVE `[STD][PRECISE][DJ]` chooses the drawing mode (D-091).
-  - Secondary buttons: Diagnostics and Full screen, next to ⚙.
+  - GAIN is `[−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB (D-100).
+  - AUTO, right of GAIN, turns auto gain on and off. While it is on, the button is lit, the value is green and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, in at bar lines once the peaks have stayed low for 10 s. A change by hand turns auto gain off (D-100, D-107).
+  - WAVE is a select menu of `STD`, `PRECISE` and `DJ`, the drawing modes (D-091, D-107).
+  - Secondary buttons: Diagnostics and Full screen, next to ⚙. They and ⚙ show only their icons when their labels do not fit (D-107).
   - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
-- **Zoom on the scope** (D-085): drag to zoom to the selection, scroll or pinch to zoom around the pointer, scroll sideways or Shift-scroll to move the view (D-089), and double-click or double-tap to reset.
+- **Zoom on the scope** (D-085): drag to zoom to the selection, scroll to zoom around the pointer, scroll sideways or Shift-scroll to move the view (D-089), and double-click or double-tap to reset. A pinch zooms around the point between the fingers and moves the view with them, so what was between them stays there (D-107).
 - **Measurement ruler** (D-094): drag with the right button, a two-finger click or Control, or hold a finger still for half a second and drag, to draw a rectangle. While it is held, a readout shows its width as ms, samples, frequency, note and musical length, read against the time axis as shown. It never reads the audio, and it goes away on release.
-- **Responsive chrome** (D-069). The layout reflows in steps:
-  - Wide windows put everything on one row.
-  - Narrow windows use two rows with abbreviated labels.
+- **Tooltips** (D-107): shown on hover with a mouse. On a touchscreen a finger held still on a control for half a second shows its tooltip, and lifting or moving the finger hides it.
+- **Responsive chrome** (D-069, D-107). The layout reflows in steps:
+  - The control bar stays on one row. The buttons drop their labels first, and the groups wrap onto a second row only when even that does not fit, which a desktop window reaches below about 710 logical pixels of width.
+  - Narrower windows use smaller text and gaps.
   - Very small windows move secondary controls behind ⚙.
+  - In kiosk mode the control bar is drawn at up to twice the size, and smaller when that is what keeps it on one row (D-105).
   - The status bar shrinks first, down to BPM and MIDI state.
   - Breakpoints are logical sizes of the component bounds.
 - **Diagnostics overlay** (D-070): audio input, overruns, analysis load, frame rate, render time and CPU use, hidden by default.
 - **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair, MIDI input and the waveform colour (D-093). The free tempo is saved too.
   - The input channel for Left and for Right is chosen separately (D-063).
   - It is a separate overlay that never forces the scope to repaint.
+  - While it is open, the rest of the window is dimmed, and a click or tap outside it closes it like Done, without reaching what is under it (D-107).
   - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
   - If the saved audio device is missing, at startup or after it is unplugged, `NO AUDIO INPUT` is shown and no other device is opened. It is opened again when it is plugged in, and so is the MIDI input (D-064, D-102).
 - **Window:** freely resizable, with native fullscreen.
