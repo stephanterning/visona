@@ -121,7 +121,7 @@ The sidechain signal is not validated yet: any peak above −20 dBFS counts as a
 
 The plugin editor is a slimmed-down version of the standalone UI:
 
-- Window, gain, auto gain, waveform mode and zoom work as in the app; auto gain is set in the Appearance panel, per instance
+- Window, gain, auto gain (the **AUTO** button next to the gain), waveform mode and zoom work as in the app; auto gain is saved per instance
 - The tempo comes from the host and is shown in the status bar; the BPM control and the full screen button are hidden
 - **Settings** opens appearance controls (waveform colour) only — no audio device or MIDI device panels
 - Press **D** for the diagnostics overlay, which includes a sidechain sync row

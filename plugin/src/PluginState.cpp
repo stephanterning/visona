@@ -4,8 +4,6 @@
 
 #include <visona/LaneMapping.h>
 
-#include <algorithm>
-
 namespace visona
 {
 
@@ -68,8 +66,7 @@ WaveformMode PluginGlobalDefaults::waveformMode() const
     return modeFromString(properties_->getValue(waveformModeKey));
 }
 
-std::size_t PluginGlobalDefaults::waveformColour(std::size_t count,
-                                                 std::size_t fallback) const
+std::size_t PluginGlobalDefaults::waveformColour(std::size_t count, std::size_t fallback) const
 {
     const auto index = static_cast<int>(properties_->getIntValue(waveformColourKey, -1));
     if (index < 0 || static_cast<std::size_t>(index) >= count)
@@ -93,9 +90,6 @@ void PluginInstanceState::writeTo(juce::XmlElement& root) const
 {
     root.setAttribute("gainDb", gainDb);
     root.setAttribute("autoGain", autoGain);
-    root.setAttribute(
-        "autoGainHoldSeconds",
-        AutoGain::holdChoices[std::min(autoGainHold, AutoGain::holdChoices.size() - 1)]);
     root.setAttribute("window", static_cast<int>(window));
     root.setAttribute("waveformMode", modeToString(waveformMode));
     root.setAttribute("waveformColour", static_cast<int>(waveformColour));
@@ -106,26 +100,18 @@ void PluginInstanceState::readFrom(const juce::XmlElement& root, PluginGlobalDef
 {
     gainDb = DisplayGain::clampDb(root.getIntAttribute("gainDb", gainDb));
     autoGain = root.getBoolAttribute("autoGain", false);
-    const auto holdSeconds = root.getIntAttribute(
-        "autoGainHoldSeconds", AutoGain::holdChoices[AutoGain::defaultHoldChoice]);
-    const auto hold =
-        std::find(AutoGain::holdChoices.begin(), AutoGain::holdChoices.end(), holdSeconds);
-    autoGainHold = hold != AutoGain::holdChoices.end()
-                       ? static_cast<std::size_t>(hold - AutoGain::holdChoices.begin())
-                       : AutoGain::defaultHoldChoice;
     window = static_cast<std::size_t>(root.getIntAttribute("window", static_cast<int>(window)));
-    waveformMode = modeFromString(root.getStringAttribute("waveformMode",
-                                                          modeToString(defaults.waveformMode())));
+    waveformMode = modeFromString(
+        root.getStringAttribute("waveformMode", modeToString(defaults.waveformMode())));
     waveformColour = static_cast<std::size_t>(root.getIntAttribute(
-        "waveformColour",
-        static_cast<int>(defaults.waveformColour(palette::waveformColours.size(),
-                                                 palette::defaultWaveformColour))));
+        "waveformColour", static_cast<int>(defaults.waveformColour(
+                              palette::waveformColours.size(), palette::defaultWaveformColour))));
     hasInstanceAppearance = root.getBoolAttribute("hasInstanceAppearance", false);
     if (!hasInstanceAppearance)
     {
         waveformMode = defaults.waveformMode();
-        waveformColour =
-            defaults.waveformColour(palette::waveformColours.size(), palette::defaultWaveformColour);
+        waveformColour = defaults.waveformColour(palette::waveformColours.size(),
+                                                 palette::defaultWaveformColour);
     }
 }
 

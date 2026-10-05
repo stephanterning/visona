@@ -50,21 +50,13 @@ void ControlBar::setStep(ChromeStep step)
 {
     step_ = step;
     const auto metrics = ChromeMetrics::forStep(step);
-    const bool wide = step == ChromeStep::wide;
 
-    window_.setShowsLabel(step != ChromeStep::compact);
     window_.setFontHeight(metrics.fontHeight);
-    tempo_.setShowsLabel(step != ChromeStep::compact);
     tempo_.setFontHeight(metrics.fontHeight);
-    gain_.setShowsLabel(step != ChromeStep::compact);
     gain_.setFontHeight(metrics.fontHeight);
-    waveform_.setShowsLabel(step != ChromeStep::compact);
     waveform_.setFontHeight(metrics.fontHeight);
     for (auto* button : {&diagnostics_, &fullScreen_, &settings_})
-    {
-        button->setShowsLabel(wide);
         button->setFontHeight(metrics.fontHeight);
-    }
     diagnostics_.setVisible(showsSecondaryControls());
     fullScreen_.setVisible(showsSecondaryControls() && fullScreenVisible_);
     resized();
@@ -98,6 +90,11 @@ int ControlBar::preferredHeight(int width) const
     return rows * metrics.controlHeight + (rows - 1) * metrics.gap + 2 * metrics.padding + 1;
 }
 
+int ControlBar::minimumWidth() const
+{
+    return rowWidth(groupWidths(false)) + 2 * ChromeMetrics::forStep(step_).padding;
+}
+
 void ControlBar::paint(juce::Graphics& g)
 {
     g.fillAll(palette::chrome);
@@ -111,7 +108,7 @@ void ControlBar::resized()
     const auto area = getLocalBounds().withTrimmedTop(1).reduced(metrics.padding);
     const auto height = metrics.controlHeight;
     const auto placement = place(getWidth());
-    const auto widths = groupWidths();
+    const auto widths = groupWidths(placement.buttonLabels);
     const auto rowBounds = [&](int row)
     { return area.withY(area.getY() + row * (height + metrics.gap)).withHeight(height); };
 
@@ -126,7 +123,7 @@ void ControlBar::resized()
             continue;
         auto& row = rows[static_cast<std::size_t>(placement.rows[group])];
         controls[group]->setBounds(row.removeFromLeft(std::min(widths[group], area.getWidth())));
-        row.removeFromLeft(metrics.gap * 2);
+        row.removeFromLeft(metrics.groupGap);
     }
 
     auto& buttonRow = rows[static_cast<std::size_t>(placement.rows[4])];
@@ -134,30 +131,44 @@ void ControlBar::resized()
     {
         if (!button->isVisible())
             continue;
-        button->setBounds(buttonRow.removeFromRight(button->preferredWidth(height)));
+        button->setShowsLabel(placement.buttonLabels);
+        button->setBounds(
+            buttonRow.removeFromRight(button->preferredWidth(height, placement.buttonLabels)));
         buttonRow.removeFromRight(metrics.gap);
     }
 }
 
-std::array<int, 5> ControlBar::groupWidths() const
+std::array<int, 5> ControlBar::groupWidths(bool buttonLabels) const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
     auto buttons = 0;
     for (const auto* button : {&diagnostics_, &fullScreen_, &settings_})
         if (button->isVisible())
-            buttons += button->preferredWidth(metrics.controlHeight) + metrics.gap;
+            buttons += (buttons > 0 ? metrics.gap : 0) +
+                       button->preferredWidth(metrics.controlHeight, buttonLabels);
     return {window_.preferredWidth(metrics.controlHeight),
             tempoVisible_ ? tempo_.preferredWidth(metrics.controlHeight) : 0,
             gain_.preferredWidth(metrics.controlHeight),
             waveform_.preferredWidth(metrics.controlHeight), buttons};
 }
 
+int ControlBar::rowWidth(const std::array<int, 5>& widths) const
+{
+    const auto metrics = ChromeMetrics::forStep(step_);
+    auto used = 0;
+    for (const auto width : widths)
+        if (width > 0)
+            used += (used > 0 ? metrics.groupGap : 0) + width;
+    return used;
+}
+
 ControlBar::Placement ControlBar::place(int width) const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
     const auto available = width - 2 * metrics.padding;
-    const auto widths = groupWidths();
     Placement placement;
+    placement.buttonLabels = rowWidth(groupWidths(true)) <= available;
+    const auto widths = groupWidths(placement.buttonLabels);
     auto used = 0;
     for (std::size_t group = 0; group < widths.size(); ++group)
     {
@@ -166,7 +177,7 @@ ControlBar::Placement ControlBar::place(int width) const
             placement.rows[group] = 0;
             continue;
         }
-        const auto needed = (used > 0 ? metrics.gap * 2 : 0) + widths[group];
+        const auto needed = (used > 0 ? metrics.groupGap : 0) + widths[group];
         if (used > 0 && used + needed > available)
         {
             ++placement.numRows;

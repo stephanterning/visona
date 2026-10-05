@@ -20,9 +20,10 @@ namespace visona
     waveform mode (D-091) on the left; diagnostics, full screen and settings on the right. No knobs,
     and touch-sized targets (D-025).
 
-    It reflows in steps (ChromeStep): labels shorten when narrow, the groups flow onto more rows
-    when they do not fit on one, and in the compact step the secondary buttons move into the
-    settings panel.
+    Everything stays on one row (D-108): each control carries its caption inside, the buttons drop
+    their labels for their icons when the labels do not fit, and in the compact step the secondary
+    buttons move into the settings panel. Only when even that does not fit do the groups flow onto
+    more rows.
 */
 class ControlBar final : public juce::Component
 {
@@ -71,6 +72,9 @@ public:
     /** The height that fits the controls at `width`. */
     [[nodiscard]] int preferredHeight(int width) const;
 
+    /** The narrowest width that fits everything on one row, with icon-only buttons. */
+    [[nodiscard]] int minimumWidth() const;
+
     void paint(juce::Graphics& g) override;
     void resized() override;
 
@@ -80,9 +84,12 @@ private:
     {
         std::array<int, 5> rows{};
         int numRows = 1;
+        bool buttonLabels = false;
     };
 
-    [[nodiscard]] std::array<int, 5> groupWidths() const;
+    [[nodiscard]] std::array<int, 5> groupWidths(bool buttonLabels) const;
+    /** The width of the groups on one row, with the gaps between them. */
+    [[nodiscard]] int rowWidth(const std::array<int, 5>& widths) const;
     [[nodiscard]] Placement place(int width) const;
 
     WindowControl window_;

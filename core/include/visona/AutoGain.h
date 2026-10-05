@@ -30,9 +30,8 @@ public:
     static constexpr int stepDb = 3;
     static constexpr float thresholdDb = -50.0f;
 
-    /** The hold times to choose from, in seconds, and the default among them. */
-    static constexpr std::array<int, 3> holdChoices{10, 30, 60};
-    static constexpr std::size_t defaultHoldChoice = 1;
+    /** How long the peaks must stay low before the gain rises, in seconds (D-108). */
+    static constexpr double defaultHoldSeconds = 10.0;
 
     AutoGain() noexcept;
 

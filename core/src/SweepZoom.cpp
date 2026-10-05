@@ -74,6 +74,14 @@ SweepZoom SweepZoom::panned(double distance) const noexcept
     return normalized({offset + distance, span});
 }
 
+SweepZoom SweepZoom::pinched(double startAnchor, double anchor, double factor) const noexcept
+{
+    if (!std::isfinite(startAnchor) || !std::isfinite(anchor))
+        return *this;
+    const auto zoomed = zoomedAround(startAnchor, factor);
+    return zoomed.panned((std::clamp(startAnchor, 0.0, 1.0) - anchor) * zoomed.span);
+}
+
 SweepZoom SweepZoom::centredOn(double position) const noexcept
 {
     if (!std::isfinite(position) || !isZoomed())

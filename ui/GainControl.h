@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <memory>
 
 namespace visona
 {
@@ -10,14 +11,15 @@ namespace visona
 class StepButton;
 
 /**
-    Display gain as `GAIN [−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps (D-046, D-054, D-100).
-    No knob: the buttons step it and repeat while held, dragging the value up or right raises it,
-    the scroll wheel steps it, and a double-click or double-tap resets it to 0 dB. While auto gain
-    sets it, the label reads AUTO, or the value `AUTO +9` without a label; a change by hand is
-    still asked for, and turns auto gain off.
+    Display gain as `[− GAIN +12 dB +] [AUTO]`, from 0 to +18 dB in 1 dB steps (D-046, D-054,
+    D-100, D-108). No knob: the buttons step it and repeat while held, dragging the value up or
+    right raises it, the scroll wheel steps it, and a double-click or double-tap resets it to 0 dB.
+
+    AUTO turns auto gain on and off. While it is on, AUTO is lit and the value is shown in the same
+    colour; a change by hand is still asked for, and turns auto gain off.
 
     The control holds no state of its own beyond what it shows; it asks for changes through
-    onGainChange and shows whatever setGainDb() and setAuto() say.
+    onGainChange and onAutoChange, and shows whatever setGainDb() and setAuto() say.
 */
 class GainControl final : public juce::Component, public juce::SettableTooltipClient
 {
@@ -28,12 +30,14 @@ public:
     /** Called with the gain the user asks for, already clamped. */
     std::function<void(int gainDb)> onGainChange;
 
+    /** Called with whether the user turns auto gain on. */
+    std::function<void(bool isOn)> onAutoChange;
+
     void setGainDb(int gainDb);
 
     /** Shows whether auto gain sets the gain. */
     void setAuto(bool isAuto);
 
-    void setShowsLabel(bool showsLabel);
     void setFontHeight(float fontHeight);
 
     /** The width that fits the control at `height`. */
@@ -51,19 +55,19 @@ public:
                         const juce::MouseWheelDetails& wheel) override;
 
 private:
+    class AutoButton;
+
     void request(int gainDb);
-    [[nodiscard]] juce::String valueText() const;
-    [[nodiscard]] int labelWidth() const;
     [[nodiscard]] int valueWidth() const;
+    [[nodiscard]] int autoWidth(int height) const;
 
     std::unique_ptr<StepButton> minus_;
     std::unique_ptr<StepButton> plus_;
-    juce::Rectangle<int> labelArea_;
+    std::unique_ptr<AutoButton> auto_;
     juce::Rectangle<int> valueArea_;
 
     int gainDb_ = 0;
     bool isAuto_ = false;
-    bool showsLabel_ = true;
     float fontHeight_ = 14.0f;
 
     int dragStartGainDb_ = 0;

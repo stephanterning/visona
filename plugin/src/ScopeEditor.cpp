@@ -70,19 +70,17 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     appearancePanel_.addAndMakeVisible(appearanceClose_);
     appearancePanel_.addAndMakeVisible(colourLabel_);
     appearancePanel_.addAndMakeVisible(colourSwatches_);
-    appearancePanel_.addAndMakeVisible(autoGainLabel_);
-    appearancePanel_.addAndMakeVisible(autoGainSettings_);
 
     appearanceTitle_.setText("Appearance", juce::dontSendNotification);
     appearanceTitle_.setFont(juce::Font(juce::FontOptions(18.0f, juce::Font::bold)));
     appearanceClose_.setButtonText("Close");
     colourLabel_.setText("Waveform colour", juce::dontSendNotification);
-    autoGainLabel_.setText("Auto gain", juce::dontSendNotification);
     appearancePanel_.setOpaque(true);
     appearancePanel_.setVisible(false);
 
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
+    controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
     controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
     controlBar_.setTempoVisible(false);
     controlBar_.setFullScreenVisible(false);
@@ -106,16 +104,11 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
 
     appearanceClose_.onClick = [this] { showAppearance(false); };
     colourSwatches_.onColourChange = [this](std::size_t index) { setWaveformColour(index); };
-    autoGainSettings_.onAutoGainChange = [this](bool isOn) { setAutoGain(isOn); };
-    autoGainSettings_.onHoldChange = [this](std::size_t choice) { setAutoGainHold(choice); };
 
     auto& autoGain = processor_.autoGain();
-    autoGain.setHoldSeconds(AutoGain::holdChoices[state_.autoGainHold]);
     if (state_.autoGain && !processor_.autoGainStarted)
         autoGain.reset(state_.gainDb);
     processor_.autoGainStarted = processor_.autoGainStarted || state_.autoGain;
-    autoGainSettings_.setAutoGain(state_.autoGain);
-    autoGainSettings_.setHoldChoice(state_.autoGainHold);
     controlBar_.gain().setAuto(state_.autoGain);
     showGainDb(shownGainDb());
     controlBar_.window().setWindow(state_.window);
@@ -168,7 +161,7 @@ void ScopeEditor::resized()
     banner_.setBounds(bannerBounds);
     diagnostics_.setBounds(scope_.getBounds().reduced(margin));
 
-    const auto panelHeight = 240;
+    const auto panelHeight = 160;
     appearancePanel_.setBounds(getWidth() - panelWidth - margin, margin + statusHeight, panelWidth,
                                panelHeight);
     auto panelArea = appearancePanel_.getLocalBounds().reduced(margin);
@@ -176,8 +169,6 @@ void ScopeEditor::resized()
     appearanceClose_.setBounds(panelArea.removeFromTop(28).removeFromRight(72));
     colourLabel_.setBounds(panelArea.removeFromTop(24));
     colourSwatches_.setBounds(panelArea.removeFromTop(48));
-    autoGainLabel_.setBounds(panelArea.removeFromTop(24));
-    autoGainSettings_.setBounds(panelArea.removeFromTop(32));
 }
 
 bool ScopeEditor::keyPressed(const juce::KeyPress& key)
@@ -254,20 +245,10 @@ void ScopeEditor::setAutoGain(bool isOn)
         state_.gainDb = autoGain.gainDb();
     }
     state_.autoGain = isOn;
-    autoGainSettings_.setAutoGain(isOn);
     controlBar_.gain().setAuto(isOn);
     showGainDb(shownGainDb());
     notifyStateChange();
     updateStatus();
-}
-
-void ScopeEditor::setAutoGainHold(std::size_t choice)
-{
-    choice = std::min(choice, AutoGain::holdChoices.size() - 1);
-    processor_.autoGain().setHoldSeconds(AutoGain::holdChoices[choice]);
-    autoGainSettings_.setHoldChoice(choice);
-    state_.autoGainHold = choice;
-    notifyStateChange();
 }
 
 void ScopeEditor::followAutoGain()

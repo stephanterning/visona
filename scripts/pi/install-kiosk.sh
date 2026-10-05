@@ -10,7 +10,8 @@ for arg in "$@"; do
             cat <<'EOF'
 Usage: install-kiosk.sh [--enable-autologin]
 
-Installs ~/.config/autostart/visona-kiosk.desktop so Visona starts at login.
+Installs ~/.config/autostart/visona-kiosk.desktop so Visona starts at login,
+and turns off labwc's touch mouse emulation so multitouch (pinch) works.
 Optionally enables desktop autologin via raspi-config (requires sudo).
 
 Run from the unpacked release tarball, or from the repository root after
@@ -74,6 +75,39 @@ if [[ -f "${LABWC_AUTOSTART}" ]] && grep -q 'wf-panel-pi' "${LABWC_AUTOSTART}"; 
     fi
     pkill -f 'lwrespawn /usr/bin/wf-panel-pi' 2>/dev/null || true
     killall wf-panel-pi 2>/dev/null || true
+fi
+
+# Raspberry Pi OS sets mouseEmulation="yes" for touchscreens in labwc, which turns every touch
+# into mouse events: a tap and a drag work, but a two-finger pinch never reaches Visona. Turn the
+# emulation off for this user. labwc reads only the first rc.xml it finds, so the user's copy
+# starts from the system one.
+LABWC_SYSTEM_RC="/etc/xdg/labwc/rc.xml"
+LABWC_RC="${HOME}/.config/labwc/rc.xml"
+if [[ -d /etc/xdg/labwc ]] || command -v labwc >/dev/null 2>&1; then
+    mkdir -p "$(dirname "${LABWC_RC}")"
+    if [[ ! -f "${LABWC_RC}" ]]; then
+        if [[ -f "${LABWC_SYSTEM_RC}" ]]; then
+            cp "${LABWC_SYSTEM_RC}" "${LABWC_RC}"
+        else
+            printf '<?xml version="1.0"?>\n<openbox_config xmlns="http://openbox.org/3.4/rc">\n</openbox_config>\n' >"${LABWC_RC}"
+        fi
+    elif [[ ! -f "${LABWC_RC}.visona-kiosk.bak" ]]; then
+        echo "Backing up ${LABWC_RC} to ${LABWC_RC}.visona-kiosk.bak"
+        cp "${LABWC_RC}" "${LABWC_RC}.visona-kiosk.bak"
+    fi
+    if grep -q '<touch[ />]' "${LABWC_RC}"; then
+        sed -i -e 's/\(<touch [^>]*mouseEmulation="\)yes"/\1no"/g' \
+            -e '/<touch[ />]/{/mouseEmulation=/!s|<touch\([ />]\)|<touch mouseEmulation="no"\1|}' \
+            "${LABWC_RC}"
+    elif grep -q '</openbox_config>' "${LABWC_RC}"; then
+        sed -i 's|</openbox_config>|  <touch mouseEmulation="no"/>\n</openbox_config>|' "${LABWC_RC}"
+    elif grep -q '</labwc_config>' "${LABWC_RC}"; then
+        sed -i 's|</labwc_config>|  <touch mouseEmulation="no"/>\n</labwc_config>|' "${LABWC_RC}"
+    else
+        echo "Could not turn off touch mouse emulation in ${LABWC_RC}; pinch zoom needs" >&2
+        echo '<touch mouseEmulation="no"/> there. See docs/pi-kiosk.md.' >&2
+    fi
+    echo "Touchscreen multitouch enabled in ${LABWC_RC} (takes effect after a reboot)"
 fi
 
 echo "Installed ${DESKTOP_FILE}"

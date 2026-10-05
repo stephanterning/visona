@@ -24,6 +24,8 @@ inline const juce::Colour highlight{0xff3a3e48};
 inline const juce::Colour text{0xffe6e6e8};
 inline const juce::Colour textDim{0xff8b8e97};
 inline const juce::Colour level{0xffb4b7bf};
+/** Dims everything under a panel that takes over, such as the settings. */
+inline const juce::Colour scrim{0x99000000};
 
 // Scope lanes
 inline const juce::Colour laneBackground{0xff0b0c0f};
@@ -77,6 +79,9 @@ inline const juce::Colour readoutBackground{0xeb17191e};
 
 // State
 inline const juce::Colour error{0xffc93b35};
+
+/** A mode in the chrome that is switched on, such as auto gain (D-108): lit like the head. */
+inline const juce::Colour active{0xff3fe08a};
 
 /** Colours for JUCE's own widgets, such as combo boxes and buttons. */
 inline juce::LookAndFeel_V4::ColourScheme widgetColours()

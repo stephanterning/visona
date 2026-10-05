@@ -7,6 +7,7 @@
 #include "ui/ScopeView.h"
 #include "ui/SettingsPanel.h"
 #include "ui/StatusBar.h"
+#include "ui/Tooltips.h"
 #include "ui/ZoomOverview.h"
 
 #include <visona/AutoGain.h>
@@ -14,6 +15,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -48,11 +50,13 @@ private:
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void timerCallback() override;
 
+    /** Sets the control bar's step and returns the scale to draw it at. */
+    float fitControlBar();
+
     /** Sets the gain by hand, which turns auto gain off. */
     void setGainDb(int gainDb);
     void showGainDb(int gainDb);
     void setAutoGain(bool isOn);
-    void setAutoGainHold(std::size_t choice);
     /** Lets auto gain see the bars that ended since the previous frame. */
     void followAutoGain();
     void setWindow(std::size_t window);
@@ -86,8 +90,17 @@ private:
     ControlBar controlBar_;
     Banner banner_;
     DiagnosticsOverlay diagnostics_;
+
+    /** Dims everything under the settings panel; a click or tap on it closes the panel (D-108). */
+    struct Scrim final : juce::Component
+    {
+        std::function<void()> onClick;
+        void paint(juce::Graphics& g) override;
+        void mouseDown(const juce::MouseEvent& event) override;
+    };
+    Scrim scrim_;
     SettingsPanel settingsPanel_;
-    juce::TooltipWindow tooltips_{this};
+    Tooltips tooltips_{*this};
 
     int gainDb_ = 0;
     bool autoGainOn_ = false;
