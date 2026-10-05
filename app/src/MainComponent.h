@@ -7,6 +7,7 @@
 #include "ui/ScopeView.h"
 #include "ui/SettingsPanel.h"
 #include "ui/StatusBar.h"
+#include "ui/Tooltips.h"
 #include "ui/ZoomOverview.h"
 
 #include <visona/AutoGain.h>
@@ -99,7 +100,7 @@ private:
     };
     Scrim scrim_;
     SettingsPanel settingsPanel_;
-    juce::TooltipWindow tooltips_{this};
+    Tooltips tooltips_{*this};
 
     int gainDb_ = 0;
     bool autoGainOn_ = false;

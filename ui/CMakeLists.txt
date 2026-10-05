@@ -32,6 +32,8 @@ set(visona_ui_sources
     StepButton.h
     TempoControl.cpp
     TempoControl.h
+    Tooltips.cpp
+    Tooltips.h
     WaveformControl.cpp
     WaveformControl.h
     WindowControl.cpp

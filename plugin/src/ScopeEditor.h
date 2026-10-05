@@ -8,6 +8,7 @@
 #include "ui/DiagnosticsOverlay.h"
 #include "ui/ScopeView.h"
 #include "ui/StatusBar.h"
+#include "ui/Tooltips.h"
 #include "ui/ZoomOverview.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -79,7 +80,7 @@ private:
     juce::TextButton appearanceClose_;
     juce::Label colourLabel_;
     ColourSwatches colourSwatches_;
-    juce::TooltipWindow tooltips_{this};
+    Tooltips tooltips_{*this};
 
     std::size_t window_ = 2;
     std::vector<float> peaks_;
