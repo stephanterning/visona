@@ -453,6 +453,10 @@ A lightweight log of decisions and open questions. The architecture is described
 
   Amends D-095.
 
+- **D-106 — `install-visona.sh` installs or upgrades Visona on the Pi over SSH.** `Active`
+  - The maintainer installs Development builds on `visona-pi.local` and wants one command instead of curl, tar and `install-kiosk.sh` by hand.
+  - With no URL the script asks the GitHub releases API for the newest release (including pre-releases) that has `Visona-linux-arm64-pi.tar.gz`, skipping the `dev-builds` tag, because `/releases/latest/` ignores pre-releases. With a URL it installs that tarball (for example a Development builds asset). It stops a running Visona, unpacks to `~/visona` (overwriting the binary and `scripts/pi/`), runs `install-kiosk.sh` from the unpacked tree so kiosk and labwc touch settings match the build, and keeps `~/.config/Visona/`. Options pass through `--enable-autologin` and allow `--install-dir`. A one-liner can bootstrap the script from `main` on GitHub with `curl | bash`.
+
 ---
 
 ## Open questions
