@@ -14,6 +14,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -88,6 +89,15 @@ private:
     ControlBar controlBar_;
     Banner banner_;
     DiagnosticsOverlay diagnostics_;
+
+    /** Dims everything under the settings panel; a click or tap on it closes the panel (D-107). */
+    struct Scrim final : juce::Component
+    {
+        std::function<void()> onClick;
+        void paint(juce::Graphics& g) override;
+        void mouseDown(const juce::MouseEvent& event) override;
+    };
+    Scrim scrim_;
     SettingsPanel settingsPanel_;
     juce::TooltipWindow tooltips_{this};
 

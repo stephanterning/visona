@@ -24,6 +24,8 @@ inline const juce::Colour highlight{0xff3a3e48};
 inline const juce::Colour text{0xffe6e6e8};
 inline const juce::Colour textDim{0xff8b8e97};
 inline const juce::Colour level{0xffb4b7bf};
+/** Dims everything under a panel that takes over, such as the settings. */
+inline const juce::Colour scrim{0x99000000};
 
 // Scope lanes
 inline const juce::Colour laneBackground{0xff0b0c0f};

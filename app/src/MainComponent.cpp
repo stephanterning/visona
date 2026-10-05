@@ -69,6 +69,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
     addChildComponent(diagnostics_);
+    addChildComponent(scrim_);
     addChildComponent(settingsPanel_);
 
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
@@ -97,6 +98,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     controlBar_.onFullScreen = [this] { toggleFullScreen(); };
     controlBar_.onSettings = [this] { showSettings(!settingsPanel_.isVisible()); };
 
+    scrim_.onClick = [this] { showSettings(false); };
     settingsPanel_.onClose = [this] { showSettings(false); };
     settingsPanel_.onPreferredHeightChanged = [this] { resized(); };
     settingsPanel_.onDiagnostics = [this] { showDiagnostics(!diagnostics_.isVisible()); };
@@ -136,6 +138,17 @@ void MainComponent::paint(juce::Graphics& g)
     g.fillAll(palette::background);
 }
 
+void MainComponent::Scrim::paint(juce::Graphics& g)
+{
+    g.fillAll(palette::scrim);
+}
+
+void MainComponent::Scrim::mouseDown(const juce::MouseEvent&)
+{
+    if (onClick)
+        onClick();
+}
+
 void MainComponent::resized()
 {
     auto area = getLocalBounds();
@@ -169,6 +182,7 @@ void MainComponent::resized()
     diagnostics_.setBounds(area.getRight() - margin - overlayWidth, area.getY() + margin,
                            overlayWidth, overlayHeight);
 
+    scrim_.setBounds(getLocalBounds());
     const auto panelHeight = std::min(settingsPanel_.preferredHeight(), getHeight() - 2 * margin);
     settingsPanel_.setBounds(
         juce::Rectangle<int>(std::min(settingsWidth, getWidth() - 2 * margin), panelHeight)
@@ -357,6 +371,7 @@ void MainComponent::setWaveformColour(std::size_t index)
 
 void MainComponent::showSettings(bool shouldShow)
 {
+    scrim_.setVisible(shouldShow);
     settingsPanel_.setVisible(shouldShow);
     updateToggles();
     if (!shouldShow)
