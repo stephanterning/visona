@@ -61,6 +61,9 @@ namespace visona
     only when there is a new snapshot. A frame redraws only the columns the head passed since the
     previous frame, so only the tiles holding them change; a new stream, size, gain or zoom
     redraws everything. The component is opaque and never repaints what did not change.
+
+    On Linux, JUCE's vertical blank is a timer that does not follow the display. Where the window
+    is drawn with OpenGL, the owner calls displayFrame() after each buffer swap instead (D-107).
 */
 class ScopeView final : public juce::Component
 {
@@ -117,6 +120,12 @@ public:
     /** Called after each frame drawn from a new snapshot. */
     std::function<void()> onFrame;
 
+    /** Draws a frame for a buffer swap the display has just shown, with the time of the swap on
+        the same clock as juce::Time::getMillisecondCounterHiRes(), in seconds. While these come,
+        the view ignores its own vertical blank; when they stop, it goes back to it. Message
+        thread only. */
+    void displayFrame(double timestampSeconds);
+
     /** Rendering statistics over the most recent whole second. */
     struct Stats
     {
@@ -127,6 +136,10 @@ public:
         double renderMsMax = 0.0;
         double paintMsAverage = 0.0;
         double paintMsMax = 0.0;
+        /** The longest time between two frames, leaving out pauses in the snapshots. */
+        double frameIntervalMaxMs = 0.0;
+        /** Whether frames follow displayFrame() rather than JUCE's vertical blank. */
+        bool displayFrames = false;
         int imageWidth = 0;
         int imageHeight = 0;
         float scale = 1.0f;
@@ -194,6 +207,9 @@ private:
     };
 
     void onVBlank(double timestampSeconds);
+    [[nodiscard]] bool followsDisplayFrames() const noexcept;
+    /** Draws a frame if one is due within `tolerance` seconds and there is a new snapshot. */
+    void drawFrame(double timestampSeconds, double tolerance);
     void updateStats(double timestampSeconds);
     void noticeTransport();
     void updateGrid();
@@ -309,6 +325,8 @@ private:
     double firstFrameSeconds_ = 0.0;
     double lastFrameSeconds_ = 0.0;
     double statsWindowStart_ = 0.0;
+    double lastDisplayFrameMs_ = 0.0;
+    double frameIntervalMaxMs_ = 0.0;
     int vblanks_ = 0;
     int fullRedraws_ = 0;
     Timing renderTiming_;

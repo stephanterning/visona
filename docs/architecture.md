@@ -188,7 +188,8 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Implementation** (D-054):
   - CPU rasterization into `juce::Image` tiles 64 physical pixels wide via `BitmapData`, at physical pixel resolution (HiDPI) (D-071).
   - Only columns that changed since the last frame are redrawn, and only their tiles are repainted, also across the start of a new pass and in a zoomed view. Resize, gain, zoom and window changes trigger a full redraw.
-  - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. Without a new snapshot, nothing is drawn. OpenGL only if measurements show it is needed.
+  - `VBlankAttachment`, capped at 60 fps on average whatever the display's refresh rate. Without a new snapshot, nothing is drawn.
+  - On Linux, where JUCE's vertical blank is a timer, the app's window is drawn with OpenGL and the scope's frames follow its buffer swaps instead (D-107). `--renderer=cpu` turns this off.
 
 ### 3.6 UI layout
 

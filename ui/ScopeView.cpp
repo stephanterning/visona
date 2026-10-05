@@ -26,6 +26,17 @@ constexpr int tileWidth = 64;
 constexpr double frameInterval = 1.0 / 60.0;
 constexpr double frameTolerance = 0.001;
 
+// Buffer swaps follow the display, but reach the message thread with a few ms of jitter: a
+// smaller tolerance would skip frames on a 60 Hz display. A display above 60 Hz still gets every
+// second frame or so.
+constexpr double displayFrameTolerance = 0.25 * frameInterval;
+
+// Without a buffer swap for this long, the view falls back to its own vertical blank.
+constexpr double displayFrameTimeoutMs = 250.0;
+
+// Longer gaps between frames are pauses in the snapshots, and are left out of the statistics.
+constexpr double maxFrameIntervalSeconds = 0.25;
+
 // In logical pixels.
 constexpr float headLineWidth = 1.5f;
 constexpr float eraseGapWidth = 6.0f;
@@ -211,14 +222,33 @@ void ScopeView::resized()
     repaint();
 }
 
-void ScopeView::onVBlank(double timestampSeconds)
+void ScopeView::displayFrame(double timestampSeconds)
 {
+    lastDisplayFrameMs_ = nowMs();
     ++vblanks_;
     updateStats(timestampSeconds);
-    checkLongPress();
+    drawFrame(timestampSeconds, displayFrameTolerance);
+}
 
+bool ScopeView::followsDisplayFrames() const noexcept
+{
+    return lastDisplayFrameMs_ > 0.0 && nowMs() - lastDisplayFrameMs_ < displayFrameTimeoutMs;
+}
+
+void ScopeView::onVBlank(double timestampSeconds)
+{
+    checkLongPress();
+    if (followsDisplayFrames())
+        return;
+    ++vblanks_;
+    updateStats(timestampSeconds);
+    drawFrame(timestampSeconds, frameTolerance);
+}
+
+void ScopeView::drawFrame(double timestampSeconds, double tolerance)
+{
     // Nothing to draw into before the first paint has sized the tiles.
-    if (tiles_.empty() || timestampSeconds + frameTolerance < nextFrameSeconds_)
+    if (tiles_.empty() || timestampSeconds + tolerance < nextFrameSeconds_)
         return;
     const bool fresh = snapshots_.fetch();
     if (!fresh && !needsFullRender_)
@@ -237,6 +267,10 @@ void ScopeView::onVBlank(double timestampSeconds)
         repaintRuler();
     if (renderTiming_.count == 1)
         firstFrameSeconds_ = timestampSeconds;
+    // A pause in the snapshots is not a late frame.
+    if (const auto interval = timestampSeconds - lastFrameSeconds_;
+        lastFrameSeconds_ > 0.0 && interval < maxFrameIntervalSeconds)
+        frameIntervalMaxMs_ = std::max(frameIntervalMaxMs_, interval * 1000.0);
     lastFrameSeconds_ = timestampSeconds;
     if (onFrame)
         onFrame();
@@ -291,7 +325,9 @@ void ScopeView::updateStats(double timestampSeconds)
         stats_.paintMsAverage =
             paintTiming_.count > 0 ? paintTiming_.totalMs / paintTiming_.count : 0.0;
         stats_.paintMsMax = paintTiming_.maxMs;
+        stats_.frameIntervalMaxMs = frameIntervalMaxMs_;
     }
+    stats_.displayFrames = followsDisplayFrames();
     stats_.imageWidth = width_;
     stats_.imageHeight = height_;
     stats_.scale = scale_;
@@ -300,6 +336,7 @@ void ScopeView::updateStats(double timestampSeconds)
     statsWindowStart_ = timestampSeconds;
     vblanks_ = 0;
     fullRedraws_ = 0;
+    frameIntervalMaxMs_ = 0.0;
     renderTiming_ = {};
     paintTiming_ = {};
 }

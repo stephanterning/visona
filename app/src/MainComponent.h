@@ -14,8 +14,13 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
+
+#if VISONA_OPENGL
+#include "OpenGLFrameClock.h"
+#endif
 
 namespace visona
 {
@@ -37,7 +42,10 @@ class MainComponent final : public juce::Component,
                             private juce::Timer
 {
 public:
-    MainComponent(AudioEngine& engine, Settings& settings, bool kioskMode = false);
+    /** With `openGL`, where the build has it, the window is drawn with OpenGL and the scope's
+        frames follow its buffer swaps (D-107). */
+    MainComponent(AudioEngine& engine, Settings& settings, bool kioskMode = false,
+                  bool openGL = true);
     ~MainComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -73,6 +81,7 @@ private:
     void updateStatus();
     void updateZoom();
     void updateDiagnostics();
+    [[nodiscard]] juce::String frameClockDescription() const;
 
     AudioEngine& engine_;
     Settings& settings_;
@@ -107,6 +116,11 @@ private:
     std::optional<double> lastCpuSeconds_;
     bool allocationCheckWorks_ = false;
     bool reportedCallbackAllocation_ = false;
+
+#if VISONA_OPENGL
+    // Last, so that it is detached before anything it draws is destroyed.
+    std::unique_ptr<OpenGLFrameClock> frameClock_;
+#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

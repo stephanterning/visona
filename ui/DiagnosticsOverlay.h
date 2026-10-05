@@ -19,7 +19,8 @@ namespace visona
     - MIDI Clock: the input, the transport and its position, the tempo, the message counts and
       the offset between MIDI and audio time;
     - analysis: the analysis thread's load;
-    - rendering: frame rate and time per frame;
+    - rendering: what times the frames, the frame rate, the longest time between frames and time
+      per frame;
     - process: Visona's total CPU use.
 
     It is opaque, so updating it never makes the scope behind it repaint.
@@ -67,6 +68,8 @@ public:
         /** Fraction of one CPU core. */
         double analysisLoad = 0.0;
         ScopeView::Stats rendering;
+        /** What times the frames, such as OpenGL buffer swaps; the row is hidden when empty. */
+        juce::String frameClock;
         /** Fraction of one CPU core, if known. */
         std::optional<double> processCpu;
     };

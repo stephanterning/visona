@@ -27,7 +27,7 @@ constexpr int headingRows = 6;
 constexpr int audioRows = 7;
 constexpr int midiRows = 5;
 constexpr int analysisRows = 1;
-constexpr int renderingRows = 5;
+constexpr int renderingRows = 6;
 constexpr int processRows = 1;
 
 juce::String formatSampleRate(double sampleRate)
@@ -128,8 +128,8 @@ int DiagnosticsOverlay::numRows() const
 {
     return headingRows + audioRows + midiRows + static_cast<int>(values_.channels.size()) +
            (values_.callbackAllocations.has_value() ? 1 : 0) +
-           (values_.sidechainSync.isNotEmpty() ? 1 : 0) + analysisRows + renderingRows +
-           processRows;
+           (values_.sidechainSync.isNotEmpty() ? 1 : 0) +
+           (values_.frameClock.isNotEmpty() ? 1 : 0) + analysisRows + renderingRows + processRows;
 }
 
 juce::Rectangle<int> DiagnosticsOverlay::preferredSize() const
@@ -266,9 +266,12 @@ void DiagnosticsOverlay::paint(juce::Graphics& g)
 
     drawHeading("RENDERING");
     const auto& rendering = values_.rendering;
+    if (values_.frameClock.isNotEmpty())
+        drawRow("Frame clock", values_.frameClock);
     drawRow("Frame rate", juce::String(juce::roundToInt(rendering.framesPerSecond)) +
                               " fps (display " +
                               juce::String(juce::roundToInt(rendering.vblanksPerSecond)) + " Hz)");
+    drawRow("Frame interval", juce::String(rendering.frameIntervalMaxMs, 1) + " ms max");
     drawRow("Render", formatMs(rendering.renderMsAverage, rendering.renderMsMax));
     drawRow("Paint", formatMs(rendering.paintMsAverage, rendering.paintMsMax));
     drawRow("Full redraws", juce::String(rendering.fullRedrawsPerSecond, 1) + " per second");

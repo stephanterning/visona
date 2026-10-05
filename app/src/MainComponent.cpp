@@ -42,7 +42,8 @@ juce::String formatSampleRate(double sampleRate)
 
 } // namespace
 
-MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kioskMode)
+MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kioskMode,
+                             [[maybe_unused]] bool openGL)
     : engine_(engine)
     , settings_(settings)
     , kioskMode_(kioskMode)
@@ -117,6 +118,15 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     engine_.deviceManager().addChangeListener(this);
     updateDeviceInfo();
     startTimerHz(idleRefreshHz);
+
+#if VISONA_OPENGL
+    if (openGL)
+    {
+        frameClock_ = std::make_unique<OpenGLFrameClock>(*this);
+        frameClock_->onFrame = [this](double timestampSeconds)
+        { scope_.displayFrame(timestampSeconds); };
+    }
+#endif
 }
 
 MainComponent::~MainComponent()
@@ -509,6 +519,7 @@ void MainComponent::updateDiagnostics()
     values.allocationCheckWorks = allocationCheckWorks_;
     values.analysisLoad = analysisLoad;
     values.rendering = scope_.stats();
+    values.frameClock = frameClockDescription();
     values.processCpu = processCpu;
 
     const auto& snapshot = scope_.snapshot();
@@ -525,6 +536,21 @@ void MainComponent::updateDiagnostics()
     values.midiOffsetFrames = engine_.midiOffsetFrames();
 
     diagnostics_.update(values, elapsed);
+}
+
+juce::String MainComponent::frameClockDescription() const
+{
+#if VISONA_OPENGL
+    if (frameClock_ == nullptr)
+        return "timer (--renderer=cpu)";
+    if (frameClock_->hasFailed())
+        return "timer (OpenGL unavailable)";
+    return scope_.stats().displayFrames ? "OpenGL buffer swaps" : "timer (no OpenGL swaps yet)";
+#elif JUCE_LINUX
+    return "timer";
+#else
+    return "display link";
+#endif
 }
 
 } // namespace visona

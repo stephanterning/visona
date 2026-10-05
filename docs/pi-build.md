@@ -25,7 +25,8 @@ sudo apt install -y \
   libxcursor-dev \
   libxcomposite-dev \
   libxi-dev \
-  libgl1-mesa-dev
+  libgl1-mesa-dev \
+  libegl-dev
 ```
 
 Optional, only if you want JUCE's JACK audio/MIDI backends in addition to ALSA:

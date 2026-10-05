@@ -35,8 +35,12 @@ target_sources(Visona PRIVATE
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(Visona PRIVATE
+        src/OpenGLFrameClock.cpp
+        src/OpenGLFrameClock.h
         src/X11Display.cpp
         src/X11Display.h)
+    # JUCE's vertical blank on Linux is a timer; OpenGL buffer swaps follow the display (D-107).
+    target_compile_definitions(Visona PRIVATE VISONA_OPENGL=1)
 endif()
 
 target_compile_definitions(Visona PRIVATE
@@ -50,6 +54,10 @@ set(visona_juce_link_libs
     juce::juce_gui_basics
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND visona_juce_link_libs juce::juce_opengl)
+endif()
 
 # LTO makes the final link very slow on Raspberry Pi (often 20+ minutes with swap).
 if(APPLE)

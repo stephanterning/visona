@@ -332,7 +332,7 @@ jobs:
             build-essential cmake ninja-build pkg-config \
             libasound2-dev libfreetype6-dev libfontconfig1-dev \
             libx11-dev libxext-dev libxrandr-dev libxinerama-dev \
-            libxcursor-dev libxcomposite-dev libxi-dev libgl1-mesa-dev
+            libxcursor-dev libxcomposite-dev libxi-dev libgl1-mesa-dev libegl-dev
 
       - name: Configure
         run: cmake --preset pi-ci

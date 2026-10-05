@@ -88,6 +88,14 @@ sudo raspi-config nonint do_boot_behaviour B4
 
 Or run the binary directly: `./Visona --kiosk` from the tarball, or `./build/pi/app/Visona_artefacts/Release/Visona --kiosk` from a source build.
 
+Visona draws its window with OpenGL, so frames follow the display's refresh (D-107). To compare with software drawing and JUCE's own frame timer, stop the running Visona and start it with `--renderer=cpu`:
+
+```sh
+pkill Visona; ./scripts/pi/visona-kiosk.sh --renderer=cpu
+```
+
+The diagnostics overlay (**D**) shows the **Frame clock** in use and the **Frame interval**, the longest time between two frames over the last second: about 16.7 ms when every refresh gets a frame.
+
 ## Babyface and MIDI interface
 
 Visona restores the **last saved** audio device and MIDI port (same as macOS):
@@ -126,6 +134,7 @@ killall wf-panel-pi 2>/dev/null || true
 | System menubar still visible | Kiosk uses `setFullScreen(true)` on Linux so labwc hides the panel. Press **f** or the fullscreen button once to check, and update to the latest release or rebuild after `git pull`. As a fallback, `./scripts/pi/install-kiosk.sh` disables `wf-panel-pi` autostart. |
 | `server does not have extension for -dpms` | Harmless on Wayland/XWayland; screen blanking is handled elsewhere. |
 | Window not fullscreen, or small with a title bar | Update to the latest release or rebuild after `git pull`. Kiosk asks the compositor for fullscreen and follows display changes (D-103). |
+| Scope stutters, or a blank window | Press **D**: **Frame clock** should say `OpenGL buffer swaps` and **Frame interval** stay near 16.7 ms. If it does not, try `--renderer=cpu` (see above). |
 | Quit without a close button | From SSH: `pkill Visona`. Kiosk mode has no window chrome. |
 | Wrong audio device | Open Settings once with keyboard/touch and choose Babyface; the choice is saved at once. |
 

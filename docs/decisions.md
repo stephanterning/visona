@@ -184,7 +184,7 @@ A lightweight log of decisions and open questions. The architecture is described
 
 ### MVP plan approval
 
-- **D-054 — The MVP plan is approved, including its proposals and technical recommendations.** `Amended by D-083`
+- **D-054 — The MVP plan is approved, including its proposals and technical recommendations.** `Amended by D-083 and D-107`
   The plan is now the basis for the steps in [roadmap.md](roadmap.md). Approved:
   - the core as plain C++20 without JUCE
   - Catch2 v3
@@ -457,6 +457,17 @@ A lightweight log of decisions and open questions. The architecture is described
   - The maintainer installs Development builds on `visona-pi.local` and wants one command instead of curl, tar and `install-kiosk.sh` by hand.
   - With no URL the script asks the GitHub releases API for the newest release (including pre-releases) that has `Visona-linux-arm64-pi.tar.gz`, skipping the `dev-builds` tag, because `/releases/latest/` ignores pre-releases. With a URL it installs that tarball (for example a Development builds asset). It stops a running Visona, unpacks to `~/visona` (overwriting the binary and `scripts/pi/`), runs `install-kiosk.sh` from the unpacked tree so kiosk and labwc touch settings match the build, and keeps `~/.config/Visona/`. Options pass through `--enable-autologin` and allow `--install-dir`. A one-liner can bootstrap the script from `main` on GitHub with `curl | bash`.
 
+- **D-107 — On Linux, the app's window is drawn with OpenGL, and the scope's frames follow its buffer swaps.** `Active`
+  - The maintainer saw the scope stutter on the Pi. JUCE's `VBlankAttachment` on Linux is a message-thread timer every `int(1000 / 60)` = 16 ms, 62.5 Hz, not the display's refresh. With the 60 fps cap, about every 24th tick is skipped, so a 16 ms step becomes 32 ms two or three times a second, and the frames drift against the display's 60 Hz. The aim is steady frames; saving CPU is secondary.
+  - A `juce::OpenGLContext` is attached to the main component with component painting on, continuous repainting and a swap interval of 1. Everything is painted as before, the scope's CPU tiles included, and JUCE composites it on the GPU. Only the changed tiles are uploaded as textures.
+  - The swap waits for the display, so the render thread runs once per displayed frame. Each frame tells the message thread when it began, and the scope draws its frame then instead of on JUCE's vertical blank. The next swap shows it: one frame later than drawing it at once, but at the display's pace. The scope still draws at most 60 frames per second, with a looser tolerance for the jitter of the swaps.
+  - Without swaps for 250 ms, the scope goes back to JUCE's vertical blank. If no context is created within 3 s of the window being on screen, OpenGL is detached and the window is drawn in software again. A swap that returns early cannot make the render thread spin: it waits so that frames are at least 1/75 s apart.
+  - `--renderer=cpu` starts without OpenGL, for comparison and as a way out. The diagnostics overlay shows the frame clock and the longest time between two frames over the last second.
+  - macOS, where the vertical blank is the display link, and the plugins are unchanged.
+  - Moving the scope itself to shaders, which would also save CPU, is left for later.
+
+  Amends D-054. Answers the rendering backend part of Q-015 for the Pi.
+
 ---
 
 ## Open questions
@@ -470,7 +481,7 @@ A lightweight log of decisions and open questions. The architecture is described
 - **Q-012 — Which strategy for controls on small screens: auto-hide, overlay, a settings drawer or tap-to-show?**
   Relevant for the 7" Pi. Responsive chrome on the Mac is already part of the MVP.
 - **Q-015 — What should the Pi display stack and rendering backend be (OS image, X11/Wayland/KMS-DRM, GPU backend, kiosk mode, touch input)?**
-  After the MVP; part of the Pi hardware spike.
+  After the MVP; part of the Pi hardware spike. The GPU backend is OpenGL through JUCE under XWayland (D-107).
 - **Q-016 — Should the Pi use ALSA directly or JACK for audio and MIDI?**
   After the MVP.
 - **Q-017 — How is the JUCE app built for the Pi (arm64 Linux): natively, cross-compiled or in CI?**

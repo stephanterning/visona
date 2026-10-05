@@ -40,7 +40,8 @@ class MainWindow final : public juce::DocumentWindow,
                          private juce::Timer
 {
 public:
-    MainWindow(const juce::String& name, AudioEngine& engine, Settings& settings, bool kiosk)
+    MainWindow(const juce::String& name, AudioEngine& engine, Settings& settings, bool kiosk,
+               bool openGL)
         : DocumentWindow(name, palette::background, kiosk ? 0 : juce::DocumentWindow::allButtons)
         , kiosk_(kiosk)
     {
@@ -51,7 +52,7 @@ public:
             setTitleBarButtonsRequired(0, false);
         }
 
-        setContentOwned(new MainComponent(engine, settings, kiosk_), true);
+        setContentOwned(new MainComponent(engine, settings, kiosk_, openGL), true);
 
         // On macOS, a resizable window with a maximise button gets native fullscreen
         // from the green title bar button.
@@ -194,11 +195,13 @@ public:
     {
         kiosk_ =
             commandLineHasFlag(commandLine, "--kiosk") || commandLineHasFlag(commandLine, "-k");
+        // Draws in software with JUCE's own frame timing, for comparison and as a way out (D-107).
+        const bool openGL = !commandLineHasFlag(commandLine, "--renderer=cpu");
 
         settings = std::make_unique<Settings>();
         audioEngine = std::make_unique<AudioEngine>(*settings);
-        mainWindow =
-            std::make_unique<MainWindow>(getApplicationName(), *audioEngine, *settings, kiosk_);
+        mainWindow = std::make_unique<MainWindow>(getApplicationName(), *audioEngine, *settings,
+                                                  kiosk_, openGL);
 
         // Opened after the window is up, so the system's microphone prompt appears over it.
         audioEngine->openSavedDevice();
