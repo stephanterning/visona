@@ -132,6 +132,19 @@
       "environment": {
         "CMAKE_BUILD_PARALLEL_LEVEL": "1"
       }
+    },
+    {
+      "name": "pi-quick",
+      "displayName": "Linux ARM64 app only, no tests, parallel build (CI quick Pi build), GCC, Release",
+      "inherits": "pi",
+      "cacheVariables": {
+        "VISONA_BUILD_TESTS": "OFF",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+      },
+      "environment": {
+        "CMAKE_BUILD_PARALLEL_LEVEL": null
+      }
     }
   ],
   "buildPresets": [
@@ -144,7 +157,8 @@
     { "name": "core-clang", "configurePreset": "core-clang" },
     { "name": "core-sanitize", "configurePreset": "core-sanitize" },
     { "name": "core-tsan", "configurePreset": "core-tsan" },
-    { "name": "pi", "configurePreset": "pi", "jobs": 1 }
+    { "name": "pi", "configurePreset": "pi", "jobs": 1 },
+    { "name": "pi-quick", "configurePreset": "pi-quick", "targets": ["Visona"] }
   ],
   "testPresets": [
     {
