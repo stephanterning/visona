@@ -3,7 +3,8 @@
 set -euo pipefail
 
 REPO=stephanterning/visona
-DEFAULT_RELEASE_URL="https://github.com/${REPO}/releases/latest/download/Visona-linux-arm64-pi.tar.gz"
+PI_ASSET_NAME="Visona-linux-arm64-pi.tar.gz"
+RELEASES_API="https://api.github.com/repos/${REPO}/releases?per_page=30"
 INSTALL_DIR="${HOME}/visona"
 
 ENABLE_AUTOLOGIN=false
@@ -17,8 +18,8 @@ Usage: install-visona.sh [options] [tarball-url]
 Downloads the Raspberry Pi arm64 tarball, unpacks it to ${INSTALL_DIR}, and runs
 install-kiosk.sh so Visona starts in kiosk mode at login (with touch multitouch on labwc).
 
-With no tarball-url, installs the latest published GitHub release:
-  ${DEFAULT_RELEASE_URL}
+With no tarball-url, installs the newest GitHub release that ships ${PI_ASSET_NAME}
+  (including pre-releases; skips the dev-builds tag). GitHub's /releases/latest/ URL is not used.
 
 With a tarball-url, installs that build (for example a Development builds file):
   install-visona.sh https://github.com/${REPO}/releases/download/dev-builds/Visona-linux-arm64-pi-cursor-kiosk-touch-807e-df72c7b.tar.gz
@@ -29,12 +30,39 @@ Options:
   --no-reboot          Do not suggest a reboot at the end (labwc touch changes need one)
   -h, --help           Show this help
 
-Run on the Pi over SSH or in a desktop terminal. Requires curl and tar.
+Run on the Pi over SSH or in a desktop terminal. Requires curl, tar and python3 (to pick the release).
 Settings in ~/.config/Visona/ are kept across upgrades.
 
 Bootstrap before you have a tarball (runs the script from the default branch):
   curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/pi/install-visona.sh | bash -s -- [options] [tarball-url]
 EOF
+}
+
+resolve_latest_release_tarball_url() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "python3 is required to resolve the latest release without a tarball URL." >&2
+        echo "Install it with: sudo apt install python3   or pass a tarball URL." >&2
+        exit 1
+    fi
+    curl -fsSL \
+        -H "Accept: application/vnd.github+json" \
+        -H "User-Agent: visona-install-visona.sh" \
+        "${RELEASES_API}" | python3 -c '
+import json
+import sys
+
+asset_name = "Visona-linux-arm64-pi.tar.gz"
+releases = json.load(sys.stdin)
+for release in releases:
+    if release.get("tag_name") == "dev-builds":
+        continue
+    for asset in release.get("assets") or []:
+        if asset.get("name") == asset_name:
+            print(asset["browser_download_url"])
+            sys.exit(0)
+print(f"No GitHub release with {asset_name} (excluding dev-builds).", file=sys.stderr)
+sys.exit(1)
+'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -75,7 +103,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${TARBALL_URL}" ]]; then
-    TARBALL_URL="${DEFAULT_RELEASE_URL}"
+    echo "Resolving latest release with ${PI_ASSET_NAME}..."
+    TARBALL_URL="$(resolve_latest_release_tarball_url)"
 fi
 
 case "${TARBALL_URL}" in
