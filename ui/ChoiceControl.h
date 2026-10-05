@@ -2,6 +2,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <memory>
+
 namespace visona
 {
 
@@ -31,25 +33,29 @@ public:
     [[nodiscard]] int preferredWidth(int height) const;
 
     void paint(juce::Graphics& g) override;
-    void mouseDown(const juce::MouseEvent& event) override;
-    void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
+    void visibilityChanged() override;
+    void parentHierarchyChanged() override;
+    void parentSizeChanged() override;
 
 protected:
     /** Called with the index of the choice the user picks, when it is not the current one. */
     virtual void choose(int index) = 0;
 
 private:
-    void beginMenuOpen();
+    class Menu;
+
     void showMenu();
+    void dismissMenu();
+    void pick(int index);
+    [[nodiscard]] juce::Component* overlayHost() const;
 
     juce::String caption_;
     juce::StringArray choices_;
     int selected_ = 0;
     float fontHeight_ = 14.0f;
     bool menuOpen_ = false;
-    /** A touch press waiting for finger up before the menu opens (D-108). */
-    bool touchPressPending_ = false;
+    std::unique_ptr<Menu> menu_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChoiceControl)
 };
