@@ -7,10 +7,12 @@ namespace visona
     The steps the chrome reflows in (architecture.md 3.6, D-069). Breakpoints are logical sizes of
     the main component's bounds.
 
-    - wide: every control on one row, with full labels.
-    - narrow: abbreviated labels and icon-only buttons. Controls that do not fit on one row wrap
-      onto a second one.
+    - wide: every control on one row, at full size.
+    - narrow: smaller text and tighter gaps.
     - compact: secondary controls move into the settings panel, and the bars get slimmer.
+
+    At every step the control bar keeps its controls on one row as long as they fit, dropping the
+    buttons' labels before anything else (D-107).
 
     The status bar also drops values from its end, down to the state, whenever they do not fit.
 */
@@ -45,6 +47,8 @@ struct ChromeMetrics
     int controlHeight;
     int padding;
     int gap;
+    /** Between the groups of the control bar, such as the gain and the waveform. */
+    int groupGap;
     float fontHeight;
 
     [[nodiscard]] static constexpr ChromeMetrics forStep(ChromeStep step) noexcept
@@ -52,13 +56,13 @@ struct ChromeMetrics
         switch (step)
         {
         case ChromeStep::wide:
-            return {30, 40, 8, 10, 14.0f};
+            return {30, 40, 8, 10, 20, 14.0f};
         case ChromeStep::narrow:
-            return {28, 40, 8, 8, 13.0f};
+            return {28, 40, 8, 8, 10, 13.0f};
         case ChromeStep::compact:
             break;
         }
-        return {24, 36, 6, 6, 12.0f};
+        return {24, 36, 6, 6, 8, 12.0f};
     }
 };
 

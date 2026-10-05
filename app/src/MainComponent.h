@@ -48,11 +48,13 @@ private:
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void timerCallback() override;
 
+    /** Sets the control bar's step and returns the scale to draw it at. */
+    float fitControlBar();
+
     /** Sets the gain by hand, which turns auto gain off. */
     void setGainDb(int gainDb);
     void showGainDb(int gainDb);
     void setAutoGain(bool isOn);
-    void setAutoGainHold(std::size_t choice);
     /** Lets auto gain see the bars that ended since the previous frame. */
     void followAutoGain();
     void setWindow(std::size_t window);

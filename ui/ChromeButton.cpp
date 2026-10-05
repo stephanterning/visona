@@ -41,9 +41,9 @@ void ChromeButton::setFontHeight(float fontHeight)
     repaint();
 }
 
-int ChromeButton::preferredWidth(int height) const
+int ChromeButton::preferredWidth(int height, bool withLabel) const
 {
-    if (!showsLabel_)
+    if (!withLabel)
         return height;
     // A little slack, so rounding never cuts the last letter.
     const auto labelWidth = juce::GlyphArrangement::getStringWidth(

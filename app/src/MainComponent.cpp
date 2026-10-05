@@ -28,8 +28,9 @@ constexpr int bannerWidth = 560;
 constexpr int bannerHeight = 76;
 constexpr int settingsWidth = 480;
 // In kiosk mode the control bar is laid out at a fraction of the window and scaled up, so its
-// controls are large enough for a finger on a small touchscreen (D-105).
-constexpr int kioskControlScale = 2;
+// controls are large enough for a finger on a small touchscreen (D-105). It is scaled up less when
+// that is what keeps it on one row (D-107).
+constexpr float maxKioskControlScale = 2.0f;
 
 double nowSeconds()
 {
@@ -73,12 +74,10 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.tempo().onTempoChange = [this](double bpm) { setFreeTempo(bpm); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
+    controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
     statusBar_.onStateClick = [this] { runFree(); };
     controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
     settingsPanel_.onWaveformColourChange = [this](std::size_t index) { setWaveformColour(index); };
-    settingsPanel_.autoGain().onAutoGainChange = [this](bool isOn) { setAutoGain(isOn); };
-    settingsPanel_.autoGain().onHoldChange = [this](std::size_t choice)
-    { setAutoGainHold(choice); };
     scope_.onTransportChange = [this]
     {
         zoomOverview_.setTimeline(scope_.snapshot());
@@ -111,7 +110,6 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
         settings_.waveformColour(palette::waveformColours.size(), palette::defaultWaveformColour);
     settingsPanel_.setWaveformColour(colour);
     scope_.setWaveformColour(palette::waveformColours[colour].colour);
-    setAutoGainHold(settings_.autoGainHold());
     setAutoGain(settings_.autoGain());
 
     // The kiosk window always covers its display.
@@ -142,22 +140,23 @@ void MainComponent::resized()
 {
     auto area = getLocalBounds();
     const auto step = chromeStepFor(getWidth(), getHeight());
-    const auto controlScale = kioskMode_ ? kioskControlScale : 1;
-    const auto controlWidth = (getWidth() + controlScale - 1) / controlScale;
+    const auto controlScale = fitControlBar();
+    const auto controlWidth =
+        static_cast<int>(std::ceil(static_cast<float>(getWidth()) / controlScale));
     statusBar_.setStep(step);
     zoomOverview_.setStep(step);
-    controlBar_.setStep(chromeStepFor(controlWidth, getHeight() / controlScale));
     settingsPanel_.setViewControlsVisible(!controlBar_.showsSecondaryControls());
 
     statusBar_.setBounds(area.removeFromTop(statusBar_.preferredHeight()));
     if (zoomOverview_.isVisible())
         zoomOverview_.setBounds(area.removeFromTop(zoomOverview_.preferredHeight()));
     const auto controlHeight = controlBar_.preferredHeight(controlWidth);
+    const auto scaledHeight = juce::roundToInt(static_cast<float>(controlHeight) * controlScale);
     controlBar_.setBounds(0, 0, controlWidth, controlHeight);
     controlBar_.setTransform(
-        juce::AffineTransform::scale(static_cast<float>(controlScale))
-            .translated(0.0f, static_cast<float>(area.getBottom() - controlHeight * controlScale)));
-    area.removeFromBottom(controlHeight * controlScale);
+        juce::AffineTransform::scale(controlScale)
+            .translated(0.0f, static_cast<float>(area.getBottom() - scaledHeight)));
+    area.removeFromBottom(scaledHeight);
     scope_.setBounds(area);
 
     banner_.setBounds(
@@ -177,6 +176,36 @@ void MainComponent::resized()
 
     // Entering or leaving full screen resizes the window.
     updateToggles();
+}
+
+float MainComponent::fitControlBar()
+{
+    const auto width = static_cast<float>(getWidth());
+    const auto height = static_cast<float>(getHeight());
+    if (!kioskMode_)
+    {
+        controlBar_.setStep(chromeStepFor(getWidth(), getHeight()));
+        return 1.0f;
+    }
+
+    const auto setStepAt = [&](float scale)
+    {
+        controlBar_.setStep(
+            chromeStepFor(static_cast<int>(width / scale), static_cast<int>(height / scale)));
+    };
+
+    // A smaller scale can mean a wider step, which needs more room, so try again with it.
+    auto scale = maxKioskControlScale;
+    for (int attempt = 0; attempt < 3; ++attempt)
+    {
+        setStepAt(scale);
+        const auto fit = width / static_cast<float>(std::max(1, controlBar_.minimumWidth()));
+        if (fit >= scale || scale <= 1.0f)
+            return scale;
+        scale = std::max(1.0f, fit);
+    }
+    setStepAt(scale);
+    return scale;
 }
 
 bool MainComponent::keyPressed(const juce::KeyPress& key)
@@ -274,17 +303,8 @@ void MainComponent::setAutoGain(bool isOn)
     if (isOn)
         autoGain_.reset(gainDb_);
     controlBar_.gain().setAuto(isOn);
-    settingsPanel_.autoGain().setAutoGain(isOn);
     settings_.setAutoGain(isOn);
     updateStatus();
-}
-
-void MainComponent::setAutoGainHold(std::size_t choice)
-{
-    choice = std::min(choice, AutoGain::holdChoices.size() - 1);
-    autoGain_.setHoldSeconds(AutoGain::holdChoices[choice]);
-    settingsPanel_.autoGain().setHoldChoice(choice);
-    settings_.setAutoGainHold(choice);
 }
 
 void MainComponent::followAutoGain()

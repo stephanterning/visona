@@ -3,8 +3,6 @@
 
 set(visona_ui_sources
     AudioSettings.h
-    AutoGainSettings.cpp
-    AutoGainSettings.h
     Banner.cpp
     Banner.h
     ChannelNames.cpp
@@ -12,10 +10,13 @@ set(visona_ui_sources
     ChromeButton.cpp
     ChromeButton.h
     ChromeLayout.h
+    ChoiceControl.cpp
+    ChoiceControl.h
     ColourSwatches.cpp
     ColourSwatches.h
     ControlBar.cpp
     ControlBar.h
+    ControlText.h
     DiagnosticsOverlay.cpp
     DiagnosticsOverlay.h
     GainControl.cpp

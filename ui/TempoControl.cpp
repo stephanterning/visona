@@ -1,10 +1,12 @@
 #include "TempoControl.h"
 
+#include "ControlText.h"
 #include "Palette.h"
 #include "StepButton.h"
 
 #include <visona/SweepWindow.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace visona
@@ -13,23 +15,12 @@ namespace visona
 namespace
 {
 
-constexpr float labelGap = 10.0f;
 constexpr double fineStep = 0.1;
 constexpr float dragPixelsPerStep = 2.0f;
 constexpr float smoothWheelPerStep = 0.02f;
 
 /** Whole BPM a hair either side of a value count as that value, despite rounding. */
 constexpr double wholeTolerance = 1.0e-6;
-
-juce::FontOptions valueFont(float height)
-{
-    return juce::FontOptions(height, juce::Font::bold).withFeatureEnabled("tnum");
-}
-
-juce::FontOptions labelFont(float height)
-{
-    return juce::FontOptions(height - 1.0f, juce::Font::bold);
-}
 
 } // namespace
 
@@ -74,15 +65,6 @@ void TempoControl::setEditable(bool editable)
     repaint();
 }
 
-void TempoControl::setShowsLabel(bool showsLabel)
-{
-    if (showsLabel == showsLabel_)
-        return;
-    showsLabel_ = showsLabel;
-    resized();
-    repaint();
-}
-
 void TempoControl::setFontHeight(float fontHeight)
 {
     fontHeight_ = fontHeight;
@@ -92,41 +74,24 @@ void TempoControl::setFontHeight(float fontHeight)
 
 int TempoControl::preferredWidth(int height) const
 {
-    auto width = 2 * height + valueWidth();
-    if (showsLabel_)
-        width += juce::GlyphArrangement::getStringWidthInt(labelFont(fontHeight_), "BPM") +
-                 juce::roundToInt(labelGap);
-    return width;
+    return 2 * height + valueWidth();
 }
 
 void TempoControl::paint(juce::Graphics& g)
 {
-    if (showsLabel_)
-    {
-        g.setColour(palette::textDim);
-        g.setFont(labelFont(fontHeight_));
-        g.drawText("BPM", labelArea_, juce::Justification::centredLeft, false);
-    }
-
     const auto control = valueArea_.getUnion(minus_->getBounds()).getUnion(plus_->getBounds());
     g.setColour(palette::surface);
     g.fillRoundedRectangle(control.toFloat().reduced(0.5f), StepButton::cornerRadius);
 
-    g.setColour(editable_ ? palette::text : palette::textDim);
-    g.setFont(valueFont(fontHeight_ + 1.0f));
-    g.drawText(bpm_ > 0.0 ? juce::String(bpm_, 1) : juce::String::fromUTF8("\xe2\x80\x93"),
-               valueArea_, juce::Justification::centred, false);
+    controlText::draw(g, valueArea_, "BPM",
+                      bpm_ > 0.0 ? juce::String(bpm_, 1) : juce::String::fromUTF8("\xe2\x80\x93"),
+                      palette::textDim, editable_ ? palette::text : palette::textDim, fontHeight_);
 }
 
 void TempoControl::resized()
 {
     auto area = getLocalBounds();
     const auto height = area.getHeight();
-    labelArea_ = {};
-    if (showsLabel_)
-        labelArea_ = area.removeFromLeft(
-            juce::GlyphArrangement::getStringWidthInt(labelFont(fontHeight_), "BPM") +
-            juce::roundToInt(labelGap));
     minus_->setBounds(area.removeFromLeft(height));
     valueArea_ = area.removeFromLeft(valueWidth());
     plus_->setBounds(area.removeFromLeft(height));
@@ -182,7 +147,9 @@ void TempoControl::updateButtons()
 
 int TempoControl::valueWidth() const
 {
-    return juce::GlyphArrangement::getStringWidthInt(valueFont(fontHeight_ + 1.0f), "300.0") + 16;
+    return std::max(controlText::widestText(controlText::valueFont(fontHeight_), {"300.0"}),
+                    controlText::widestText(controlText::captionFont(fontHeight_), {"BPM"})) +
+           16;
 }
 
 } // namespace visona

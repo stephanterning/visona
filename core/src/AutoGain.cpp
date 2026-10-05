@@ -22,7 +22,7 @@ bool fits(float peak, int gainDb) noexcept
 } // namespace
 
 AutoGain::AutoGain() noexcept
-    : holdSeconds_(holdChoices[defaultHoldChoice])
+    : holdSeconds_(defaultHoldSeconds)
 {
 }
 

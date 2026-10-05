@@ -64,11 +64,6 @@ public:
     [[nodiscard]] bool autoGain() const;
     void setAutoGain(bool isOn);
 
-    /** The auto gain hold time, an index into AutoGain::holdChoices; the default if nothing valid
-        is saved. */
-    [[nodiscard]] std::size_t autoGainHold() const;
-    void setAutoGainHold(std::size_t choice);
-
     [[nodiscard]] juce::File file() const;
 
 private:

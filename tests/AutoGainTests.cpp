@@ -64,16 +64,16 @@ TEST_CASE("Auto gain picks the highest 3 dB step that keeps a peak in the lane",
 TEST_CASE("Auto gain waits the hold time before it zooms in, then zooms in at once", "[autogain]")
 {
     AutoGain autoGain;
-    CHECK(autoGain.holdSeconds() == 30.0);
+    CHECK(autoGain.holdSeconds() == 10.0);
     autoGain.reset(0);
 
-    CHECK_FALSE(addBars(autoGain, 14, 0.2f));
+    CHECK_FALSE(addBars(autoGain, 4, 0.2f));
     CHECK(autoGain.gainDb() == 0);
     CHECK(addBars(autoGain, 1, 0.2f));
     CHECK(autoGain.gainDb() == 12);
 
-    autoGain.setHoldSeconds(10.0);
-    CHECK_FALSE(addBars(autoGain, 4, 0.1f));
+    autoGain.setHoldSeconds(30.0);
+    CHECK_FALSE(addBars(autoGain, 14, 0.1f));
     CHECK(addBars(autoGain, 1, 0.1f));
     CHECK(autoGain.gainDb() == 18);
 }
@@ -89,7 +89,7 @@ TEST_CASE("Auto gain zooms out at the end of the first bar that goes past the la
     CHECK(autoGain.gainDb() == 6);
 
     // The loud bar keeps the gain down until it is older than the hold time.
-    CHECK_FALSE(addBars(autoGain, 14, 0.1f));
+    CHECK_FALSE(addBars(autoGain, 4, 0.1f));
     CHECK(autoGain.gainDb() == 6);
     CHECK(addBars(autoGain, 1, 0.1f));
     CHECK(autoGain.gainDb() == 18);
@@ -107,7 +107,7 @@ TEST_CASE("Auto gain zooms out as soon as the bar in progress goes past the lane
 
     // The bar it was in still keeps the gain down for the hold time once it ends.
     CHECK_FALSE(addBars(autoGain, 1, 0.5f));
-    CHECK_FALSE(addBars(autoGain, 14, 0.1f));
+    CHECK_FALSE(addBars(autoGain, 4, 0.1f));
     CHECK(autoGain.gainDb() == 6);
     CHECK(addBars(autoGain, 1, 0.1f));
     CHECK(autoGain.gainDb() == 18);
@@ -118,7 +118,7 @@ TEST_CASE("A loud bar within the hold time keeps auto gain from zooming in", "[a
     AutoGain autoGain;
     autoGain.reset(0);
     CHECK_FALSE(addBars(autoGain, 1, 0.9f));
-    CHECK_FALSE(addBars(autoGain, 14, 0.1f));
+    CHECK_FALSE(addBars(autoGain, 4, 0.1f));
     CHECK(autoGain.gainDb() == 0);
     CHECK(addBars(autoGain, 1, 0.1f));
     CHECK(autoGain.gainDb() == 18);

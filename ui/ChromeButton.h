@@ -24,8 +24,8 @@ public:
     void setShowsLabel(bool showsLabel);
     void setFontHeight(float fontHeight);
 
-    /** The width that fits the icon, and the label if it is shown, at `height`. */
-    [[nodiscard]] int preferredWidth(int height) const;
+    /** The width that fits the icon, and the label if `withLabel`, at `height`. */
+    [[nodiscard]] int preferredWidth(int height, bool withLabel) const;
 
     void paintButton(juce::Graphics& g, bool isHighlighted, bool isDown) override;
 
