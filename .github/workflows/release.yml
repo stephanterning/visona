@@ -6,8 +6,6 @@ name: Release
 on:
   release:
     types: [published]
-  push:
-    branches: [cursor/fast-pi-build-ce94]
   workflow_dispatch:
     inputs:
       macos_app:
@@ -321,7 +319,7 @@ jobs:
 
   linux-arm64:
     name: Linux arm64 app (Pi)
-    if: github.event_name == 'release' || github.event_name == 'push' || inputs.pi_app
+    if: github.event_name == 'release' || inputs.pi_app
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
