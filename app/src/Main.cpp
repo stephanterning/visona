@@ -10,6 +10,9 @@
 #include <memory>
 #include <optional>
 
+#if JUCE_MAC
+#include "MacWindow.h"
+#endif
 #if JUCE_LINUX
 #include "X11Display.h"
 #endif
@@ -44,17 +47,25 @@ public:
         : DocumentWindow(name, palette::background, kiosk ? 0 : juce::DocumentWindow::allButtons)
         , kiosk_(kiosk)
     {
-        setUsingNativeTitleBar(false);
         if (kiosk)
         {
+            setUsingNativeTitleBar(false);
             setTitleBarHeight(0);
             setTitleBarButtonsRequired(0, false);
+        }
+        else
+        {
+#if JUCE_MAC
+            setUsingNativeTitleBar(true);
+#else
+            setUsingNativeTitleBar(false);
+#endif
         }
 
         setContentOwned(new MainComponent(engine, settings, kiosk_), true);
 
-        // On macOS, a resizable window with a maximise button gets native fullscreen
-        // from the green title bar button.
+        // On macOS the native title bar is the traffic lights, and a resizable window with a
+        // maximise button gets native fullscreen from the green button.
         setResizable(!kiosk, false);
         setResizeLimits(minimumWidth, minimumHeight, maximumSize, maximumSize);
 
@@ -62,6 +73,10 @@ public:
             centreWithSize(getWidth(), getHeight());
 
         setVisible(true);
+#if JUCE_MAC
+        if (!kiosk)
+            applyMacWindowChrome(*this);
+#endif
 
         if (kiosk)
             triggerAsyncUpdate();
