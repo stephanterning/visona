@@ -35,6 +35,7 @@ All notable changes to this project are documented here. The format is based on
 - On the Pi, an audio interface that is unplugged no longer leaves a frozen view that still looks as if it were running (D-102).
 - On the Pi, a two-finger pinch on the touchscreen zooms. `install-kiosk.sh` turns off labwc's touch mouse emulation, which Raspberry Pi OS turns on and which hides multitouch from apps (D-105).
 - On a touchscreen, hover tooltips no longer appear after a tap and stay on screen (D-108).
+- On the Pi touchscreen, a tap on a choice in the settings panel picks it. The lists for the audio system, device, sample rate, buffer size, inputs and MIDI input now open inside the window, like WINDOW and WAVE, and scroll with a drag when they are long (D-108).
 
 ## [0.1.0-alpha.2] - 2026-09-28
 

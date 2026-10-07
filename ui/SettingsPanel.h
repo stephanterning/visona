@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioSettings.h"
+#include "ChoiceBox.h"
 #include "ColourSwatches.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -60,7 +61,7 @@ private:
     struct Row
     {
         juce::Label label;
-        juce::ComboBox choices;
+        ChoiceBox choices;
     };
 
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
