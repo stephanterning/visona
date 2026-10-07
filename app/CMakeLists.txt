@@ -33,7 +33,11 @@ target_sources(Visona PRIVATE
     src/Settings.cpp
     src/Settings.h)
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(APPLE)
+    target_sources(Visona PRIVATE
+        src/MacWindow.h
+        src/MacWindow.mm)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(Visona PRIVATE
         src/X11Display.cpp
         src/X11Display.h)
