@@ -28,8 +28,9 @@ class Settings;
     The audio device and the audio callback.
 
     The device is opened with all of its input channels and no outputs. The callback copies the
-    input channel chosen for each source channel into the audio ring, so choosing other input
-    channels takes effect at once and never restarts the device.
+    input channel chosen for each source channel into the audio ring, and the sync input, where
+    Visona Sync comes in (D-109), into one more ring channel. Choosing other input channels takes
+    effect at once and never restarts the device.
 
     Every time the device starts, a new stream begins, with its own ring and writer, and sampleIndex
     from 0. The analysis thread follows the current stream and publishes sweep snapshots. The device
@@ -85,6 +86,9 @@ public:
     /** Fills `peaks` with the peak level of each source channel since the previous call. */
     void takePeaks(std::span<float> peaks);
 
+    /** The peak level of the sync input since the previous call. */
+    [[nodiscard]] float takeSyncPeak() noexcept;
+
     /** The sweep snapshots of the analysis thread. The message thread is their only reader. */
     [[nodiscard]] TripleBuffer<SweepSnapshot>& snapshots() noexcept;
 
@@ -125,6 +129,8 @@ public:
     [[nodiscard]] const SourceLayout& layout() const noexcept override;
     [[nodiscard]] int inputChannel(std::size_t channel) const override;
     void setInputChannel(std::size_t channel, int deviceInputChannel) override;
+    [[nodiscard]] int syncInputChannel() const override;
+    void setSyncInputChannel(int deviceInputChannel) override;
     [[nodiscard]] juce::String midiInput() const override;
     [[nodiscard]] juce::String midiInputName() const override;
     juce::String selectMidiInput(const juce::String& identifier) override;
@@ -156,8 +162,10 @@ private:
     [[nodiscard]] bool isListed(const juce::String& typeName,
                                 const juce::String& inputDeviceName) const;
 
-    // Both need lock_. A saved channel the device does not have falls back to the default.
+    // All need lock_. A saved channel the device does not have falls back to the default, and a
+    // sync input it does not have to none.
     [[nodiscard]] int effectiveInputChannel(std::size_t channel, int numDeviceInputs) const;
+    [[nodiscard]] int effectiveSyncInput(int numDeviceInputs) const;
     void routeInputs();
 
     Settings& settings_;
@@ -186,8 +194,10 @@ private:
     // Guards everything below it. The audio callback never takes it.
     mutable std::mutex lock_;
 
-    // The saved choice per source channel, which may be out of range for the current device.
+    // The saved choice per source channel, and for the sync input, which may be out of range for
+    // the current device.
     std::vector<int> inputChannels_;
+    int syncInputChannel_;
 
     // Replaced only in audioDeviceAboutToStart() and audioDeviceStopped(), which JUCE never runs
     // while the audio callback runs, so the callback reads it without the lock.

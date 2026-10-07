@@ -91,6 +91,7 @@ AudioEngine::AudioEngine(Settings& settings)
     , midi_(settings)
     , analysis_(layout_.totalChannelCount())
     , inputChannels_(settings.inputChannels(layout_.totalChannelCount()))
+    , syncInputChannel_(settings.syncInputChannel())
 {
     analysis_.setMidiQueue(&midi_.queue());
     analysis_.setFreeTempo(settings_.freeTempo());
@@ -180,6 +181,11 @@ void AudioEngine::takePeaks(std::span<float> peaks)
 {
     for (std::size_t channel = 0; channel < peaks.size(); ++channel)
         peaks[channel] = channel < layout_.totalChannelCount() ? analysis_.takePeak(channel) : 0.0f;
+}
+
+float AudioEngine::takeSyncPeak() noexcept
+{
+    return analysis_.takeSyncPeak();
 }
 
 TripleBuffer<SweepSnapshot>& AudioEngine::snapshots() noexcept
@@ -295,11 +301,28 @@ void AudioEngine::setInputChannel(std::size_t channel, int deviceInputChannel)
     settings_.setInputChannels(chosen);
 }
 
+int AudioEngine::syncInputChannel() const
+{
+    const std::scoped_lock lock(lock_);
+    return effectiveSyncInput(stream_ != nullptr ? stream_->numDeviceInputs : 0);
+}
+
+void AudioEngine::setSyncInputChannel(int deviceInputChannel)
+{
+    {
+        const std::scoped_lock lock(lock_);
+        syncInputChannel_ = std::max(deviceInputChannel, -1);
+        routeInputs();
+    }
+    settings_.setSyncInputChannel(deviceInputChannel);
+}
+
 void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device)
 {
     const auto sampleRate = device->getCurrentSampleRate();
+    // The source channels, and the sync input after them.
     auto stream = std::make_unique<Stream>(
-        layout_.totalChannelCount(),
+        layout_.totalChannelCount() + 1,
         ringCapacityFrames(sampleRate, device->getCurrentBufferSizeSamples()),
         device->getActiveInputChannels(), device->getInputChannelNames().size());
 
@@ -492,15 +515,27 @@ int AudioEngine::effectiveInputChannel(std::size_t channel, int numDeviceInputs)
     return std::min(static_cast<int>(channel), numDeviceInputs - 1);
 }
 
+int AudioEngine::effectiveSyncInput(int numDeviceInputs) const
+{
+    return syncInputChannel_ >= 0 && syncInputChannel_ < numDeviceInputs ? syncInputChannel_ : -1;
+}
+
 void AudioEngine::routeInputs()
 {
     if (stream_ == nullptr)
+    {
+        analysis_.setSyncInput(false);
         return;
+    }
     for (std::size_t channel = 0; channel < layout_.totalChannelCount(); ++channel)
     {
         const auto deviceChannel = effectiveInputChannel(channel, stream_->numDeviceInputs);
         stream_->writer.route(channel, callbackInputIndex(stream_->activeInputs, deviceChannel));
     }
+    const auto syncInput = effectiveSyncInput(stream_->numDeviceInputs);
+    stream_->writer.route(layout_.totalChannelCount(),
+                          callbackInputIndex(stream_->activeInputs, syncInput));
+    analysis_.setSyncInput(syncInput >= 0);
 }
 
 } // namespace visona

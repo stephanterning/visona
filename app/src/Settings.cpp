@@ -2,6 +2,8 @@
 
 #include <visona/SweepWindow.h>
 
+#include <algorithm>
+
 namespace visona
 {
 
@@ -10,6 +12,7 @@ namespace
 
 constexpr auto audioDeviceStateKey = "audioDeviceState";
 constexpr auto inputChannelsKey = "inputChannels";
+constexpr auto syncInputChannelKey = "syncInputChannel";
 constexpr auto midiInputKey = "midiInput";
 constexpr auto midiInputNameKey = "midiInputName";
 constexpr auto freeTempoKey = "freeTempo";
@@ -79,6 +82,16 @@ void Settings::setInputChannels(std::span<const int> channels)
     for (const auto channel : channels)
         tokens.add(juce::String(channel));
     properties_.setValue(inputChannelsKey, tokens.joinIntoString(","));
+}
+
+int Settings::syncInputChannel() const
+{
+    return std::max(properties_.getIntValue(syncInputChannelKey, -1), -1);
+}
+
+void Settings::setSyncInputChannel(int channel)
+{
+    properties_.setValue(syncInputChannelKey, std::max(channel, -1));
 }
 
 Settings::MidiInputChoice Settings::midiInput() const

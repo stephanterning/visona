@@ -8,6 +8,7 @@
 #include "ui/ChromeLayout.h"
 #include "ui/GainControl.h"
 #include "ui/Palette.h"
+#include "ui/SyncText.h"
 
 #include <visona/LaneMapping.h>
 #include <visona/SweepWindow.h>
@@ -476,6 +477,27 @@ void MainComponent::updateStatus()
                              1) +
                 " BPM until MIDI Clock starts again";
     }
+    const auto syncInput = "input " + juce::String(engine_.syncInputChannel() + 1);
+    switch (snapshot.syncState)
+    {
+    case SidechainSyncState::locked:
+    {
+        const auto offset = syncText::offset(snapshot.syncOffsetFrames, snapshot.sampleRate);
+        values.sidechainSync = "SC " + offset;
+        values.sidechainSyncTooltip =
+            "Visona Sync on " + syncInput + ": the audio arrives " + offset + " (" +
+            juce::String(juce::roundToInt(snapshot.syncOffsetFrames)) +
+            " samples) after MIDI Clock, so Visona places MIDI Clock that much later.";
+        break;
+    }
+    case SidechainSyncState::waiting:
+        values.sidechainSync = "SC ...";
+        values.sidechainSyncTooltip = "Visona Sync is set to " + syncInput +
+                                      ". Waiting for a bar impulse while MIDI Clock runs.";
+        break;
+    case SidechainSyncState::off:
+        break;
+    }
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
     values.window = WindowControl::describe(window_);
@@ -571,7 +593,27 @@ void MainComponent::updateDiagnostics()
     values.midiEvents = snapshot.midiEvents;
     values.midiDrops = midi.droppedEvents();
     values.ignoredSpp = snapshot.ignoredSpp;
-    values.midiOffsetFrames = engine_.midiOffsetFrames();
+    const bool syncLocked = snapshot.syncState == SidechainSyncState::locked;
+    values.midiOffsetFrames =
+        engine_.midiOffsetFrames() + (syncLocked ? snapshot.syncOffsetFrames : 0.0);
+
+    const auto syncPeak = engine_.takeSyncPeak();
+    switch (snapshot.syncState)
+    {
+    case SidechainSyncState::off:
+        values.sidechainSync = "off: no input chosen";
+        break;
+    case SidechainSyncState::waiting:
+        values.sidechainSync = "waiting, input " + juce::String(engine_.syncInputChannel() + 1) +
+                               " at " + syncText::peak(syncPeak);
+        break;
+    case SidechainSyncState::locked:
+        values.sidechainSync =
+            syncText::offset(snapshot.syncOffsetFrames, snapshot.sampleRate) + " (" +
+            juce::String(juce::roundToInt(snapshot.syncOffsetFrames)) + " frames), impulse " +
+            syncText::peak(snapshot.syncImpulsePeak);
+        break;
+    }
 
     diagnostics_.update(values, elapsed);
 }

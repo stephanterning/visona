@@ -29,6 +29,9 @@ enum class SidechainSyncState
     block counts as an impulse when it is above -20 dBFS. The first impulse locks the offset. A
     different offset replaces it once two impulses in a row agree on it, as when a plugin with
     latency is added.
+
+    The app measures its sync input the same way, against MIDI Clock's timeline instead of a
+    playhead (D-109).
 */
 class SidechainSyncDetector
 {

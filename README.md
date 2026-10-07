@@ -67,6 +67,7 @@ Works with professional USB audio interfaces. Development and testing use an **R
 2. Connect your audio interface and a MIDI clock source (optional).
 3. In **Settings**, choose the audio input device and MIDI port.
 4. Press **D** to toggle the diagnostics overlay.
+5. Optionally, route **Visona Sync** to an input of its own and choose it under **Visona Sync** in **Settings**, so Visona measures how late the audio arrives after MIDI Clock. See [Visona Sync with the standalone app](docs/plugins.md#visona-sync-with-the-standalone-app).
 
 ## Raspberry Pi appliance
 

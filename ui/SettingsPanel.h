@@ -15,9 +15,10 @@ namespace visona
 
 /**
     The settings overlay: audio device, sample rate, buffer size, the device input channel for each
-    source channel, the MIDI input for MIDI Clock and the waveform colour (D-093). Any input channel
-    can feed any source channel. In small windows it also holds the view controls that no longer fit
-    in the control bar. The panel is opaque, so it never makes the view behind it repaint.
+    source channel, the input Visona Sync comes in on (D-109), the MIDI input for MIDI Clock and
+    the waveform colour (D-093). Any input channel can feed any source channel. In small windows it
+    also holds the view controls that no longer fit in the control bar. The panel is opaque, so it
+    never makes the view behind it repaint.
 */
 class SettingsPanel final : public juce::Component, private juce::ChangeListener
 {
@@ -86,6 +87,7 @@ private:
     Row sampleRateRow_;
     Row bufferSizeRow_;
     std::vector<std::unique_ptr<Row>> inputRows_;
+    Row syncRow_;
     Row midiRow_;
     juce::Label colourLabel_;
     ColourSwatches colourSwatches_;

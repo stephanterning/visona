@@ -3,6 +3,7 @@
 #include "ui/ChromeLayout.h"
 #include "ui/GainControl.h"
 #include "ui/Palette.h"
+#include "ui/SyncText.h"
 
 #include <visona/LaneMapping.h>
 #include <visona/SweepWindow.h>
@@ -26,21 +27,6 @@ juce::String formatSampleRate(double sampleRate)
     const auto kilohertz = sampleRate / 1000.0;
     const bool whole = std::abs(kilohertz - std::round(kilohertz)) < 1.0e-9;
     return juce::String(kilohertz, whole ? 0 : 1) + " kHz";
-}
-
-/** A signed offset in milliseconds with a real minus sign, such as "+98.7 ms". */
-juce::String formatOffset(double frames, double sampleRate)
-{
-    const auto ms = sampleRate > 0.0 ? std::round(frames * 10'000.0 / sampleRate) / 10.0 : 0.0;
-    const auto sign = ms < 0.0 ? juce::String::fromUTF8("\xe2\x88\x92") : juce::String("+");
-    return sign + juce::String(std::abs(ms), 1) + " ms";
-}
-
-juce::String formatPeak(float peak)
-{
-    if (peak <= 0.0f)
-        return "-inf dBFS";
-    return juce::String(20.0f * std::log10(peak), 1) + " dBFS";
 }
 
 } // namespace
@@ -336,7 +322,7 @@ void ScopeEditor::updateStatus()
     case SidechainSyncState::locked:
     {
         const auto frames = processor_.sidechainSyncOffsetFrames();
-        const auto offset = formatOffset(frames, snapshot.sampleRate);
+        const auto offset = syncText::offset(frames, snapshot.sampleRate);
         values.sidechainSync = "SC " + offset;
         values.sidechainSyncTooltip =
             "Visona Sync on the sidechain: the audio here arrives " + offset + " (" +
@@ -414,13 +400,13 @@ void ScopeEditor::updateDiagnostics()
         values.sidechainSync = "off: no sidechain input";
         break;
     case SidechainSyncState::waiting:
-        values.sidechainSync = "waiting, sidechain at " + formatPeak(sidechainPeak);
+        values.sidechainSync = "waiting, sidechain at " + syncText::peak(sidechainPeak);
         break;
     case SidechainSyncState::locked:
         values.sidechainSync =
-            formatOffset(processor_.sidechainSyncOffsetFrames(), snapshot.sampleRate) + " (" +
+            syncText::offset(processor_.sidechainSyncOffsetFrames(), snapshot.sampleRate) + " (" +
             juce::String(juce::roundToInt(processor_.sidechainSyncOffsetFrames())) +
-            " frames), impulse " + formatPeak(processor_.sidechainImpulsePeak());
+            " frames), impulse " + syncText::peak(processor_.sidechainImpulsePeak());
         break;
     }
     diagnostics_.update(values, elapsed);

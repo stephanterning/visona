@@ -397,25 +397,30 @@ using visona::SweepSnapshot;
 /**
     A synthetic session: stereo audio blocks stamped from one host clock, MIDI Clock messages
     stamped from the same clock, and the pipeline polled as the analysis thread would. A MIDI
-    message reaches the queue once the audio block it falls in has been delivered.
+    message reaches the queue once the audio block it falls in has been delivered. With
+    `syncInput`, the ring has a third channel for Visona Sync.
 */
 class MidiSession
 {
 public:
     static constexpr double hostStartNs = 9.0e12;
 
-    MidiSession(double sampleRate, double blockJitterNs = 20'000.0, std::uint32_t blockFrames = 256)
+    explicit MidiSession(double sampleRate, bool syncInput = false,
+                         double blockJitterNs = 20'000.0, std::uint32_t blockFrames = 256)
         : sampleRate_(sampleRate)
         , blockFrames_(blockFrames)
-        , ring_(2, static_cast<std::size_t>(sampleRate), 8'192)
+        , ring_(syncInput ? 3 : 2, static_cast<std::size_t>(sampleRate), 8'192)
         , writer_(ring_)
         , queue_(8'192)
         , pipeline_(2, 4'096)
         , block_(blockFrames)
+        , syncBlock_(blockFrames)
         , jitter_(-blockJitterNs, blockJitterNs)
     {
         writer_.route(0, 0);
         writer_.route(1, 1);
+        if (syncInput)
+            writer_.route(2, 2);
         pipeline_.setStream(&ring_, sampleRate);
         pipeline_.setMidiQueue(&queue_);
     }
@@ -454,16 +459,19 @@ public:
         return first + count * interval;
     }
 
-    /** Delivers audio up to `end`, whose samples come from `signal(frame)`, polling every few
-        blocks. */
-    template <typename Signal>
-    void run(std::uint64_t end, Signal signal)
+    /** Delivers audio up to `end`, whose samples come from `signal(frame)`, and the sync input's
+        from `sync(frame)`, polling every few blocks. */
+    template <typename Signal, typename SyncSignal>
+    void run(std::uint64_t end, Signal signal, SyncSignal sync)
     {
-        std::array<const float*, 2> channels{block_.data(), block_.data()};
+        std::array<const float*, 3> channels{block_.data(), block_.data(), syncBlock_.data()};
         while (frame_ < end)
         {
             for (std::uint32_t i = 0; i < blockFrames_; ++i)
+            {
                 block_[i] = signal(frame_ + i);
+                syncBlock_[i] = sync(frame_ + i);
+            }
             const auto stamp =
                 static_cast<double>(hostTime(static_cast<double>(frame_))) + jitter_(random_);
             writer_.write(channels, blockFrames_, static_cast<std::uint64_t>(stamp));
@@ -475,6 +483,12 @@ public:
                 pipeline_.poll();
         }
         pipeline_.poll();
+    }
+
+    template <typename Signal>
+    void run(std::uint64_t end, Signal signal)
+    {
+        run(end, signal, [](std::uint64_t) { return 0.0f; });
     }
 
     void run(std::uint64_t end)
@@ -501,6 +515,7 @@ private:
     MidiClockQueue queue_;
     AnalysisPipeline pipeline_;
     std::vector<float> block_;
+    std::vector<float> syncBlock_;
     std::vector<MidiClockEvent> events_;
     std::size_t nextEvent_ = 0;
     std::uint64_t frame_ = 0;
@@ -833,22 +848,133 @@ TEST_CASE("Stop, SPP and Continue relocate the head without clearing", "[analysi
     CHECK_FALSE(snapshot.sweep.channel(0)[500].isEmpty());
 }
 
+TEST_CASE("Visona Sync on the sync input moves MIDI Clock onto the audio's bar lines",
+          "[analysis][midi][sync]")
+{
+    const auto lag = GENERATE(1'234.0, -700.0);
+    CAPTURE(lag);
+
+    // 120 BPM at 48 kHz: 1 000 frames per tick and 96 000 per bar.
+    MidiSession session(48'000.0, true);
+    session.pipeline().setSyncInput(true);
+    const auto interval = session.framesPerTick(120.0);
+    const auto barFrames = 96.0 * interval;
+    constexpr double firstClock = 10'000.0;
+    session.midi(MidiClockEvent::Type::Start, firstClock - 500.0);
+    session.clocks(firstClock, 96 * 8, interval);
+
+    // The audio, a click on every bar line, and Visona Sync's impulses arrive `lag` frames after
+    // MIDI Clock's bar lines.
+    const auto onBar = [&](std::uint64_t frame)
+    {
+        const auto sinceFirstBar = static_cast<double>(frame) - firstClock - lag;
+        return sinceFirstBar >= 0.0 && std::fmod(sinceFirstBar, barFrames) == 0.0;
+    };
+    const auto click = [&](std::uint64_t frame) { return onBar(frame) ? 1.0f : 0.0f; };
+    const auto impulse = [&](std::uint64_t frame) { return onBar(frame) ? 0.5f : 0.0f; };
+
+    session.run(static_cast<std::uint64_t>(firstClock + 2.5 * barFrames), click, impulse);
+    auto snapshot = session.snapshot();
+    REQUIRE(snapshot.syncState == visona::SidechainSyncState::locked);
+    CHECK(std::abs(snapshot.syncOffsetFrames - lag) <= 1.0);
+    CHECK(snapshot.syncImpulsePeak == 0.5f);
+
+    // The impulses after the lock measure the same offset, so it holds.
+    session.run(static_cast<std::uint64_t>(firstClock + 6.5 * barFrames), click, impulse);
+    snapshot = session.snapshot();
+    CHECK(snapshot.syncState == visona::SidechainSyncState::locked);
+    CHECK(std::abs(snapshot.syncOffsetFrames - lag) <= 1.0);
+    CHECK(std::abs(snapshot.bpm - 120.0) < 0.05);
+
+    // Every click is on the downbeat of the 1-bar window.
+    const auto cells = snapshot.sweep.channel(0);
+    std::size_t clickBins = 0;
+    for (std::size_t bin = 0; bin < cells.size(); ++bin)
+    {
+        if (cells[bin].isEmpty() || cells[bin].max < 0.5f)
+            continue;
+        ++clickBins;
+        CAPTURE(bin);
+        CHECK((bin <= 1 || bin >= cells.size() - 1));
+    }
+    CHECK(clickBins >= 1);
+}
+
+TEST_CASE("The sync input listens only while it is on and MIDI Clock runs",
+          "[analysis][midi][sync]")
+{
+    using visona::SidechainSyncState;
+
+    // Without a sync channel in the ring, turning the sync input on does nothing.
+    {
+        MidiSession session(48'000.0);
+        session.pipeline().setSyncInput(true);
+        session.run(10'000);
+        CHECK(session.snapshot().syncState == SidechainSyncState::off);
+    }
+
+    MidiSession session(48'000.0, true);
+    const auto silence = [](std::uint64_t) { return 0.0f; };
+    constexpr double firstClock = 200'000.0;
+    constexpr double barFrames = 96'000.0;
+    constexpr double lag = 300.0;
+    // Every bar, `lag` frames after the bar lines MIDI Clock will have from firstClock on.
+    const auto impulse = [&](std::uint64_t frame)
+    {
+        const auto sinceBar = static_cast<double>(frame) + barFrames - firstClock - lag;
+        return std::fmod(sinceBar, barFrames) == 0.0 ? 0.5f : 0.0f;
+    };
+
+    // While the sweep runs free, the impulses have no bar lines to be measured against.
+    session.pipeline().setSyncInput(true);
+    session.run(static_cast<std::uint64_t>(firstClock - 2'000.0), silence, impulse);
+    CHECK(session.snapshot().syncState == SidechainSyncState::waiting);
+    CHECK(session.pipeline().takeSyncPeak() == 0.5f);
+    CHECK(session.pipeline().takeSyncPeak() == 0.0f);
+
+    session.pipeline().setSyncInput(false);
+    session.midi(MidiClockEvent::Type::Start, firstClock - 500.0);
+    session.clocks(firstClock, 96 * 6, session.framesPerTick(120.0));
+    session.run(static_cast<std::uint64_t>(firstClock + 1.5 * barFrames), silence, impulse);
+    CHECK(session.snapshot().syncState == SidechainSyncState::off);
+
+    session.pipeline().setSyncInput(true);
+    session.run(static_cast<std::uint64_t>(firstClock + 2.5 * barFrames), silence, impulse);
+    auto snapshot = session.snapshot();
+    CHECK(snapshot.syncState == SidechainSyncState::locked);
+    CHECK(std::abs(snapshot.syncOffsetFrames - lag) <= 1.0);
+
+    session.pipeline().setSyncInput(false);
+    session.run(static_cast<std::uint64_t>(firstClock + 3.0 * barFrames), silence, impulse);
+    snapshot = session.snapshot();
+    CHECK(snapshot.syncState == SidechainSyncState::off);
+    CHECK(snapshot.syncOffsetFrames == 0.0);
+}
+
 TEST_CASE("AnalysisPipeline does not allocate while following MIDI Clock",
           "[analysis][midi][realtime]")
 {
-    MidiSession session(96'000.0);
+    MidiSession session(96'000.0, true);
+    session.pipeline().setSyncInput(true);
     const auto interval = session.framesPerTick(126.0);
     session.midi(MidiClockEvent::Type::Start, 1'000.0);
     const auto afterClocks = session.clocks(2'000.0, 400, interval);
     session.midi(MidiClockEvent::Type::Stop, afterClocks);
+    const auto barImpulses = [&](std::uint64_t frame)
+    {
+        const auto bar = 96.0 * interval;
+        return std::fmod(static_cast<double>(frame) - 2'000.0 + bar, bar) < 1.0 ? 0.5f : 0.0f;
+    };
     session.run(4'096); // let the first allocations of Catch2 and the session happen
 
     const AllocationCounter allocations;
-    session.run(static_cast<std::uint64_t>(afterClocks + 96'000.0));
+    session.run(static_cast<std::uint64_t>(afterClocks + 96'000.0),
+                [](std::uint64_t) { return 0.25f; }, barImpulses);
     const auto allocationCount = allocations.count();
 
     CHECK(allocationCount == 0);
     CHECK(session.snapshot().transportState == TransportState::stopped);
+    CHECK(session.snapshot().syncState == visona::SidechainSyncState::locked);
 }
 
 TEST_CASE("AnalysisPipeline follows MIDI Clock across threads", "[analysis][midi][stress]")
