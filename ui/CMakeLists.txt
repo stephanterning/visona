@@ -10,8 +10,12 @@ set(visona_ui_sources
     ChromeButton.cpp
     ChromeButton.h
     ChromeLayout.h
+    ChoiceBox.cpp
+    ChoiceBox.h
     ChoiceControl.cpp
     ChoiceControl.h
+    ChoiceList.cpp
+    ChoiceList.h
     ColourSwatches.cpp
     ColourSwatches.h
     ControlBar.cpp
