@@ -70,6 +70,16 @@ SettingsPanel::SettingsPanel(AudioSettings& settings)
         };
     }
 
+    // Item 1 is off, and item n + 2 device input n.
+    addRow(syncRow_, "Visona Sync");
+    syncRow_.choices.setTooltip("The input that Visona Sync's bar impulses come in on. Visona "
+                                "measures how late the audio arrives after MIDI Clock from them.");
+    syncRow_.choices.onChange = [this]
+    {
+        if (const auto id = syncRow_.choices.getSelectedId(); id > 0)
+            settings_.setSyncInputChannel(id - 2);
+    };
+
     addRow(midiRow_, "MIDI input");
     midiRow_.choices.onChange = [this]
     {
@@ -172,8 +182,8 @@ void SettingsPanel::setViewToggles(bool diagnostics, bool fullScreen)
 
 int SettingsPanel::preferredHeight() const
 {
-    // The input rows, MIDI, the waveform colour and the view controls.
-    auto rows = static_cast<int>(inputRows_.size()) + 2 + (viewLabel_.isVisible() ? 1 : 0);
+    // The input rows, Visona Sync, MIDI, the waveform colour and the view controls.
+    auto rows = static_cast<int>(inputRows_.size()) + 3 + (viewLabel_.isVisible() ? 1 : 0);
     for (const auto* row : {&deviceTypeRow_, &deviceRow_, &sampleRateRow_, &bufferSizeRow_})
         if (row->choices.isVisible())
             ++rows;
@@ -225,6 +235,7 @@ void SettingsPanel::resized()
         placeRow(*row);
     for (auto& row : inputRows_)
         placeRow(*row);
+    placeRow(syncRow_);
     placeRow(midiRow_);
 
     auto colourRow = area.removeFromTop(rowHeight);
@@ -358,6 +369,14 @@ void SettingsPanel::refreshInputChannels(juce::AudioIODevice* device)
         choices.setSelectedId(settings_.inputChannel(channel) + 1, juce::dontSendNotification);
         choices.setEnabled(!inputNames.isEmpty());
     }
+
+    auto& sync = syncRow_.choices;
+    sync.clear(juce::dontSendNotification);
+    sync.addItem("Off", 1);
+    for (int input = 0; input < inputNames.size(); ++input)
+        sync.addItem(inputChannelName(inputNames, input), input + 2);
+    sync.setSelectedId(settings_.syncInputChannel() + 2, juce::dontSendNotification);
+    sync.setEnabled(!inputNames.isEmpty());
 }
 
 void SettingsPanel::refreshMidiInputs()

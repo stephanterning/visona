@@ -254,12 +254,13 @@ void DiagnosticsOverlay::paint(juce::Graphics& g)
             values_.midiDrops > 0 ? palette::error : palette::text);
     drawRow("MIDI offset",
             values_.sampleRate > 0.0
-                ? "+" + juce::String(values_.midiOffsetFrames * 1000.0 / values_.sampleRate, 2) +
+                ? juce::String(values_.midiOffsetFrames < 0.0 ? "" : "+") +
+                      juce::String(values_.midiOffsetFrames * 1000.0 / values_.sampleRate, 2) +
                       " ms (" + juce::String(juce::roundToInt(values_.midiOffsetFrames)) +
                       " frames)"
                 : "-");
     if (values_.sidechainSync.isNotEmpty())
-        drawRow("Sidechain sync", values_.sidechainSync);
+        drawRow("Visona Sync", values_.sidechainSync);
 
     drawHeading("ANALYSIS");
     drawRow("Analysis thread", formatLoad(values_.analysisLoad));

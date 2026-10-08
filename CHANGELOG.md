@@ -18,6 +18,7 @@ All notable changes to this project are documented here. The format is based on
 - The app opens the saved audio device and MIDI input again when they are plugged back in, on macOS and on the Pi, and also when they were missing at startup. While the audio device is missing, `NO AUDIO INPUT` says so and no other device is opened (D-102).
 - Auto gain, off by default, turned on and off with the AUTO button next to the gain, which is lit while it is on. It zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out as soon as a peak goes past the edge, and in at a bar line after the peaks have stayed low for 10 s. Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off (D-100, D-108).
 - On a touchscreen, a finger held still on a control for half a second shows its tooltip, which goes away when the finger lifts or moves (D-108).
+- The standalone app can measure how late the audio arrives after MIDI Clock from Visona Sync's bar impulse on an input of its own, chosen under **Visona Sync** in the settings, and moves MIDI Clock onto the audio by that much. The status bar shows the offset, such as `SC +12.3 ms` (D-109).
 
 ### Changed
 
@@ -28,6 +29,7 @@ All notable changes to this project are documented here. The format is based on
 - The control bar stays on one row: WINDOW and WAVE are select menus that open upwards, each control has its caption inside it, and the buttons show only their icons when their labels do not fit. It wraps only in desktop windows narrower than about 710 pixels (D-108).
 - A two-finger pinch keeps what is between the fingers under them, so moving both fingers also moves the zoomed view, as on iOS (D-108).
 - While the settings panel is open, the rest of the window is dimmed, and a click or tap outside the panel closes it (D-108).
+- The plugin's diagnostics row for the sidechain is called Visona Sync, as in the app (D-109).
 
 ### Fixed
 

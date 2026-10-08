@@ -5,6 +5,7 @@
 #include <visona/ClockTimeMapper.h>
 #include <visona/MidiClockEvent.h>
 #include <visona/MidiClockTransport.h>
+#include <visona/SidechainSyncDetector.h>
 #include <visona/SweepAnalyzer.h>
 #include <visona/SweepSnapshot.h>
 #include <visona/TripleBuffer.h>
@@ -30,10 +31,16 @@ namespace visona
     3. measures the peak of each bar of the sweep for auto gain (D-100);
     4. publishes a SweepSnapshot for the UI thread if anything changed.
 
+    The ring may carry one channel more than the sweep: the sync input, where Visona Sync's bar
+    impulses come in (D-109). While it is on and MIDI Clock runs, a SidechainSyncDetector measures
+    how many frames after MIDI Clock's bar lines the impulses arrive, and every MIDI event is placed
+    that much later, on top of setMidiOffset(). The sync input is never drawn.
+
     setStream(), setMidiQueue() and poll() are the analysis side. They must not run concurrently;
     the app calls them under one lock, which only the analysis thread and stream changes take. The
     UI thread is the only consumer of snapshots(). setWindow(), setFreeTempo(), runFree(),
-    setBandSplitting(), setMidiOffset() and takePeak() may be called from any thread.
+    setBandSplitting(), setMidiOffset(), setSyncInput(), takePeak() and takeSyncPeak() may be
+    called from any thread.
 
     All storage, including the three snapshots, is allocated in the constructor. Nothing else
     allocates.
@@ -56,8 +63,8 @@ public:
     /**
         Analysis side. Starts following `ring`, a new stream at `sampleRate`, with a cleared
         sweep and the transport back to free-running, or follows nothing if `ring` is null.
-        The next poll() publishes the change. `ring` must have numChannels() channels and stay alive
-        until the next call.
+        The next poll() publishes the change. `ring` must have numChannels() channels, or one more
+        for the sync input, and stay alive until the next call.
     */
     void setStream(AudioRingBuffer* ring, double sampleRate) noexcept;
 
@@ -84,6 +91,10 @@ public:
         audio and MIDI timestamps (D-078). */
     void setMidiOffset(double frames) noexcept;
 
+    /** Any thread. Whether the ring's extra channel carries Visona Sync (D-109). Turning it off,
+        or a new stream, forgets the measured offset. */
+    void setSyncInput(bool enabled) noexcept;
+
     /**
         Analysis side. Handles the waiting MIDI events and analyzes the audio in the ring as far as
         the transport allows. Publishes a snapshot if anything changed. Returns the number of frames
@@ -100,6 +111,9 @@ public:
     /** Any thread. The highest absolute sample value of `channel` since the previous call. */
     [[nodiscard]] float takePeak(std::size_t channel) noexcept;
 
+    /** Any thread. The highest absolute sample value of the sync input since the previous call. */
+    [[nodiscard]] float takeSyncPeak() noexcept;
+
 private:
     void mapBlock(const BlockTiming& block) noexcept;
 
@@ -107,6 +121,12 @@ private:
     bool handleMidi() noexcept;
     void analyze(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
                  const TransportSpan& span) noexcept;
+    /** Looks for a bar impulse on the sync input in frames of a musical span. */
+    void detectSync(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
+                    const TransportSpan& span) noexcept;
+    /** Takes the detector's offset for the MIDI events to come. A new offset clears the musical
+        sweep, since the audio already drawn sits on the old timeline. */
+    void followSync() noexcept;
     /** Starts the sweep over from bar 1 at `sampleIndex` if the transport has started again, or
         began running free, since the sweep last started. */
     void followStart(std::uint64_t startCount, std::uint64_t sampleIndex) noexcept;
@@ -131,6 +151,7 @@ private:
     std::atomic<double> requestedFreeBpm_;
     std::atomic<std::uint64_t> freeRequests_{0};
     std::atomic<double> midiOffset_{0.0};
+    std::atomic<bool> syncInput_{false};
     std::atomic<bool> bandSplitting_{false};
     std::size_t window_;
     double freeBpm_;
@@ -149,8 +170,14 @@ private:
     std::uint64_t midiEvents_ = 0;
     TransportState publishedState_ = TransportState::freeRunning;
 
+    // The sync input, and the offset the MIDI events are placed with on top of midiOffset_.
+    SidechainSyncDetector sync_;
+    bool ringHasSync_ = false;
+    double syncOffset_ = 0.0;
+
     std::vector<const float*> channels_;
     std::vector<std::atomic<float>> peaks_;
+    std::atomic<float> syncPeak_{0.0f};
 };
 
 } // namespace visona

@@ -1,6 +1,6 @@
 # Visona plugins
 
-Visona is available as a **pass-through stereo effect** for use inside a DAW. Audio is copied to the output unchanged while the scope analyzes the incoming signal. **Visona Sync** is a companion instrument that feeds Visona's sidechain, so Visona can measure how late the audio arrives after plugins with latency (see [Sidechain sync](#sidechain-sync-visona-sync)).
+Visona is available as a **pass-through stereo effect** for use inside a DAW. Audio is copied to the output unchanged while the scope analyzes the incoming signal. **Visona Sync** is a companion instrument that feeds Visona's sidechain, so Visona can measure how late the audio arrives after plugins with latency (see [Sidechain sync](#sidechain-sync-visona-sync)). It can also tell the standalone app how late the audio arrives after MIDI Clock (see [Visona Sync with the standalone app](#visona-sync-with-the-standalone-app)).
 
 ## Formats
 
@@ -117,6 +117,18 @@ Visona Sync is a host-synced instrument that writes a −6 dBFS impulse at the s
 
 The sidechain signal is not validated yet: any peak above −20 dBFS counts as a bar impulse, so route nothing but Visona Sync to it. If **Reduced Latency When Monitoring** is on in Live's Options menu, keep the Sync track unarmed, because Live skips delay compensation for monitored tracks.
 
+## Visona Sync with the standalone app
+
+The standalone app, on macOS and on the Raspberry Pi, follows MIDI Clock and allows only for its own interface's input latency. Whatever else lies between the DAW's MIDI Clock and the audio reaching Visona, such as the DAW's output latency, Live's **MIDI Clock Sync Delay** and the interfaces on the way, puts the waveform off the grid. Visona Sync measures it if its impulse comes in on an audio input of its own. Nothing goes to the master, and the routing is up to you (D-109).
+
+1. In Live, add **Visona Sync** on an instrument track (no MIDI clip needed). Set the track's **Audio To** to **Ext. Out** and a free output of your interface, such as **3/4**. Send the music to Visona's left and right inputs through the same interface as before, so that both take the same path.
+2. Keep that output off your speakers: it is a click on every bar line.
+3. Connect the output to a free input of the interface Visona listens to: a cable from output 3 to input 3, for example, or the interface's own loopback routing (in TotalMix on an RME interface).
+4. In Visona's **Settings**, set **Visona Sync** to that input.
+5. Start playback in Live with MIDI Clock going to Visona. From the first bar line the status bar shows **SC** and the measured offset, such as **SC +12.3 ms**, and **SC ...** until then. The diagnostics overlay (**D**) shows the offset in samples, the impulse level and the MIDI offset in use.
+
+Visona keeps the offset it measured. A new one takes over after two bars that agree on it, and the sweep starts over. Nothing is measured in **FREE**, and as with the sidechain, any peak above −20 dBFS on that input counts as a bar impulse. The app counts in 4/4, so the song must be in 4/4 too, and the offset must be less than half a bar. If **Reduced Latency When Monitoring** is on, keep the Sync track unarmed.
+
 ## Editor
 
 The plugin editor is a slimmed-down version of the standalone UI:
@@ -124,7 +136,7 @@ The plugin editor is a slimmed-down version of the standalone UI:
 - Window, gain, auto gain (the **AUTO** button next to the gain), waveform mode and zoom work as in the app; auto gain is saved per instance
 - The tempo comes from the host and is shown in the status bar; the BPM control and the full screen button are hidden
 - **Settings** opens appearance controls (waveform colour) only — no audio device or MIDI device panels
-- Press **D** for the diagnostics overlay, which includes a sidechain sync row
+- Press **D** for the diagnostics overlay, which includes a Visona Sync row for the sidechain
 
 Waveform mode and colour are saved **per plugin instance** in the DAW project. Global defaults live in `~/Library/Application Support/Visona/VisonaPluginDefaults.settings` and apply when an instance has no saved appearance.
 

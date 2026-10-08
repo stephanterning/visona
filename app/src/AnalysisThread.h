@@ -71,6 +71,12 @@ public:
         pipeline_.setMidiOffset(frames);
     }
 
+    /** Any thread. */
+    void setSyncInput(bool enabled) noexcept
+    {
+        pipeline_.setSyncInput(enabled);
+    }
+
     /** The UI thread's end of the snapshots. Only one thread may fetch from it. */
     [[nodiscard]] TripleBuffer<SweepSnapshot>& snapshots() noexcept
     {
@@ -81,6 +87,12 @@ public:
     [[nodiscard]] float takePeak(std::size_t channel) noexcept
     {
         return pipeline_.takePeak(channel);
+    }
+
+    /** Any thread. The highest absolute sample value of the sync input since the previous call. */
+    [[nodiscard]] float takeSyncPeak() noexcept
+    {
+        return pipeline_.takeSyncPeak();
     }
 
     /** Any thread. Time spent analyzing since the thread started, in nanoseconds. */

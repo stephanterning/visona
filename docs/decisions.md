@@ -276,7 +276,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - JUCE anchors the conversion with a whole millisecond, so its timestamp can be up to about 1 ms early. The error is constant while the input stays open.
   - The counter is `mach_absolute_time()` in milliseconds, modulo 2^32. The MIDI callback undoes the wrap relative to `CLOCK_UPTIME_RAW`, the audio's time base (D-065).
   - The remaining error of up to 1 ms is left to the offset measurement in step 8. Thin CoreMIDI timestamping in `app/` stays the fallback if it matters.
-- **D-078 — A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, with the audio input latency as the offset.** `Active`
+- **D-078 — A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, with the audio input latency as the offset.** `Amended by D-109`
   - Sound captured at time T carries a stream timestamp of T plus the input latency. A MIDI event stamped at T therefore belongs to the audio that appears later in the stream by that latency. The architecture had the sign the other way.
   - With CoreAudio's input timestamps, which mark the start of each buffer, the offset is the device latency plus the safety offset plus the stream latency: JUCE's input latency minus one buffer.
   - With the fallback clock, which is read after the buffer has filled, it is JUCE's full input latency.
@@ -473,6 +473,15 @@ A lightweight log of decisions and open questions. The architecture is described
   - *Tooltips.* On a touchscreen a finger held still on a control for half a second, within 8 pixels, shows its tooltip, and lifting or moving the finger, or a second finger, hides it. A finger held on the scope draws the ruler (D-094) and shows no tooltip, and a held select menu opens its list instead. A mouse shows tooltips on hover as before. On the Pi a touch also moves the pointer, which left JUCE's hover tooltip showing, so after a touch hover tooltips stay off until the mouse moves more than 8 pixels from it at least half a second later. The texts are unchanged. `ui/Tooltips` replaces `juce::TooltipWindow` in the app and the plugin.
 
   Amends D-046, D-069, D-085, D-091, D-100 and D-105.
+- **D-109 — The app measures the offset between MIDI Clock and the audio from Visona Sync, on an input chosen in the settings.** `Active`
+  - The maintainer asked whether an impulse the ear cannot hear, such as Visona Sync's at 21 kHz, could ride on the DAW's master out for Visona to pick up. That was rejected. A one-frame impulse is broadband, so it is heard whatever its level. A tone burst near 21 kHz sits in the converters' anti-alias transition band at 44.1 kHz, is removed by lossy codecs, ends up in bounces, and could only be told from cymbals with a matched filter. Instead, Visona Sync's ordinary impulse goes out on an interface output of its own and comes back on an input of its own, so nothing reaches the master. Routing it there is up to the user.
+  - The setting is the **Visona Sync** row of the settings panel: Off, the default, or one of the device's inputs. It is saved. An input the running device does not have counts as Off, but stays saved for when the device comes back (D-102).
+  - The audio ring has one more channel for it, which is never drawn. While MIDI Clock runs, `AnalysisPipeline` measures it with `SidechainSyncDetector`, as the plugin does its sidechain (D-097): how many frames after MIDI Clock's nearest bar line the impulse arrives. Every MIDI event is then placed that much later, on top of the input latency of D-078. The measurement covers whatever lies between MIDI Clock and the audio: the DAW's output latency, Live's MIDI Clock Sync Delay, the interfaces and the MIDI path. The detector measures against the timeline without its own correction, so a correct offset keeps measuring the same, and the rule of D-097 holds: the first impulse locks, and a new offset takes over when two impulses in a row agree on it.
+  - MIDI Clock still sets the tempo and the position. Nothing is measured in `FREE`, whose bars have nothing to do with the DAW's. The bar is 4/4, as everywhere in the app, so the DAW's bars must be too, and the offset must be less than half a bar.
+  - A new offset clears the musical sweep, as in the plugin. MIDI Clock has no position to start over from, so the ticks after the change simply move, and the tempo estimate is off for about a beat.
+  - The status bar shows `SC +12.3 ms` once locked and `SC ...` while waiting for the first impulse, as in the plugin. The diagnostics overlay has a Visona Sync row, in both the app and the plugin (it was "Sidechain sync" in the plugin), with the offset in frames, the impulse level and, while waiting, the input's level. Its MIDI offset row shows the offset in use, input latency plus the measurement, which can now be negative.
+
+  Amends D-078: with Visona Sync routed, the measured offset is added to the input latency.
 
 ---
 

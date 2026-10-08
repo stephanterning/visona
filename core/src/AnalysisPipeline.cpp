@@ -48,8 +48,13 @@ AnalysisPipeline::AnalysisPipeline(std::size_t numChannels, std::size_t numBins)
 
 void AnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) noexcept
 {
-    assert(ring == nullptr || ring->numChannels() == channels_.size());
-    ring_ = ring != nullptr && ring->numChannels() == channels_.size() ? ring : nullptr;
+    const bool fits = ring != nullptr && (ring->numChannels() == channels_.size() ||
+                                          ring->numChannels() == channels_.size() + 1);
+    assert(ring == nullptr || fits);
+    ring_ = fits ? ring : nullptr;
+    ringHasSync_ = ring_ != nullptr && ring_->numChannels() > channels_.size();
+    sync_.reset();
+    syncOffset_ = 0.0;
     ++streamId_;
     sampleRate_ = ring_ != nullptr ? sampleRate : 0.0;
     nextSampleIndex_ = 0;
@@ -94,6 +99,11 @@ void AnalysisPipeline::setMidiOffset(double frames) noexcept
     midiOffset_.store(frames, std::memory_order_relaxed);
 }
 
+void AnalysisPipeline::setSyncInput(bool enabled) noexcept
+{
+    syncInput_.store(enabled, std::memory_order_relaxed);
+}
+
 std::size_t AnalysisPipeline::poll() noexcept
 {
     // A free-running sweep starts over from bar 1 on a new window or tempo; one that follows MIDI
@@ -126,6 +136,14 @@ std::size_t AnalysisPipeline::poll() noexcept
         splitting != analyzer_.splitsBands())
     {
         analyzer_.setBandSplitting(splitting, sampleRate_);
+        changed_ = true;
+    }
+
+    if (const auto listens = syncInput_.load(std::memory_order_relaxed) && ringHasSync_;
+        listens != (sync_.state() != SidechainSyncState::off))
+    {
+        sync_.setSidechainEnabled(listens);
+        followSync();
         changed_ = true;
     }
 
@@ -179,6 +197,11 @@ float AnalysisPipeline::takePeak(std::size_t channel) noexcept
     return peaks_[channel].exchange(0.0f, std::memory_order_relaxed);
 }
 
+float AnalysisPipeline::takeSyncPeak() noexcept
+{
+    return syncPeak_.exchange(0.0f, std::memory_order_relaxed);
+}
+
 void AnalysisPipeline::mapBlock(const BlockTiming& block) noexcept
 {
     if (mappedAnyBlock_ && block.sampleIndex == mappedBlock_)
@@ -196,7 +219,7 @@ bool AnalysisPipeline::handleMidi() noexcept
     // stream's events wait in the queue for its first block.
     if (ring_ != nullptr && !mapper_.isReady())
         return false;
-    const auto offset = midiOffset_.load(std::memory_order_relaxed);
+    const auto offset = midiOffset_.load(std::memory_order_relaxed) + syncOffset_;
     while (const auto event = midi_->tryPop())
     {
         ++midiEvents_;
@@ -221,6 +244,13 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
             peak = std::max(peak, std::abs(sample));
         raiseTo(peaks_[channel], peak);
     }
+    if (ringHasSync_)
+    {
+        float peak = 0.0f;
+        for (const auto sample : region.channel(channels_.size()).first(numFrames))
+            peak = std::max(peak, std::abs(sample));
+        raiseTo(syncPeak_, peak);
+    }
 
     switch (span.kind)
     {
@@ -230,6 +260,7 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
         return;
     case TransportSpan::Kind::musical:
         followStart(span.startCount, region.sampleIndex());
+        detectSync(region, numFrames, span);
         analyzer_.processMusical(region.sampleIndex(), channels_, numFrames, span);
         barPeaks_.process(channels_, numFrames, region.sampleIndex(), span,
                           transport_.timeSignature().ticksPerBar(), sampleRate_);
@@ -241,6 +272,36 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
     case TransportSpan::Kind::pending:
         return;
     }
+}
+
+void AnalysisPipeline::detectSync(const AudioRingBuffer::ReadRegion& region,
+                                  std::size_t numFrames, const TransportSpan& span) noexcept
+{
+    const auto ticks = span.endTick - span.startTick;
+    if (sync_.state() == SidechainSyncState::off || span.isOpen() || !(ticks > 0.0))
+        return;
+
+    // The span's ticks were placed syncOffset_ frames late. The detector measures against the
+    // timeline without that, so that a correct offset keeps measuring the same.
+    const auto framesPerQuarter =
+        (span.end - span.start) / ticks * TimeSignature::ticksPerQuarterNote;
+    const auto tick = span.tickAt(static_cast<double>(region.sampleIndex()) + syncOffset_);
+    sync_.processBlock(region.channel(channels_.size()).first(numFrames),
+                       tick / TimeSignature::ticksPerQuarterNote,
+                       60.0 * sampleRate_ / framesPerQuarter, transport_.timeSignature(),
+                       sampleRate_, true);
+    followSync();
+}
+
+void AnalysisPipeline::followSync() noexcept
+{
+    const auto offset = sync_.state() == SidechainSyncState::locked ? sync_.offsetFrames() : 0.0;
+    if (offset == syncOffset_)
+        return;
+    syncOffset_ = offset;
+    if (analyzer_.isMusical() && transport_.state() != TransportState::freeRunning)
+        analyzer_.startMusical(windowTicks());
+    changed_ = true;
 }
 
 void AnalysisPipeline::followStart(std::uint64_t startCount, std::uint64_t sampleIndex) noexcept
@@ -304,6 +365,9 @@ void AnalysisPipeline::publish() noexcept
     snapshot.barPeaks = barPeaks_.recent();
     snapshot.midiEvents = midiEvents_;
     snapshot.ignoredSpp = transport_.ignoredSppCount();
+    snapshot.syncState = sync_.state();
+    snapshot.syncOffsetFrames = sync_.offsetFrames();
+    snapshot.syncImpulsePeak = sync_.impulsePeak();
     snapshots_.publish();
 
     publishedState_ = transport_.state();

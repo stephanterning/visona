@@ -2,6 +2,7 @@
 
 #include <visona/BarPeaks.h>
 #include <visona/MidiClockTransport.h>
+#include <visona/SidechainSyncDetector.h>
 #include <visona/SweepBuffer.h>
 #include <visona/TimeSignature.h>
 
@@ -64,6 +65,13 @@ struct SweepSnapshot
     /** MIDI Clock messages received, and Song Position Pointers ignored while running. */
     std::uint64_t midiEvents = 0;
     std::uint64_t ignoredSpp = 0;
+
+    /** The app's sync input (D-109): its state, the frames the audio arrives after MIDI Clock's
+        bar lines once locked, and the peak level of the last bar impulse. Off in the plugin,
+        which measures its sidechain itself. */
+    SidechainSyncState syncState = SidechainSyncState::off;
+    double syncOffsetFrames = 0.0;
+    float syncImpulsePeak = 0.0f;
 };
 
 } // namespace visona

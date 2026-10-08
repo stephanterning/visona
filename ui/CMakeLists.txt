@@ -34,6 +34,7 @@ set(visona_ui_sources
     StatusBar.h
     StepButton.cpp
     StepButton.h
+    SyncText.h
     TempoControl.cpp
     TempoControl.h
     Tooltips.cpp

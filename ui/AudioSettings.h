@@ -33,6 +33,12 @@ public:
     [[nodiscard]] virtual int inputChannel(std::size_t channel) const = 0;
     virtual void setInputChannel(std::size_t channel, int deviceInputChannel) = 0;
 
+    /** The zero-based device input channel that Visona Sync's bar impulses come in on (D-109), or
+        -1 for none. A saved channel the running device does not have counts as none, but stays
+        saved. */
+    [[nodiscard]] virtual int syncInputChannel() const = 0;
+    virtual void setSyncInputChannel(int deviceInputChannel) = 0;
+
     /** The MIDI input MIDI Clock comes from, by JUCE's identifier; empty for none. A saved input
         that is missing keeps its identifier and name. */
     [[nodiscard]] virtual juce::String midiInput() const = 0;

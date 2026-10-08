@@ -35,6 +35,11 @@ public:
     [[nodiscard]] std::vector<int> inputChannels(std::size_t count) const;
     void setInputChannels(std::span<const int> channels);
 
+    /** The zero-based device input channel Visona Sync comes in on (D-109); -1, the default, is
+        none. */
+    [[nodiscard]] int syncInputChannel() const;
+    void setSyncInputChannel(int channel);
+
     /** A MIDI input, by JUCE's identifier and by name for when it is missing. */
     struct MidiInputChoice
     {

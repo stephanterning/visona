@@ -52,7 +52,7 @@ Visona is a platform-independent real-time engine for musical audio analysis and
   - snapshot types and bin-to-pixel reduction
   - the measurement ruler's readout (`Ruler`, D-094)
   - `AnalysisPipeline`, the analysis thread's work without the thread: ring in, snapshots out
-  - for the plugins: `HostTransport` and `HostAnalysisPipeline`, the same work driven by the host playhead (D-096), and `BarImpulseScheduler` and `SidechainSyncDetector` for Visona Sync (D-097)
+  - for the plugins: `HostTransport` and `HostAnalysisPipeline`, the same work driven by the host playhead (D-096), and `BarImpulseScheduler` and `SidechainSyncDetector` for Visona Sync (D-097), which the app's `AnalysisPipeline` also uses on its sync input (D-109)
 
   Keeping JUCE out makes the core testable on Linux without a GUI, enforces the platform boundary, and lets the core be reused in plugins and on the Raspberry Pi.
 - **`app/` (JUCE):** audio device management, audio callback, MIDI input, the analysis thread, settings and wiring.
@@ -131,6 +131,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - Audio blocks carry a host time from `AudioIODeviceCallbackContext::hostTimeNs` when it is available, and otherwise a monotonic clock read at the start of the callback, in the same time base (D-065).
 - `ClockTimeMapper` keeps a smoothed linear model of `sampleIndex ↔ hostTime`: a least-squares line through the blocks of the last 2 s (D-076). It absorbs callback jitter and drift between the audio clock and the host clock.
 - A MIDI event's sample time is `mapper(t_midi) + latencyOffset`, since audio captured at a moment appears in the stream the input latency later than a MIDI event stamped at that moment (D-078). `latencyOffset` starts as the reported input latency, without one buffer when the device supplies input timestamps, plus an internal calibration constant with no UI. It is measured in step 8.
+- With Visona Sync on the sync input (D-109), `AnalysisPipeline` measures the rest of the offset: how many frames after MIDI Clock's nearest bar line Visona Sync's bar impulse arrives, which covers the DAW's output latency, its MIDI Clock delay, the interface and the MIDI path. Every MIDI event is then placed that much later as well. The detector measures against the timeline without its own correction, so a correct offset keeps measuring the same. A new offset clears the musical sweep.
 
 ### 3.4 Sweep data model
 
@@ -210,6 +211,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Status (top)** (D-046): BPM, MIDI state (`FREE`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
   - The state reads `FREE`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080, D-090).
   - `STOPPED` and `MIDI CLOCK LOST` are buttons that switch to `FREE` (D-090).
+  - With a Visona Sync input chosen, `SC +12.3 ms` follows the state once the offset is measured, and `SC ...` before (D-109).
   - Values are calm white or gray text with tabular digits.
   - Color is used for state only, and red is reserved for errors.
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
@@ -237,6 +239,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Diagnostics overlay** (D-070): audio input, overruns, analysis load, frame rate, render time and CPU use, hidden by default.
 - **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair, MIDI input and the waveform colour (D-093). The free tempo is saved too.
   - The input channel for Left and for Right is chosen separately (D-063).
+  - **Visona Sync** chooses the input that Visona Sync's bar impulses come in on, or Off (D-109).
   - It is a separate overlay that never forces the scope to repaint.
   - While it is open, the rest of the window is dimmed, and a click or tap outside it closes it like Done, without reaching what is under it (D-108).
   - Its choices open in a list inside the window, like WINDOW and WAVE, so taps reach them on a touchscreen; long lists scroll (D-108).
@@ -328,6 +331,7 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Interpolate between known ticks and smooth the clock mapping.
   - Measure the offset in step 8.
   - Ableton Live's MIDI Clock Sync Delay can serve as a calibration knob.
+  - Measure it with Visona Sync on the sync input (D-109).
   - A sync offset in the UI waits for measured data.
 - **JUCE MIDI timestamps on macOS are CoreMIDI packet times, but only to within about 1 ms.** This was checked in step 7 (D-077); JUCE anchors its conversion with a whole millisecond. *Mitigation:* the offset measurement in step 8, and thin CoreMIDI timestamping in `app/` if it matters.
 - **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2.6 ms. That is ≈ 17 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* the renderer reads each band later by its delay at the band's reference frequency (D-092).
