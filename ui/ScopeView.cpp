@@ -1056,16 +1056,17 @@ juce::Rectangle<float> ScopeView::readoutArea(const std::vector<RulerRow>& rows)
         std::ceil(2.0f * readoutPadding + labelWidth + readoutColumnGap + valueWidth);
     const auto height = 2.0f * readoutPadding + readoutRowHeight * static_cast<float>(rows.size());
 
-    // Beside the pointer, on whichever side keeps it inside the scope.
+    // Above and to the right of the pointer, where a hand on a touchscreen does not cover it, or
+    // on whichever side keeps it inside the scope.
     const auto scopeWidth = static_cast<float>(getWidth());
     const auto scopeHeight = static_cast<float>(getHeight());
     auto x = rulerEnd_.x + readoutOffset;
     if (x + width > scopeWidth - labelMargin)
         x = rulerEnd_.x - readoutOffset - width;
     x = std::max(0.0f, std::min(x, scopeWidth - labelMargin - width));
-    auto y = rulerEnd_.y + readoutOffset;
-    if (y + height > scopeHeight - labelMargin)
-        y = rulerEnd_.y - readoutOffset - height;
+    auto y = rulerEnd_.y - readoutOffset - height;
+    if (y < 0.0f)
+        y = rulerEnd_.y + readoutOffset;
     y = std::max(0.0f, std::min(y, scopeHeight - labelMargin - height));
     return {x, y, width, height};
 }
