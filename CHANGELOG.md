@@ -22,6 +22,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- The MIDI Clock tempo holds steady instead of flickering by 0.1 BPM: it is fitted over up to four bars of clocks while the tempo holds, and over the last beat while it changes (D-110).
 - Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 - Display gain goes up to +18 dB instead of +36 dB.
 - When the chosen audio device disappears on macOS, the app no longer switches to the default input (D-102).

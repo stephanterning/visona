@@ -255,7 +255,7 @@ A lightweight log of decisions and open questions. The architecture is described
   The maintainer's choice after step 4. Sync is the core of the product, and it does not depend on the band split. The steps keep their numbers.
 - **D-073 — Song Position Pointer is accepted whenever the transport is not `Running`: in `Waiting`, `Stopped` and `ClockLost`.** `Active`
   The architecture only named `Stopped`. The position is not advancing in the other two either, so a pointer there can only mean a relocation. In `Running` it is still ignored, and counted for the log.
-- **D-074 — The tempo is the least-squares fit of the last 25 clock times (24 intervals, one beat).** `Active`
+- **D-074 — The tempo is the least-squares fit of the last 25 clock times (24 intervals, one beat).** `Amended by D-110`
   - It uses the same one-beat window as the planned moving average, which only looks at the first and last clock of the window. The fit uses every clock in it, so under the same jitter the estimate varies about half as much.
   - A gap longer than the clock-loss timeout starts the estimate over, so the time between Stop and Continue, or during a clock loss, is not taken for a clock interval.
   - It is still reset on Start.
@@ -482,6 +482,13 @@ A lightweight log of decisions and open questions. The architecture is described
   - The status bar shows `SC +12.3 ms` once locked and `SC ...` while waiting for the first impulse, as in the plugin. The diagnostics overlay has a Visona Sync row, in both the app and the plugin (it was "Sidechain sync" in the plugin), with the offset in frames, the impulse level and, while waiting, the input's level. Its MIDI offset row shows the offset in use, input latency plus the measurement, which can now be negative.
 
   Amends D-078: with Visona Sync routed, the measured offset is added to the input latency.
+- **D-110 — The MIDI Clock tempo is fitted over up to four bars while it holds steady, and over the last beat while it changes.** `Active`
+  - On the Pi the tempo flickered between values such as 129.9, 130.0 and 130.1 BPM. A one-beat fit under about 1 ms of USB MIDI timestamp jitter varies by roughly ±0.1–0.2 BPM at 130 BPM, which the 0.1 BPM display shows. The same fit over four bars (385 clocks) varies about 70 times less, around 0.003 BPM.
+  - The window grows clock by clock up to four bars of the time signature. On every clock the last beat is fitted on its own as well. When the two slopes differ by more than six standard errors of the one-beat fit, or by 0.25 % of the tempo if that is more, the tempo has changed: the estimate is the last beat for one more beat, and then grows again from clocks after the change only. The jitter for the standard error comes from the second differences of the clock times, which a tempo change disturbs at one clock only, unlike the residuals of the fit.
+  - So a step such as 120 to 126 BPM is followed within about a beat, as before, and a change too small to detect, such as 0.2 BPM, is taken up as the window slides, within four bars.
+  - Visona Sync's bar impulse (D-109) is sample-accurate and would give an even better tempo, but only once a bar and only when it is routed. The four-bar fit is already far below the display's resolution, so the impulse still measures the offset only.
+
+  Amends D-074 and D-015's smoothing.
 
 ---
 

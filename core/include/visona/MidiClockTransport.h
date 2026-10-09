@@ -3,7 +3,6 @@
 #include <visona/MidiClockEvent.h>
 #include <visona/TimeSignature.h>
 
-#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -74,7 +73,7 @@ struct TransportSpan
    the audio's sample timeline, and tracks:
     - the state and the position in ticks, where the first clock after Start is tick 0, the
       downbeat of bar 1;
-    - the tempo, from the clocks of the last beat (D-074);
+    - the tempo, from the clocks of up to the last four bars while it holds steady (D-074, D-110);
     - clock loss: running with no clock for more than half a second of audio;
     - a timeline of TransportSpans that tells the analysis how to treat each stretch of audio.
 
@@ -89,8 +88,16 @@ class MidiClockTransport
 public:
     static constexpr double clockLossSeconds = 0.5;
 
-    /** Clock intervals the tempo is estimated from: one beat. */
+    /** Clock intervals of the short tempo estimate, which follows tempo changes: one beat. */
     static constexpr std::size_t tempoIntervals = 24;
+
+    /** Bars of clocks the tempo is estimated from while it holds steady. */
+    static constexpr int steadyTempoBars = 4;
+
+    /** The long estimate starts over from the short one when the two differ by more than this
+        many standard errors of the short one, or by this fraction of the tempo, if more. */
+    static constexpr double tempoChangeStandardErrors = 6.0;
+    static constexpr double minTempoChange = 0.0025;
 
     /** Throws std::invalid_argument if `spanCapacity` is less than 2. */
     explicit MidiClockTransport(double sampleRate, TimeSignature timeSignature = {},
@@ -168,6 +175,15 @@ private:
     void onContinue(double sampleTime) noexcept;
     void onStop(double sampleTime) noexcept;
 
+    struct TempoFit
+    {
+        double framesPerClock = 0.0;
+        double jitterVariance = 0.0;
+    };
+
+    /** The least-squares fit of the newest `count` tempo clocks, at least 2. */
+    [[nodiscard]] TempoFit fitNewestClocks(std::size_t count) const noexcept;
+
     void addTempoClock(double sampleTime) noexcept;
 
     double sampleRate_;
@@ -189,10 +205,13 @@ private:
     std::size_t oldestSpan_ = 0;
     std::size_t spanCount_ = 0;
 
-    // The most recent clock times in any state, for the tempo.
-    std::array<double, tempoIntervals + 1> tempoClocks_{};
+    // The most recent clock times in any state, for the tempo: a ring of up to steadyTempoBars,
+    // of which the newest tempoCount_ are in the estimate.
+    std::vector<double> tempoClocks_;
     std::size_t tempoNewest_ = 0;
     std::size_t tempoCount_ = 0;
+    double framesPerClock_ = 0.0;
+    std::size_t tempoFollowClocks_ = 0;
 };
 
 } // namespace visona

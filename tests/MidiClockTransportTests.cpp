@@ -195,6 +195,71 @@ TEST_CASE("The tempo follows a change from 120 to 126 BPM within a beat", "[tran
     CHECK(std::abs(transport.bpm() - 126.0) < 0.001);
 }
 
+TEST_CASE("A jittery clock at a steady tempo gives a steady tempo after four bars", "[transport]")
+{
+    const auto bpm = GENERATE(120.0, 130.0, 174.0);
+    const auto jitterMs = GENERATE(1.0, 2.0, 4.0);
+    CAPTURE(bpm, jitterMs);
+    const auto interval = framesPerTick(bpm);
+    std::mt19937 random(static_cast<unsigned>(bpm + jitterMs * 10));
+    std::uniform_real_distribution<double> jitter(-jitterMs * rate / 1000.0,
+                                                  jitterMs * rate / 1000.0);
+
+    MidiClockTransport transport(rate);
+    transport.handle(Type::Start, 0, 0.0);
+    constexpr int steadyClocks = MidiClockTransport::steadyTempoBars * 96;
+    double worstTempoError = 0.0;
+    double lowestShown = 1.0e9;
+    double highestShown = 0.0;
+    for (int clock = 0; clock < 16 * 96; ++clock)
+    {
+        transport.handle(Type::Clock, 0, 10'000.0 + clock * interval + jitter(random));
+        if (clock < steadyClocks)
+            continue;
+        worstTempoError = std::max(worstTempoError, std::abs(transport.bpm() - bpm));
+        const auto shown = std::round(transport.bpm() * 10.0) / 10.0;
+        lowestShown = std::min(lowestShown, shown);
+        highestShown = std::max(highestShown, shown);
+    }
+    // The error of a tempo from a fixed number of clocks grows with the square of the tempo.
+    CAPTURE(worstTempoError);
+    CHECK(worstTempoError < 0.01 * jitterMs * (bpm / 120.0) * (bpm / 120.0));
+    CHECK(lowestShown == highestShown);
+}
+
+TEST_CASE("A small tempo change is followed within four bars", "[transport]")
+{
+    MidiClockTransport transport(rate);
+    transport.handle(Type::Start, 0, 0.0);
+    auto time = sendClocks(transport, 1'000.0, 8 * 96, framesPerTick(120.0));
+    REQUIRE(std::abs(transport.bpm() - 120.0) < 0.001);
+
+    time = sendClocks(transport, time, MidiClockTransport::steadyTempoBars * 96 + 1,
+                      framesPerTick(120.2));
+    CHECK(std::abs(transport.bpm() - 120.2) < 0.001);
+}
+
+TEST_CASE("A jittery clock still follows a change from 120 to 126 BPM within about a beat",
+          "[transport]")
+{
+    const auto jitterMs = GENERATE(1.0, 2.0);
+    CAPTURE(jitterMs);
+    std::mt19937 random(static_cast<unsigned>(jitterMs * 100));
+    std::uniform_real_distribution<double> jitter(-jitterMs * rate / 1000.0,
+                                                  jitterMs * rate / 1000.0);
+
+    MidiClockTransport transport(rate);
+    transport.handle(Type::Start, 0, 0.0);
+    double time = 1'000.0;
+    for (int clock = 0; clock < 8 * 96; ++clock, time += framesPerTick(120.0))
+        transport.handle(Type::Clock, 0, time + jitter(random));
+    REQUIRE(std::abs(transport.bpm() - 120.0) < 0.02);
+
+    for (int clock = 0; clock < 2 * 24; ++clock, time += framesPerTick(126.0))
+        transport.handle(Type::Clock, 0, time + jitter(random));
+    CHECK(std::abs(transport.bpm() - 126.0) < 0.7 * jitterMs);
+}
+
 TEST_CASE("Stop freezes after at most one extrapolated tick, and Continue carries on",
           "[transport]")
 {

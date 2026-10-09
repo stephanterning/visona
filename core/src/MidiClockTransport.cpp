@@ -27,6 +27,10 @@ MidiClockTransport::MidiClockTransport(double sampleRate, TimeSignature timeSign
     : sampleRate_(sampleRate)
     , timeSignature_(timeSignature)
     , spans_(checkedCapacity(spanCapacity))
+    , tempoClocks_(std::max<std::size_t>(
+                       static_cast<std::size_t>(steadyTempoBars * timeSignature.ticksPerBar()),
+                       tempoIntervals) +
+                   1)
 {
     reset(sampleRate);
 }
@@ -40,6 +44,8 @@ void MidiClockTransport::reset(double sampleRate) noexcept
     awaitingTick_ = false;
     lastInterval_ = 0.0;
     tempoCount_ = 0;
+    framesPerClock_ = 0.0;
+    tempoFollowClocks_ = 0;
     oldestSpan_ = 0;
     spanCount_ = 0;
     pushOpen(TransportSpan::Kind::freeRunning, 0.0, 0.0);
@@ -103,32 +109,50 @@ void MidiClockTransport::advanceTo(double sampleTime) noexcept
 
 double MidiClockTransport::bpm() const noexcept
 {
-    if (tempoCount_ < 2)
+    if (framesPerClock_ <= 0.0)
         return 0.0;
+    return 60.0 * sampleRate_ / (TimeSignature::ticksPerQuarterNote * framesPerClock_);
+}
 
-    // The least-squares slope of clock time against clock number, in frames per clock.
-    const auto n = static_cast<double>(tempoCount_);
-    const auto oldest =
-        (tempoNewest_ + tempoClocks_.size() - (tempoCount_ - 1)) % tempoClocks_.size();
+MidiClockTransport::TempoFit MidiClockTransport::fitNewestClocks(std::size_t count) const noexcept
+{
+    assert(count >= 2 && count <= tempoCount_);
+
+    // The least-squares line of clock time against clock number; its slope is frames per clock.
+    const auto ringSize = tempoClocks_.size();
+    const auto n = static_cast<double>(count);
+    const auto oldest = (tempoNewest_ + ringSize - (count - 1)) % ringSize;
     const auto origin = tempoClocks_[oldest];
+    const auto timeAt = [&](std::size_t i)
+    { return tempoClocks_[(oldest + i) % ringSize] - origin; };
+
     double meanTime = 0.0;
-    for (std::size_t i = 0; i < tempoCount_; ++i)
-        meanTime += tempoClocks_[(oldest + i) % tempoClocks_.size()] - origin;
+    for (std::size_t i = 0; i < count; ++i)
+        meanTime += timeAt(i);
     meanTime /= n;
     const auto meanIndex = (n - 1.0) / 2.0;
 
     double covariance = 0.0;
     double variance = 0.0;
-    for (std::size_t i = 0; i < tempoCount_; ++i)
+    for (std::size_t i = 0; i < count; ++i)
     {
         const auto dx = static_cast<double>(i) - meanIndex;
-        covariance += dx * (tempoClocks_[(oldest + i) % tempoClocks_.size()] - origin - meanTime);
+        covariance += dx * (timeAt(i) - meanTime);
         variance += dx * dx;
     }
-    const auto framesPerClock = covariance / variance;
-    if (framesPerClock <= 0.0)
-        return 0.0;
-    return 60.0 * sampleRate_ / (TimeSignature::ticksPerQuarterNote * framesPerClock);
+    // Each second difference of the clock times holds the jitter of three clocks, 6 σ² in all. A
+    // tempo change adds to only one of them, unlike to the residuals of the line.
+    double jitterVariance = 0.0;
+    if (count > 2)
+    {
+        for (std::size_t i = 1; i + 1 < count; ++i)
+        {
+            const auto secondDifference = timeAt(i + 1) - 2.0 * timeAt(i) + timeAt(i - 1);
+            jitterVariance += secondDifference * secondDifference;
+        }
+        jitterVariance /= 6.0 * (n - 2.0);
+    }
+    return {covariance / variance, jitterVariance};
 }
 
 const TransportSpan& MidiClockTransport::span(std::size_t index) const noexcept
@@ -260,6 +284,8 @@ void MidiClockTransport::onStart(double sampleTime) noexcept
     ++startCount_;
     nextTick_ = 0;
     tempoCount_ = 0;
+    framesPerClock_ = 0.0;
+    tempoFollowClocks_ = 0;
     state_ = TransportState::running;
     awaitingTick_ = true;
     runStart_ = sampleTime;
@@ -299,6 +325,40 @@ void MidiClockTransport::addTempoClock(double sampleTime) noexcept
     tempoNewest_ = tempoCount_ == 0 ? 0 : (tempoNewest_ + 1) % tempoClocks_.size();
     tempoClocks_[tempoNewest_] = sampleTime;
     tempoCount_ = std::min(tempoCount_ + 1, tempoClocks_.size());
+
+    if (tempoCount_ < 2)
+    {
+        framesPerClock_ = 0.0;
+        return;
+    }
+
+    // The window grows to steadyTempoBars while the tempo holds, so the jitter averages out
+    // (D-110). When the last beat alone disagrees with it by more than that jitter explains, the
+    // tempo has changed: the estimate is the last beat until a whole beat has passed since, so
+    // that the window grows again from clocks after the change only.
+    constexpr auto shortCount = tempoIntervals + 1;
+    if (tempoFollowClocks_ > 0)
+    {
+        --tempoFollowClocks_;
+        tempoCount_ = std::min(tempoCount_, shortCount);
+    }
+    auto fit = fitNewestClocks(tempoCount_);
+    if (tempoCount_ > shortCount)
+    {
+        const auto recent = fitNewestClocks(shortCount);
+        const auto n = static_cast<double>(shortCount);
+        const auto shortIndexVariance = n * (n * n - 1.0) / 12.0;
+        const auto standardError = std::sqrt(fit.jitterVariance / shortIndexVariance);
+        const auto tolerance = std::max(tempoChangeStandardErrors * standardError,
+                                        minTempoChange * std::abs(fit.framesPerClock));
+        if (std::abs(recent.framesPerClock - fit.framesPerClock) > tolerance)
+        {
+            tempoCount_ = shortCount;
+            tempoFollowClocks_ = tempoIntervals;
+            fit = recent;
+        }
+    }
+    framesPerClock_ = fit.framesPerClock;
 }
 
 } // namespace visona
