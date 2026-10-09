@@ -181,6 +181,10 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
         </dl>
         <p>Close the panel with <strong>Done</strong> or <kbd>Esc</kbd>. Audio interfaces and MIDI ports can be unplugged and plugged in again while Visona runs: it shows <strong>NO AUDIO INPUT</strong> while the device is missing and carries on a few seconds after it returns.</p>
         <p>Visona is developed and tested with an RME Babyface Pro FS, but works with any professional USB audio interface.</p>
+
+        <h3>Running Visona on a separate device</h3>
+        <p>When Visona runs on a different device from the computer playing the music, such as a Raspberry Pi with its own audio interface, connect the two interfaces digitally if you can: S/PDIF, ADAT or AES/EBU. The samples then arrive unchanged, so 0 dBFS in your DAW is 0 dBFS in Visona and the levels you read are exact. Run both interfaces at the same sample rate, with the receiving interface clocked from its digital input.</p>
+        <p>With an analog connection, match the levels so that 0 dBFS is the same on both sides: the output level of the interface on the computer and the input gain of the interface Visona listens to. Play a sine tone at −12 dBFS from your DAW, open the diagnostics overlay (<kbd>D</kbd>) and set the input gain until each input reads −12 dBFS. If the levels don't match, the waveform and its dBFS reference lines show the audio louder or quieter than it is, and too much gain clips the input before Visona sees it.</p>
       </section>
 
       <section id="in-a-daw">
@@ -343,11 +347,13 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
         <h2><span class="num">22</span>Visona Sync with the app</h2>
         <p>The app allows for its own input latency, but not for what lies between your DAW's MIDI Clock and the audio reaching the interface: the DAW's output latency, clock delay settings and the interfaces on the way. Visona Sync measures that too, if its impulse comes in on an input of its own.</p>
         <ol>
-          <li>In your DAW, add <strong>Visona Sync</strong> on an instrument track and send that track to a free output of your interface, such as 3/4. Keep it off your speakers: it is a click on every bar.</li>
+          <li>In your DAW, add <strong>Visona Sync</strong> on an instrument track and send that track straight to a free output of your interface, such as 3/4, not to the master. Keep it off your speakers: it is a click on every bar.</li>
           <li>Connect that output to a free input of the interface Visona listens to, with a cable or the interface's loopback routing (TotalMix on an RME interface, for example).</li>
           <li>In Visona's <strong>Settings</strong>, set <strong>Visona Sync</strong> to that input.</li>
           <li>Start playback with MIDI Clock going to Visona. From the first bar line the status bar shows the offset, such as <strong>SC +12.3 ms</strong>.</li>
         </ol>
+        <p>The impulse must reach the input exactly as Visona Sync writes it. Put no effects after Visona Sync on its track, and don't route the track through the master, a group or a return: effects there can delay, smear or turn down the click, and on the master it would also be mixed into your music. Leave the track's volume at 0 dB, since a peak below −20 dBFS doesn't count as an impulse.</p>
+        <p><strong>Ableton Live:</strong> on the Sync track, set <strong>Audio To</strong> to <strong>Ext. Out</strong> and choose the output pair below it, such as <strong>3/4</strong>. <strong>Reaper:</strong> in the Sync track's routing, turn off <strong>Master send</strong> and add a hardware output to the free pair. <strong>Bitwig Studio:</strong> set the Sync track's output to an output bus for the free pair, added under <strong>Settings → Audio</strong>.</p>
         <p>Nothing is measured in FREE mode. The song must be in 4/4, and the offset must be less than half a bar.</p>
       </section>
 
