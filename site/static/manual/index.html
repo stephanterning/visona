@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visona manual</title>
+  <meta name="description" content="How to install and use Visona, the beat-synced stereo oscilloscope: app, plugins, Visona Sync, controls and troubleshooting.">
+  <link rel="canonical" href="https://visona.org/manual/">
+  <meta name="theme-color" content="#0b0c0f">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="/"><img src="/favicon.svg" alt="" width="24" height="24">Visona</a>
+    <nav>
+      <a href="/#features">Features</a>
+      <a href="/#download">Download</a>
+      <a href="/manual/" aria-current="page">Manual</a>
+      <a href="https://github.com/stephanterning/visona">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="manual">
+    <aside class="toc">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#introduction">Introduction</a></li>
+        <li><a href="#download">Downloading Visona</a></li>
+        <li><a href="#install-app">Installing the app</a></li>
+        <li><a href="#install-plugins">Installing the plugins</a></li>
+        <li><a href="#first-start">First start of the app</a></li>
+        <li><a href="#in-a-daw">Using the plugin in a DAW</a></li>
+        <li><a href="#screen">The screen at a glance</a></li>
+        <li><a href="#status-bar">Status bar</a></li>
+        <li><a href="#midi-clock">MIDI Clock sync</a></li>
+        <li><a href="#free">FREE mode and Run free</a></li>
+        <li><a href="#pause">Pause</a></li>
+        <li><a href="#window">Window</a></li>
+        <li><a href="#tempo">Tempo</a></li>
+        <li><a href="#gain">Gain and auto gain</a></li>
+        <li><a href="#waveform">Waveform modes</a></li>
+        <li><a href="#colour">Waveform colour</a></li>
+        <li><a href="#grid">Grid, lanes and labels</a></li>
+        <li><a href="#zoom">Zoom</a></li>
+        <li><a href="#ruler">Measurement ruler</a></li>
+        <li><a href="#sync-plugin">Latency and Visona Sync</a></li>
+        <li><a href="#sync-app">Visona Sync with the app</a></li>
+        <li><a href="#diagnostics">Diagnostics overlay</a></li>
+        <li><a href="#full-screen">Full screen and kiosk mode</a></li>
+        <li><a href="#touch">Touchscreen</a></li>
+        <li><a href="#shortcuts">Keyboard and mouse</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#conclusion">Conclusion</a></li>
+      </ol>
+    </aside>
+
+    <article class="prose">
+      <p class="eyebrow">Manual</p>
+      <h1>Visona manual</h1>
+      <p class="lead">Everything you need to install Visona, connect it to your music and read what it shows. Hover over any control in Visona for a tooltip; on a touchscreen, hold a finger on it for half a second.</p>
+
+      <section id="faq">
+        <h2><span class="num">1</span>FAQ</h2>
+
+        <h3>When I move my track's volume fader, the waveform doesn't change.</h3>
+        <p>Visona sits in an insert slot, and in most DAWs inserts come before the track fader, so Visona sees the signal before the fader. To watch the level after the fader, put the track in a group and Visona on the group, or put Visona on a return or the master.</p>
+
+        <h3>In Ableton Live the waveform lands a little after the grid.</h3>
+        <p>A plugin with latency, such as a lookahead limiter or a linear-phase EQ, sits before Visona. Live tells every plugin on the track the same playhead, so the audio reaching Visona is late by that latency. Route <strong>Visona Sync</strong> to Visona's sidechain and Visona measures the latency and moves the audio back onto the grid. See <a href="#sync-plugin">Latency and Visona Sync</a>.</p>
+
+        <h3>The app shows MIDI CLOCK LOST.</h3>
+        <p>MIDI Clock stopped arriving for more than half a second while the transport ran. Check that your DAW sends MIDI Clock to the port chosen in <strong>Settings → MIDI input</strong>. To keep watching without clock, press <strong>Run free</strong> (or <kbd>Space</kbd>). See <a href="#midi-clock">MIDI Clock sync</a>.</p>
+
+        <h3>macOS says Visona can't be opened.</h3>
+        <p>The builds are not notarized yet. Remove the quarantine flag with <code>xattr -cr /path/to/Visona.app</code> and open it again. For the plugins, see <a href="#install-plugins">Installing the plugins</a>.</p>
+
+        <h3>Ableton Live doesn't list the CLAP plugin.</h3>
+        <p>Live doesn't load CLAP plugins. Use the VST3 or, on macOS, the AU in Live. Reaper and Bitwig Studio load CLAP.</p>
+
+        <h3>Does Visona change my audio?</h3>
+        <p>No. The plugin is a pass-through effect: the audio goes to the output unchanged while Visona analyzes it. Visona Sync is a separate instrument that only writes a click for Visona's sidechain.</p>
+
+        <h3>Pinch doesn't zoom on my Raspberry Pi touchscreen, but taps and drags work.</h3>
+        <p>The desktop still turns touches into mouse events. See <a href="#touch">Touchscreen</a>.</p>
+      </section>
+
+      <section id="introduction">
+        <h2><span class="num">2</span>Introduction</h2>
+        <p>Visona is a beat-synced stereo oscilloscope for music production. It draws your audio as a sweep that runs from left to right across one window of musical time, from a quarter bar to four bars, and starts over at the next window. Because the sweep is locked to the bar, a kick that sits on the beat lands on the same grid line every pass, and you see timing, transients and envelopes in their musical context.</p>
+        <p>Visona comes in two forms:</p>
+        <ul>
+          <li><strong>The app</strong>, for macOS on Apple Silicon and Raspberry Pi. It listens to an audio interface and follows MIDI Clock from your DAW, or runs free at a tempo you set. On a Raspberry Pi with a screen it becomes a dedicated studio display.</li>
+          <li><strong>The plugins</strong>, VST3, AU and CLAP on macOS and VST3 and CLAP on Windows and Linux. <strong>Visona</strong> is a pass-through stereo effect that follows the DAW's transport directly. <strong>Visona Sync</strong> is a companion instrument that measures latency for it.</li>
+        </ul>
+        <p>Visona is free, open-source software under the AGPL-3.0. It is in alpha: things change from release to release, and your feedback shapes what comes next.</p>
+        <figure><img src="/images/visona-scope.png" alt="Visona drawing a stereo sweep over one bar" loading="lazy"></figure>
+      </section>
+
+      <section id="download">
+        <h2><span class="num">3</span>Downloading Visona</h2>
+        <p>Downloads are on the <a href="/#download">download section</a> of this site, with the newest alpha, beta and stable release. Each file is a zip or tarball for one platform and format; download only those you need. The SHA-256 next to each file lets you check that the download is intact.</p>
+        <table>
+          <thead><tr><th>You want</th><th>Download</th></tr></thead>
+          <tbody>
+            <tr><td>The app on a Mac</td><td><code>Visona-macos-arm64.zip</code></td></tr>
+            <tr><td>The app on a Raspberry Pi</td><td><code>Visona-linux-arm64-pi.tar.gz</code>, or install over SSH (below)</td></tr>
+            <tr><td>The plugin</td><td><code>Visona-&lt;format&gt;-&lt;platform&gt;</code>, for example <code>Visona-vst3-windows-x64.zip</code></td></tr>
+            <tr><td>Visona Sync</td><td><code>Visona-sync-&lt;format&gt;-&lt;platform&gt;</code></td></tr>
+          </tbody>
+        </table>
+        <p>Links that always point to the newest build have the form <code>visona.org/download/latest/&lt;file&gt;/</code>, such as <a href="/download/latest/macos-arm64/"><code>/download/latest/macos-arm64/</code></a>.</p>
+      </section>
+
+      <section id="install-app">
+        <h2><span class="num">4</span>Installing the app</h2>
+        <h3>macOS</h3>
+        <p>The app needs a Mac with Apple Silicon and macOS 14 or later. Unzip <code>Visona-macos-arm64.zip</code>, move <code>Visona.app</code> to <em>Applications</em> and open it. If macOS blocks it, run:</p>
+        <pre><code>xattr -cr /Applications/Visona.app</code></pre>
+        <p>The first time, macOS asks for permission to use the microphone. Visona needs it to read any audio input, including your audio interface.</p>
+
+        <h3>Raspberry Pi</h3>
+        <p>Visona runs on Raspberry Pi OS 64-bit with the desktop. Over SSH, this installs the newest release to <code>~/visona</code> and starts Visona full screen at login:</p>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/stephanterning/visona/main/scripts/pi/install-visona.sh | bash</code></pre>
+        <p>Run the same command again to upgrade; your settings are kept. The <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-setup.md">Pi setup guide</a> covers flashing the card and setting up the audio interface, and the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-kiosk.md">kiosk guide</a> covers autostart, displays and touchscreens.</p>
+        <p class="callout">On Linux and the Raspberry Pi, a USB audio interface must run in <strong>class compliant mode</strong>. Use a powered USB hub or the interface's own power supply.</p>
+      </section>
+
+      <section id="install-plugins">
+        <h2><span class="num">5</span>Installing the plugins</h2>
+        <p>Unpack each archive and copy the bundle into the folder for its format. Create the folder if it doesn't exist, then restart your DAW or rescan its plugins. Hosts list the plugins as <strong>Stephan Terning → Visona</strong> and <strong>Stephan Terning → Visona Sync</strong>.</p>
+        <table>
+          <thead><tr><th>Platform</th><th>Format</th><th>Install folder</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="3">macOS</td><td>VST3</td><td><code>~/Library/Audio/Plug-Ins/VST3/</code></td></tr>
+            <tr><td>AU</td><td><code>~/Library/Audio/Plug-Ins/Components/</code></td></tr>
+            <tr><td>CLAP</td><td><code>~/Library/Audio/Plug-Ins/CLAP/</code></td></tr>
+            <tr><td rowspan="2">Windows</td><td>VST3</td><td><code>C:\Program Files\Common Files\VST3\</code></td></tr>
+            <tr><td>CLAP</td><td><code>C:\Program Files\Common Files\CLAP\</code></td></tr>
+            <tr><td rowspan="2">Linux</td><td>VST3</td><td><code>~/.vst3/</code></td></tr>
+            <tr><td>CLAP</td><td><code>~/.clap/</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>macOS</h3>
+        <p>The plugin builds are not notarized. After copying, remove the quarantine flag and sign the bundles on your Mac, or your DAW may refuse to load them. For VST3, for example:</p>
+        <pre><code>cd ~/Library/Audio/Plug-Ins
+xattr -cr VST3/Visona.vst3 VST3/Visona\ Sync.vst3
+codesign --force --sign - --deep VST3/Visona.vst3
+codesign --force --sign - --deep VST3/Visona\ Sync.vst3</code></pre>
+        <p>Do the same for <code>Components/*.component</code> and <code>CLAP/*.clap</code> if you installed those. If a new AU doesn't show up, run <code>killall -9 AudioComponentRegistrar</code> and restart the DAW. In Ableton Live, turn on <strong>Use Audio Units</strong> under <strong>Settings → Plug-Ins</strong> and press <strong>Rescan</strong>.</p>
+
+        <h3>Windows</h3>
+        <p>Before unpacking, right-click each zip, choose <strong>Properties</strong> and tick <strong>Unblock</strong>, or run <code>Unblock-File .\Visona-*.zip</code> in PowerShell. Copying into <em>Common Files</em> needs administrator rights. No Visual C++ redistributable is needed.</p>
+
+        <h3>Linux</h3>
+        <p>Supported on x86_64 with Ubuntu 24.04, Debian 13, Fedora 39 or newer. No signing is needed:</p>
+        <pre><code>mkdir -p ~/.vst3 ~/.clap
+tar xzf Visona-vst3-linux-x86_64.tar.gz -C ~/.vst3
+tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
+      </section>
+
+      <section id="first-start">
+        <h2><span class="num">6</span>First start of the app</h2>
+        <p>Open <strong>Settings</strong> with the gear button or <kbd>Cmd</kbd>+<kbd>,</kbd> (<kbd>Ctrl</kbd>+<kbd>,</kbd> on Linux). Every choice is saved at once, and Visona opens the same devices next time.</p>
+        <figure><img src="/images/visona-settings.png" alt="Visona's settings panel" loading="lazy"></figure>
+        <dl>
+          <dt>Audio system, Audio device</dt>
+          <dd>The driver type and the interface Visona listens to.</dd>
+          <dt>Sample rate, Buffer size</dt>
+          <dd>Use the rate your session runs at. A smaller buffer gets the audio to the screen sooner.</dd>
+          <dt>Left input, Right input</dt>
+          <dd>Which inputs of the interface feed the left and right lanes.</dd>
+          <dt>Visona Sync</dt>
+          <dd>An input that receives Visona Sync's bar impulse, or <em>Off</em>. See <a href="#sync-app">Visona Sync with the app</a>.</dd>
+          <dt>MIDI input</dt>
+          <dd>The port your DAW sends MIDI Clock to, or <em>None</em> to run free.</dd>
+          <dt>Waveform colour, View</dt>
+          <dd>The colour of the waveform, and buttons for the diagnostics overlay and full screen.</dd>
+        </dl>
+        <p>Close the panel with <strong>Done</strong> or <kbd>Esc</kbd>. Audio interfaces and MIDI ports can be unplugged and plugged in again while Visona runs: it shows <strong>NO AUDIO INPUT</strong> while the device is missing and carries on a few seconds after it returns.</p>
+        <p>Visona is developed and tested with an RME Babyface Pro FS, but works with any professional USB audio interface.</p>
+
+        <h3>Running Visona on a separate device</h3>
+        <p>When Visona runs on a different device from the computer playing the music, such as a Raspberry Pi with its own audio interface, connect the two interfaces digitally if you can: S/PDIF, ADAT or AES/EBU. The samples then arrive unchanged, so 0 dBFS in your DAW is 0 dBFS in Visona and the levels you read are exact. Run both interfaces at the same sample rate, with the receiving interface clocked from its digital input.</p>
+        <p>With an analog connection, match the levels so that 0 dBFS is the same on both sides: the output level of the interface on the computer and the input gain of the interface Visona listens to. Play a sine tone at −12 dBFS from your DAW, open the diagnostics overlay (<kbd>D</kbd>) and set the input gain until each input reads −12 dBFS. If the levels don't match, the waveform and its dBFS reference lines show the audio louder or quieter than it is, and too much gain clips the input before Visona sees it.</p>
+      </section>
+
+      <section id="in-a-daw">
+        <h2><span class="num">7</span>Using the plugin in a DAW</h2>
+        <ol>
+          <li>Insert <strong>Visona</strong> on a stereo track, group, return or the master: wherever you want to see the audio.</li>
+          <li>Press Play. The sweep starts at bar 1 and follows the DAW's tempo, position and time signature.</li>
+          <li>Stop, and the view freezes and dims with <strong>STOPPED</strong> in the status bar. Move the playhead and play again, and the scope picks up at the new position.</li>
+        </ol>
+        <p>Use as many instances as you like. Each one saves its own window, gain, auto gain, waveform mode and colour in the project. The plugin has no tempo control, pause button or full-screen button, since the DAW drives it; <strong>Settings</strong> holds the waveform colour only.</p>
+      </section>
+
+      <section id="screen">
+        <h2><span class="num">8</span>The screen at a glance</h2>
+        <ul>
+          <li><strong>Status bar</strong>, at the top: tempo, sync state, sample rate, window, gain and zoom.</li>
+          <li><strong>Zoom strip</strong>, under the status bar, only while you are zoomed in.</li>
+          <li><strong>Scope</strong>: one lane per channel, left above right, with the bar grid and the green write head.</li>
+          <li><strong>Control bar</strong>, at the bottom: Pause, WINDOW, BPM, GAIN with AUTO, WAVE, then Diagnostics, Full screen and Settings.</li>
+        </ul>
+        <p>The layout adapts to the window. In a narrow window the buttons drop their labels and show only their icons, and in a very small window some controls move behind the gear button.</p>
+      </section>
+
+      <section id="status-bar">
+        <h2><span class="num">9</span>Status bar</h2>
+        <p>The status bar only shows; nothing in it is a button. From the left:</p>
+        <table>
+          <thead><tr><th>Item</th><th>Example</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>Tempo</td><td><code>126.0 BPM</code></td><td>From MIDI Clock, the DAW, or your free tempo.</td></tr>
+            <tr><td>State</td><td><code>MIDI RUN</code></td><td>See the list below.</td></tr>
+            <tr><td>Visona Sync</td><td><code>SC +12.3 ms</code></td><td>The measured latency, or <code>SC ...</code> while waiting for the first impulse. Hover for details.</td></tr>
+            <tr><td>Sample rate</td><td><code>96 kHz</code></td><td>Of the audio input.</td></tr>
+            <tr><td>Window</td><td><code>1 BAR</code></td><td>The sweep length.</td></tr>
+            <tr><td>Gain</td><td><code>+12 dB</code>, <code>AUTO +6 dB</code></td><td>The display gain.</td></tr>
+            <tr><td>Zoom</td><td><code>ZOOM 4.0× · 1.3–1.4</code></td><td>Only while zoomed: the factor and the bars in view.</td></tr>
+          </tbody>
+        </table>
+        <p>The state reads:</p>
+        <dl>
+          <dt>MIDI RUN</dt><dd>The app follows a running MIDI Clock.</dd>
+          <dt>HOST RUN</dt><dd>The plugin follows the playing DAW.</dd>
+          <dt>STOPPED</dt><dd>The transport is stopped. The view freezes and dims.</dd>
+          <dt>FREE</dt><dd>The sweep runs at your own tempo, without clock.</dd>
+          <dt>PAUSED</dt><dd>You paused the view. This takes precedence over everything else.</dd>
+          <dt class="error">MIDI CLOCK LOST</dt><dd>Clock stopped arriving while the transport ran. A banner over the scope explains what to do.</dd>
+          <dt class="error">NO INPUT</dt><dd>No audio input is running. The banner says why; choose a device in Settings.</dd>
+        </dl>
+        <p>Red is used only for errors.</p>
+      </section>
+
+      <section id="midi-clock">
+        <h2><span class="num">10</span>MIDI Clock sync</h2>
+        <p>The app follows MIDI Clock, including Start, Stop, Continue and Song Position Pointer, so it starts at the right bar when you start playback from the middle of a song. In your DAW, send MIDI Clock to a port Visona can see: an output of your audio or MIDI interface, a network MIDI session, or on macOS an IAC bus. Choose that port under <strong>Settings → MIDI input</strong>.</p>
+        <p>In Ableton Live, turn on <strong>Sync</strong> for that output port under <strong>Settings → Link, Tempo &amp; MIDI</strong>, and set <strong>MIDI Clock Type</strong> to <strong>Song</strong> so Live sends Song Position Pointer. The app counts in 4/4.</p>
+        <p>If clock stops for more than half a second while the transport runs, the state reads <strong>MIDI CLOCK LOST</strong> and the view freezes until clock returns. The diagnostics overlay shows the MIDI input, the transport, the tempo and the message counts.</p>
+      </section>
+
+      <section id="free">
+        <h2><span class="num">11</span>FREE mode and Run free</h2>
+        <p>Without MIDI Clock the app runs free: the sweep moves at the tempo in the <strong>BPM</strong> control, and the state reads <strong>FREE</strong>. The app starts in FREE mode and switches to MIDI Clock as soon as clock arrives, so with <em>None</em> as MIDI input it simply stays free.</p>
+        <p>When MIDI Clock stops or is lost, the first button in the control bar becomes <strong>Run free</strong>. Press it, or <kbd>Space</kbd>, and the sweep carries on at the last clock tempo until MIDI Clock starts again.</p>
+      </section>
+
+      <section id="pause">
+        <h2><span class="num">12</span>Pause</h2>
+        <p>In the app, <strong>Pause</strong> (<kbd>Space</kbd> or <kbd>P</kbd>) holds the view and stops the analysis: use it to study a pass in peace, when movement distracts, or to save CPU. The button turns into a lit <strong>Resume</strong>, and the state reads <strong>PAUSED</strong>. While paused, error banners stay hidden; they show again when you resume.</p>
+        <p>The plugin has no pause button: its view freezes whenever the DAW stops.</p>
+      </section>
+
+      <section id="window">
+        <h2><span class="num">13</span>Window</h2>
+        <p><strong>WINDOW</strong> sets how much musical time one pass of the sweep covers: <strong>¼</strong>, <strong>½</strong>, <strong>1</strong>, <strong>2</strong> or <strong>4 bars</strong>. Keys <kbd>1</kbd> to <kbd>5</kbd> pick them directly. A short window shows the shape of a single hit; a long window shows a whole phrase and how its dynamics develop.</p>
+      </section>
+
+      <section id="tempo">
+        <h2><span class="num">14</span>Tempo</h2>
+        <p>The <strong>BPM</strong> control sets the tempo of the free-running sweep, from 40 to 300 BPM. The <strong>−</strong> and <strong>+</strong> buttons step whole BPM; drag or scroll on the value to fine-tune in steps of 0.1. While MIDI Clock sets the tempo, the control shows it dimmed. The free tempo is saved.</p>
+      </section>
+
+      <section id="gain">
+        <h2><span class="num">15</span>Gain and auto gain</h2>
+        <p><strong>GAIN</strong> zooms the display vertically, from 0 to +18 dB in 1 dB steps, so quiet material fills the lanes. It changes only what you see, never the audio. Drag or scroll on it, use its buttons, or press <kbd>+</kbd>/<kbd>−</kbd> or <kbd>↑</kbd>/<kbd>↓</kbd>. Double-click or double-tap resets it to 0 dB.</p>
+        <p><strong>AUTO</strong>, next to it, turns on auto gain. The button lights, the value turns green, and the gain moves in 3 dB steps so the loudest peak fills the top 3 dB: out as soon as a peak goes past the edge of a lane, and in at a bar line once the peaks have stayed low for 10 seconds. Setting the gain by hand turns auto gain off.</p>
+        <p>Faint reference lines mark where 0 dBFS and −6 dBFS land after the gain, joined by −12 dBFS from +4 dB of gain and −18 dBFS from +10 dB, so you can still read levels. A peak beyond the edge of a lane is cut off with a grey marker. Grey, not red, because it is the display that overshoots, not your audio that clips.</p>
+      </section>
+
+      <section id="waveform">
+        <h2><span class="num">16</span>Waveform modes</h2>
+        <p><strong>WAVE</strong>, or the <kbd>W</kbd> key, switches between three ways of drawing:</p>
+        <dl>
+          <dt>STD</dt>
+          <dd>A thin line through the signal. The lightest to draw, and the clearest for low frequencies and single cycles.</dd>
+          <dt>PRECISE</dt>
+          <dd>Fills every peak, so nothing between two pixels is lost. The default, and the best view of transients and envelopes.</dd>
+          <dt>DJ</dt>
+          <dd>Like PRECISE, with every column coloured by frequency: lows red, mids green and highs blue, mixed so the strongest band sets the hue. Kicks and bass glow red, hi-hats blue. The bands split at about 200 Hz and 2.5 kHz.</dd>
+        </dl>
+        <p>The outline of the waveform is the same in PRECISE and DJ; only the colour differs.</p>
+      </section>
+
+      <section id="colour">
+        <h2><span class="num">17</span>Waveform colour</h2>
+        <p>In <strong>Settings</strong>, choose the colour of the waveform in STD and PRECISE: Teal (the default), Cyan, Blue, Violet, Pink, Amber, Yellow or Grey. Green is kept for the write head. In the plugin, each instance remembers its own colour, so you can tell instances apart at a glance.</p>
+      </section>
+
+      <section id="grid">
+        <h2><span class="num">18</span>Grid, lanes and labels</h2>
+        <ul>
+          <li><strong>Bar lines</strong> are bright, <strong>beat lines</strong> darker, and finer subdivisions fainter still. The grid gets finer as you zoom in, down to sixty-fourth notes.</li>
+          <li><strong>Bar numbers</strong> run along the bottom. Zoomed in, the labels read bar.beat, and the left edge always says which beat the view starts in.</li>
+          <li><strong>The grid resolution</strong>, in the bottom-right corner, reads like <code>1/16 · 125 ms</code>: the note value between the finest lines and its length at the current tempo.</li>
+          <li><strong>Lanes</strong> are labelled <strong>L</strong> and <strong>R</strong>, with faint reference lines labelled in dBFS.</li>
+          <li><strong>The write head</strong> is the green line where new audio is drawn. A small gap in front of it erases the previous pass.</li>
+        </ul>
+      </section>
+
+      <section id="zoom">
+        <h2><span class="num">19</span>Zoom</h2>
+        <p>Zoom in on any part of the window to see detail, while the sweep keeps running:</p>
+        <ul>
+          <li><strong>Drag</strong> across the scope to zoom to that part.</li>
+          <li><strong>Scroll</strong> up or down to zoom around the pointer, or <strong>pinch</strong> on a trackpad or touchscreen.</li>
+          <li><strong>Scroll sideways</strong>, or hold <kbd>Shift</kbd> and scroll, to move the view.</li>
+          <li><strong>Double-click</strong> the scope, press <kbd>Esc</kbd>, or click the <strong>×</strong> on the zoom strip to reset.</li>
+        </ul>
+        <p>While zoomed, the <strong>zoom strip</strong> shows the whole window, the part in view and the write head. Drag on it to move the view, round past either end, or click outside the part in view to centre it there.</p>
+      </section>
+
+      <section id="ruler">
+        <h2><span class="num">20</span>Measurement ruler</h2>
+        <p>Drag with the <strong>right mouse button</strong>, a <strong>two-finger click</strong> or <kbd>Control</kbd>-click, or hold a finger still for half a second and then drag, to draw a ruler on the scope. While you hold it, a readout next to the pointer shows the ruler's width as:</p>
+        <table>
+          <tbody>
+            <tr><td><strong>ms</strong></td><td>The length in milliseconds.</td></tr>
+            <tr><td><strong>samples</strong></td><td>The length in samples at the current sample rate.</td></tr>
+            <tr><td><strong>frequency</strong></td><td>The frequency whose period is that length, in Hz.</td></tr>
+            <tr><td><strong>note</strong></td><td>The nearest note and how many cents off it is, such as <code>A3 +0 ct</code>. Middle C is C3, as in Ableton Live.</td></tr>
+            <tr><td><strong>length</strong></td><td>The musical length, such as <code>0.75 beat · 3/16</code> or <code>4.00 beats · 1 bar</code>.</td></tr>
+          </tbody>
+        </table>
+        <p>Measure from one peak to the next to find the pitch of a bass note, or from the grid to a transient to see how late it is. The ruler reads the time axis as shown and goes away when you let go.</p>
+      </section>
+
+      <section id="sync-plugin">
+        <h2><span class="num">21</span>Latency and Visona Sync</h2>
+        <p>Some DAWs, Ableton Live among them, report the same playhead to every plugin on a track, including plugins placed after plugins with latency. The audio reaching Visona is then late by that latency, and the waveform lands after the grid. <strong>Visona Sync</strong> fixes this.</p>
+        <p>Visona Sync is an instrument that writes a short impulse at the start of every bar. The DAW aligns a sidechain with the main input of the plugin it feeds, so the impulse arrives exactly as late as the audio. Visona measures how far after the bar line it arrives, and draws the audio that much earlier.</p>
+        <ol>
+          <li>Add <strong>Visona Sync</strong> on an instrument track. No MIDI clip is needed.</li>
+          <li>In <strong>Visona</strong>, choose the Sync track as the sidechain input. In Live, pick <strong>Post FX</strong>.</li>
+          <li>Press Play. From the first bar line the status bar shows the measured latency, such as <strong>SC +98.7 ms</strong>; <strong>SC ...</strong> means the sidechain is on but no impulse has arrived yet.</li>
+        </ol>
+        <p>Visona keeps the latency it measured. If you add or remove plugins with latency, the new value takes over after two bars and the sweep starts over. One Visona Sync track can feed every Visona instance in the project.</p>
+        <p><strong>Reaper:</strong> set Visona's track to 4 channels and send the Sync track to channels 3/4. <strong>Bitwig Studio:</strong> choose the Sync track as the sidechain in Visona's device header.</p>
+        <p class="callout">Route nothing but Visona Sync to the sidechain: any peak above −20 dBFS counts as a bar impulse. If <strong>Reduced Latency When Monitoring</strong> is on in Live, keep the Sync track unarmed.</p>
+      </section>
+
+      <section id="sync-app">
+        <h2><span class="num">22</span>Visona Sync with the app</h2>
+        <p>The app allows for its own input latency, but not for what lies between your DAW's MIDI Clock and the audio reaching the interface: the DAW's output latency, clock delay settings and the interfaces on the way. Visona Sync measures that too, if its impulse comes in on an input of its own.</p>
+        <ol>
+          <li>In your DAW, add <strong>Visona Sync</strong> on an instrument track and send that track straight to a free output of your interface, such as 3/4, not to the master. Keep it off your speakers: it is a click on every bar.</li>
+          <li>Connect that output to a free input of the interface Visona listens to, with a cable or the interface's loopback routing (TotalMix on an RME interface, for example).</li>
+          <li>In Visona's <strong>Settings</strong>, set <strong>Visona Sync</strong> to that input.</li>
+          <li>Start playback with MIDI Clock going to Visona. From the first bar line the status bar shows the offset, such as <strong>SC +12.3 ms</strong>.</li>
+        </ol>
+        <p>The impulse must reach the input exactly as Visona Sync writes it. Put no effects after Visona Sync on its track, and don't route the track through the master, a group or a return: effects there can delay, smear or turn down the click, and on the master it would also be mixed into your music. Leave the track's volume at 0 dB, since a peak below −20 dBFS doesn't count as an impulse.</p>
+        <p><strong>Ableton Live:</strong> on the Sync track, set <strong>Audio To</strong> to <strong>Ext. Out</strong> and choose the output pair below it, such as <strong>3/4</strong>. <strong>Reaper:</strong> in the Sync track's routing, turn off <strong>Master send</strong> and add a hardware output to the free pair. <strong>Bitwig Studio:</strong> set the Sync track's output to an output bus for the free pair, added under <strong>Settings → Audio</strong>.</p>
+        <p>Nothing is measured in FREE mode. The song must be in 4/4, and the offset must be less than half a bar.</p>
+      </section>
+
+      <section id="diagnostics">
+        <h2><span class="num">23</span>Diagnostics overlay</h2>
+        <p>Press <kbd>D</kbd>, or the Diagnostics button, for a panel of technical readings: the audio device, sample rate, block size and level per input, overruns and device xruns, MIDI Clock messages and timing, the Visona Sync measurement, analysis load, frame rate and render times, and Visona's CPU use. Include a screenshot of it when you report a problem.</p>
+        <figure><img src="/images/visona-diagnostics.png" alt="Visona's diagnostics overlay" loading="lazy"></figure>
+      </section>
+
+      <section id="full-screen">
+        <h2><span class="num">24</span>Full screen and kiosk mode</h2>
+        <p>In the app, <kbd>F</kbd> or the Full screen button toggles full screen. On a Raspberry Pi installed with <code>install-visona.sh</code>, Visona starts full screen at login in kiosk mode, with the control bar drawn larger for touch. The display can be switched on after boot, turned off and on, or changed to another resolution, and Visona follows. To quit kiosk mode from SSH, run <code>pkill Visona</code>.</p>
+      </section>
+
+      <section id="touch">
+        <h2><span class="num">25</span>Touchscreen</h2>
+        <p>Visona works with a multitouch screen, for example on a Raspberry Pi:</p>
+        <ul>
+          <li>A tap works as a click. Double-tap the gain to reset it, or the scope to reset the zoom.</li>
+          <li>Drag across the scope to zoom to that part; pinch to zoom and move the view with your fingers.</li>
+          <li>Hold a finger still on the scope for half a second, then drag, to draw the measurement ruler.</li>
+          <li>Hold a finger still on a control for half a second to see its tooltip.</li>
+          <li>Tap outside the settings panel to close it.</li>
+        </ul>
+        <p>On Raspberry Pi OS, <code>install-visona.sh</code> turns off the desktop's touch-to-mouse emulation so pinch reaches Visona; it takes effect after a reboot. See the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-kiosk.md#touchscreen">kiosk guide</a> for details.</p>
+      </section>
+
+      <section id="shortcuts">
+        <h2><span class="num">26</span>Keyboard and mouse</h2>
+        <table>
+          <thead><tr><th>Key</th><th>Action</th><th>Where</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Space</kbd> or <kbd>P</kbd></td><td>Pause, Resume or Run free</td><td>App</td></tr>
+            <tr><td><kbd>1</kbd> – <kbd>5</kbd></td><td>Window ¼, ½, 1, 2 or 4 bars</td><td>App</td></tr>
+            <tr><td><kbd>+</kbd> <kbd>−</kbd> or <kbd>↑</kbd> <kbd>↓</kbd></td><td>Gain up or down 1 dB</td><td>App</td></tr>
+            <tr><td><kbd>W</kbd></td><td>Next waveform mode</td><td>App</td></tr>
+            <tr><td><kbd>F</kbd></td><td>Full screen</td><td>App</td></tr>
+            <tr><td><kbd>Cmd</kbd>+<kbd>,</kbd></td><td>Settings</td><td>App</td></tr>
+            <tr><td><kbd>D</kbd></td><td>Diagnostics overlay</td><td>App and plugin</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close Settings, or reset the zoom</td><td>App and plugin</td></tr>
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th>On the scope</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>Drag</td><td>Zoom to the selection</td></tr>
+            <tr><td>Scroll, pinch</td><td>Zoom around the pointer</td></tr>
+            <tr><td>Scroll sideways, <kbd>Shift</kbd>+scroll</td><td>Move the zoomed view</td></tr>
+            <tr><td>Double-click</td><td>Reset the zoom</td></tr>
+            <tr><td>Right-drag, <kbd>Control</kbd>-drag, two-finger click and drag</td><td>Measurement ruler</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="troubleshooting">
+        <h2><span class="num">27</span>Troubleshooting</h2>
+        <table>
+          <thead><tr><th>Problem</th><th>What to try</th></tr></thead>
+          <tbody>
+            <tr><td><strong>NO AUDIO INPUT</strong></td><td>Choose the audio device in Settings. On macOS, allow microphone access under <em>System Settings → Privacy &amp; Security → Microphone</em>. On Linux and the Pi, put the interface in class compliant mode.</td></tr>
+            <tr><td>The scope runs but stays flat</td><td>Check <strong>Left input</strong> and <strong>Right input</strong> in Settings, and the input levels in the diagnostics overlay.</td></tr>
+            <tr><td><strong>MIDI CLOCK LOST</strong> or no tempo</td><td>Check that the DAW sends MIDI Clock to the chosen MIDI input, and that the DAW is playing.</td></tr>
+            <tr><td>The waveform is off the grid</td><td>In a DAW, use <a href="#sync-plugin">Visona Sync on the sidechain</a>. With the app, use <a href="#sync-app">Visona Sync on an input</a>.</td></tr>
+            <tr><td>The plugin doesn't show up</td><td>Check the install folder, clear the quarantine flag and sign the bundle on macOS, unblock the zip on Windows, and rescan in the DAW.</td></tr>
+            <tr><td>The scope stops updating in a DAW</td><td>Note the status bar and the diagnostics overlay, then close and reopen the plugin window. Report it with those details.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="conclusion">
+        <h2><span class="num">28</span>Conclusion</h2>
+        <p>Thanks for trying Visona. It is young, and it gets better with every report of what works, what doesn't and what you miss. Open an <a href="https://github.com/stephanterning/visona/issues">issue on GitHub</a>, and include a screenshot with the diagnostics overlay when something goes wrong.</p>
+      </section>
+    </article>
+  </div>
+
+  <footer>
+    <p>Visona is free software under the <a href="https://github.com/stephanterning/visona/blob/main/LICENSE">AGPL-3.0</a> · <a href="/">visona.org</a> · <a href="https://github.com/stephanterning/visona/releases">All releases</a></p>
+  </footer>
+</body>
+</html>
