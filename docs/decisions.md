@@ -500,6 +500,12 @@ A lightweight log of decisions and open questions. The architecture is described
   - Visona Sync's bar impulse (D-109) is sample-accurate and would give an even better tempo, but only once a bar and only when it is routed. The four-bar fit is already far below the display's resolution, so the impulse still measures the offset only.
 
   Amends D-074 and D-015's smoothing.
+- **D-112 — The app icon is the website's favicon motif, redrawn on Apple's macOS icon grid, with one master for all platforms.** `Active`
+  - The maintainer liked the favicon made for the website and wants it on the macOS app, and later possibly in the Mac App Store and on an iPad app.
+  - `assets/icon/visona-icon.svg` is the master: 1024×1024 with an 824×824 rounded body, as macOS icons are drawn, the favicon's colours and waveform with thinner strokes, a soft glow and a slight gradient. `visona-icon-square.svg` is the same motif full bleed, for platforms that mask it themselves.
+  - The PNG the app uses is rendered by hand with `scripts/render-icon.sh` and committed, so neither CMake nor CI needs an SVG renderer.
+  - The favicon is unchanged: at 16–32 px it needs its thicker strokes.
+  - Not done yet: an asset catalog or Icon Composer `.icon` for the Mac App Store and iPadOS, and icons for the plugins (DAWs do not show them) and the Pi.
 
 ---
 
