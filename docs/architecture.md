@@ -122,7 +122,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - Time in the transport is audio time: the clock-loss timeout runs on the audio's sample timeline.
 
 **BPM.** `BPM = 60 × sampleRate / (24 × tick interval in samples)`.
-- The estimate is the least-squares tempo of the last 25 clocks, or 24 intervals (one beat). A gap longer than the clock-loss timeout starts it over, and so does Start. It is displayed with 0.1 BPM resolution (D-074).
+- The estimate is the least-squares tempo of the recent clocks. The window grows to four bars while the tempo holds, and falls back to the last 25 clocks, or 24 intervals (one beat), for a beat when that beat alone disagrees with it by more than the clock's jitter explains. A gap longer than the clock-loss timeout starts it over, and so does Start. It is displayed with 0.1 BPM resolution (D-074, D-111).
 - There is no PLL in the MVP (D-035).
 
 **MIDI time to audio sample time**
