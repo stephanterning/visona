@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visona: beat-synced stereo oscilloscope</title>
+  <meta name="description" content="Visona is a beat-synced stereo oscilloscope for music production. Standalone app for macOS and Raspberry Pi, and VST3, AU and CLAP plugins.">
+  <link rel="canonical" href="{{SITE_URL}}/">
+  <meta property="og:title" content="Visona: beat-synced stereo oscilloscope">
+  <meta property="og:description" content="See your audio as a musical sweep scope locked to the beat.">
+  <meta property="og:image" content="{{SITE_URL}}/images/visona-scope.png">
+  <meta property="og:url" content="{{SITE_URL}}/">
+  <meta name="theme-color" content="#0b0c0f">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="/"><img src="/favicon.svg" alt="" width="24" height="24">Visona</a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="/manual/">Manual</a>
+      <a href="https://github.com/{{REPO}}">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Beat-synced stereo oscilloscope</p>
+        <h1>See the groove,<br>not just the waveform.</h1>
+        <p class="lead">Visona draws your audio as a sweep scope locked to the bar. Follow MIDI Clock from your DAW, or run it as a plugin that follows the host transport.</p>
+        <div class="cta">
+          <a class="button" href="#download">Download {{LATEST_TAG}}</a>
+          <a class="button button-ghost" href="/manual/">Read the manual</a>
+        </div>
+        <p class="platforms">macOS app · VST3 · AU · CLAP · Windows · Linux · Raspberry Pi</p>
+      </div>
+      <figure class="screen">
+        <img src="/images/visona-scope.png" alt="Visona showing a stereo sweep over one bar with the bar grid" width="2556" height="1502">
+      </figure>
+    </section>
+
+    <section id="features" class="features">
+      <article>
+        <h3>Locked to the beat</h3>
+        <p>MIDI Clock sync with Start, Stop, Continue and Song Position Pointer. As a plugin it follows the DAW's transport directly. FREE mode runs at a manual BPM.</p>
+      </article>
+      <article>
+        <h3>Sweep scope</h3>
+        <p>Bar grid, stacked left and right lanes and a bright write head. Windows from a quarter bar to four bars, horizontal zoom and a measurement ruler.</p>
+      </article>
+      <article>
+        <h3>Three waveform modes</h3>
+        <p>STD, PRECISE and DJ, where colour follows frequency. Display gain up to 18 dB, with optional auto gain.</p>
+      </article>
+      <article>
+        <h3>Latency you can see</h3>
+        <p>Visona Sync puts a bar impulse on the plugin's sidechain, so Visona measures how late the audio arrives after plugins with latency, and draws it on the grid.</p>
+      </article>
+      <article>
+        <h3>Everywhere you work</h3>
+        <p>Standalone app on macOS, VST3, AU and CLAP plugins, Windows and Linux plugins, and a Raspberry Pi kiosk appliance for a dedicated screen in the studio.</p>
+      </article>
+      <article>
+        <h3>Open source</h3>
+        <p>Written in C++ with JUCE and released under the AGPL-3.0. Built and checked on GitHub Actions for every release.</p>
+      </article>
+    </section>
+
+    <section class="gallery">
+      <figure><img src="/images/visona-settings.png" alt="Visona settings panel" loading="lazy"><figcaption>Settings</figcaption></figure>
+      <figure><img src="/images/visona-diagnostics.png" alt="Visona diagnostics overlay" loading="lazy"><figcaption>Diagnostics overlay</figcaption></figure>
+    </section>
+
+    <section id="download" class="download">
+      <h2>Download</h2>
+      <p class="muted">This list updates itself whenever a release is published on GitHub. Each file links straight to its GitHub release asset; the SHA-256 is the digest GitHub computed for that asset. The <em>link</em> column gives a permanent URL that always points to the newest build in that channel, and <code>/download/latest/&lt;file&gt;/</code> follows the most mature channel that has a release.</p>
+      {{CHANNELS}}
+
+      <div class="notes">
+        <div>
+          <h3>Installing on macOS</h3>
+          <p>Builds are not notarized yet. If Gatekeeper blocks the app, run <code>xattr -cr /path/to/Visona.app</code>. Plugin bundles go into <code>~/Library/Audio/Plug-Ins/VST3</code>, <code>Components</code> or <code>CLAP</code>; see the <a href="/manual/#install-plugins">manual</a>.</p>
+        </div>
+        <div>
+          <h3>Windows and Linux</h3>
+          <p>VST3 and CLAP plugins for Windows x64 and Linux x86_64. Install folders are listed in the <a href="/manual/#install-plugins">manual</a>.</p>
+        </div>
+        <div>
+          <h3>Raspberry Pi</h3>
+          <p>Raspberry Pi OS 64-bit. See <a href="{{DOCS}}/pi-setup.md">Pi setup</a> and <a href="{{DOCS}}/pi-kiosk.md">kiosk mode</a>, or install over SSH with <code>install-visona.sh</code>.</p>
+        </div>
+        <div>
+          <h3>Verify a download</h3>
+          <p>Compare <code>shasum -a 256 &lt;file&gt;</code> with the table, or download the channel's <code>SHA256SUMS</code> next to the files and run <code>shasum -a 256 -c SHA256SUMS --ignore-missing</code>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© {{YEAR}} Stephan Terning · Visona is free software under the <a href="https://github.com/{{REPO}}/blob/main/LICENSE">AGPL-3.0</a> · <a href="/manual/">Manual</a> · <a href="https://github.com/{{REPO}}">Source on GitHub</a> · <a href="https://github.com/{{REPO}}/releases">All releases</a></p>
+  </footer>
+</body>
+</html>
