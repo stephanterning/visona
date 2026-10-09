@@ -24,6 +24,7 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 - `plugin/`: the JUCE plugins, built as VST3, AU and CLAP: Visona, a pass-through stereo effect with host transport and an optional sidechain, and Visona Sync, an instrument that writes a bar impulse for that sidechain. Built when `VISONA_BUILD_PLUGIN` is ON (included in the `macos`, `macos-plugin` and `xcode` presets).
 - `ui/`: JUCE components, compiled into the app and plugin targets.
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
+- `site/`: the static website, visona.org, with the download page and the user manual. `python3 site/build.py --serve` previews it; `.github/workflows/site.yml` deploys it to GitHub Pages. See `docs/website.md`. When a change alters what the user sees or does, update the manual in `site/static/manual/index.html` too.
 
 The audio callback must not allocate, lock, wait or log. Debug builds of the app count allocations made in it (`app/src/RealtimeAllocationCheck.h`), and the diagnostics overlay (press D) shows the count, which must stay at 0.
 
