@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1d23"/>
+      <stop offset="1" stop-color="#0b0c0f"/>
+    </linearGradient>
+    <linearGradient id="trace" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1c9a86"/>
+      <stop offset="0.5" stop-color="#2fd4b8"/>
+      <stop offset="1" stop-color="#1c9a86"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="glow" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="0.6"/>
+    </filter>
+    <clipPath id="clip">
+      <rect width="32" height="32" rx="7.2"/>
+    </clipPath>
+  </defs>
+  <rect x="100" y="112" width="824" height="824" rx="185" fill="#000" opacity="0.35" filter="url(#shadow)"/>
+  <g transform="translate(100 100) scale(25.75)">
+    <rect width="32" height="32" rx="7.2" fill="url(#body)"/>
+    <g clip-path="url(#clip)">
+      <path d="M8 7v18M16 7v18M24 7v18" stroke="#2c2f37" stroke-width="0.5"/>
+      <path d="M3 16c2-6 3-6 4.5 0s2.5 7 4 0 2.5-9 4 0 2.5 6 4 0 2.5-4 4 0 2 3 5 0" fill="none" stroke="#22b8a0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.45" filter="url(#glow)"/>
+      <path d="M3 16c2-6 3-6 4.5 0s2.5 7 4 0 2.5-9 4 0 2.5 6 4 0 2.5-4 4 0 2 3 5 0" fill="none" stroke="url(#trace)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <rect x="0.02" y="0.02" width="31.96" height="31.96" rx="7.18" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="0.04"/>
+  </g>
+</svg>
