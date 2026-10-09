@@ -495,6 +495,15 @@ A lightweight log of decisions and open questions. The architecture is described
 
   Amends D-046 and D-090.
 
+- **D-111 — The Release workflow signs the macOS app and plugins with a Developer ID and notarizes them.** `Active`
+  - The maintainer wants users to install Visona without Gatekeeper warnings, `xattr` or ad-hoc signing by hand, and has an individual Apple Developer Program membership for it. Apple waives the fee for no open source projects, and no other certificate is accepted by Gatekeeper.
+  - The certificate is a Developer ID Application certificate, kept as a base64 `.p12` in the `MACOS_CERTIFICATE_P12` secret with its password in `MACOS_CERTIFICATE_PASSWORD`. The workflow imports it into a temporary keychain and deletes that keychain at the end.
+  - The app is signed with the hardened runtime and `app/Visona.entitlements`, whose `com.apple.security.device.audio-input` lets the hardened runtime open audio inputs. The plugins get the hardened runtime and no entitlements, since a plugin runs with its host's. `--deep` is not used; the bundles have no nested code, and `codesign --verify --deep` checks that.
+  - All bundles of a run go to the notary service in one zip, with an Apple ID and an app-specific password (`APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`). The ticket is stapled to every bundle before it is zipped for publishing, and `spctl` checks the app.
+  - Without the certificate secret a manual run signs ad hoc as before and warns, so forks and branches still build; a published release fails instead.
+  - Local builds stay ad-hoc signed.
+  - Setting up and renewing the certificate and secrets is described in `docs/signing.md`.
+
 ---
 
 ## Open questions

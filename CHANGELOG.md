@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- The macOS app and the VST3, AU and CLAP plugins in releases are signed with a Developer ID and notarized by Apple, so they install without Gatekeeper warnings or `xattr` and ad-hoc signing by hand (D-111).
 - `scripts/pi/install-visona.sh` on the Pi: download the latest release or a given tarball URL, unpack to `~/visona`, and run `install-kiosk.sh`.
 - AU and CLAP builds of Visona (AU effect with sidechain) and Visona Sync (AU instrument), for macOS arm64. CLAP is built with clap-juce-extensions, since JUCE 9.0.2 has no CLAP support (D-098).
 - Release workflow validates the AUs with `auval` and the CLAPs with `clap-validator`, and publishes `Visona-au-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip`, `Visona-clap-macos-arm64.zip` and `Visona-sync-clap-macos-arm64.zip`.

@@ -17,11 +17,7 @@ Pre-built binaries are published on **[GitHub Releases](https://github.com/steph
 | **Linux plugins** | x86_64, Ubuntu 24.04, Debian 13, Fedora 39 or newer | `Visona-vst3-linux-x86_64.tar.gz`, `Visona-clap-linux-x86_64.tar.gz` and the `Visona-sync-…` tarballs ([install](docs/plugins.md#linux)) |
 | **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64 | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
 
-Alpha builds are **unsigned**. On macOS, if Gatekeeper blocks the app, remove the quarantine flag:
-
-```sh
-xattr -cr /path/to/Visona.app
-```
+The macOS app and plugins are signed with a Developer ID and notarized by Apple, so they open without Gatekeeper warnings.
 
 On macOS, copy each plugin bundle into the folder for its format (Windows and Linux: see the [plugin guide](docs/plugins.md#install)):
 
@@ -30,21 +26,6 @@ On macOS, copy each plugin bundle into the folder for its format (Windows and Li
 | VST3 | `Visona.vst3`, `Visona Sync.vst3` | `~/Library/Audio/Plug-Ins/VST3/` |
 | AU | `Visona.component`, `Visona Sync.component` | `~/Library/Audio/Plug-Ins/Components/` |
 | CLAP | `Visona.clap`, `Visona Sync.clap` | `~/Library/Audio/Plug-Ins/CLAP/` |
-
-Then remove the quarantine flag and sign the bundles ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt. For the formats you installed:
-
-```sh
-cd ~/Library/Audio/Plug-Ins
-xattr -cr VST3/Visona.vst3 VST3/Visona\ Sync.vst3
-xattr -cr Components/Visona.component Components/Visona\ Sync.component
-xattr -cr CLAP/Visona.clap CLAP/Visona\ Sync.clap
-codesign --force --sign - --deep VST3/Visona.vst3
-codesign --force --sign - --deep VST3/Visona\ Sync.vst3
-codesign --force --sign - --deep Components/Visona.component
-codesign --force --sign - --deep Components/Visona\ Sync.component
-codesign --force --sign - --deep CLAP/Visona.clap
-codesign --force --sign - --deep CLAP/Visona\ Sync.clap
-```
 
 Then restart the DAW or rescan its plugins. If a new AU does not show up, refresh macOS's AU cache with `killall -9 AudioComponentRegistrar` and restart the DAW; see the [plugin guide](docs/plugins.md#if-a-daw-does-not-show-the-au).
 
