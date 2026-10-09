@@ -175,6 +175,14 @@ void ScopeView::setWaveformColour(juce::Colour colour)
     repaint();
 }
 
+void ScopeView::setPaused(bool paused)
+{
+    if (paused == paused_)
+        return;
+    paused_ = paused;
+    repaint();
+}
+
 void ScopeView::paint(juce::Graphics& g)
 {
     const auto start = nowMs();
@@ -198,7 +206,7 @@ void ScopeView::paint(juce::Graphics& g)
     }
     drawLabels(g);
     drawBarNumbers(g);
-    drawStopped(g);
+    drawPauseMark(g);
     drawSelection(g);
     drawRuler(g);
 
@@ -220,7 +228,7 @@ void ScopeView::onVBlank(double timestampSeconds)
     // Nothing to draw into before the first paint has sized the tiles.
     if (tiles_.empty() || timestampSeconds + frameTolerance < nextFrameSeconds_)
         return;
-    const bool fresh = snapshots_.fetch();
+    const bool fresh = !paused_ && snapshots_.fetch();
     if (!fresh && !needsFullRender_)
         return;
     // Frames are due at a steady 60 per second; after a stall, the schedule restarts from now
@@ -742,12 +750,15 @@ void ScopeView::drawBarNumbers(juce::Graphics& g) const
     }
 }
 
-void ScopeView::drawStopped(juce::Graphics& g) const
+void ScopeView::drawPauseMark(juce::Graphics& g) const
 {
-    if (snapshots_.readBuffer().transportState != TransportState::stopped)
+    if (!paused_ && snapshots_.readBuffer().transportState != TransportState::stopped)
         return;
-    g.setColour(palette::background.withAlpha(stoppedDimming));
-    g.fillRect(getLocalBounds());
+    if (!paused_)
+    {
+        g.setColour(palette::background.withAlpha(stoppedDimming));
+        g.fillRect(getLocalBounds());
+    }
 
     // A pause mark next to the top lane's name.
     const auto mark = juce::Rectangle<float>(labelMargin + 18.0f, labelMargin, 11.0f, 13.0f);
@@ -1056,16 +1067,17 @@ juce::Rectangle<float> ScopeView::readoutArea(const std::vector<RulerRow>& rows)
         std::ceil(2.0f * readoutPadding + labelWidth + readoutColumnGap + valueWidth);
     const auto height = 2.0f * readoutPadding + readoutRowHeight * static_cast<float>(rows.size());
 
-    // Beside the pointer, on whichever side keeps it inside the scope.
+    // Above and to the right of the pointer, where a hand on a touchscreen does not cover it, or
+    // on whichever side keeps it inside the scope.
     const auto scopeWidth = static_cast<float>(getWidth());
     const auto scopeHeight = static_cast<float>(getHeight());
     auto x = rulerEnd_.x + readoutOffset;
     if (x + width > scopeWidth - labelMargin)
         x = rulerEnd_.x - readoutOffset - width;
     x = std::max(0.0f, std::min(x, scopeWidth - labelMargin - width));
-    auto y = rulerEnd_.y + readoutOffset;
-    if (y + height > scopeHeight - labelMargin)
-        y = rulerEnd_.y - readoutOffset - height;
+    auto y = rulerEnd_.y - readoutOffset - height;
+    if (y < 0.0f)
+        y = rulerEnd_.y + readoutOffset;
     y = std::max(0.0f, std::min(y, scopeHeight - labelMargin - height));
     return {x, y, width, height};
 }

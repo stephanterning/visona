@@ -36,11 +36,16 @@ namespace visona
     how many frames after MIDI Clock's bar lines the impulses arrive, and every MIDI event is placed
     that much later, on top of setMidiOffset(). The sync input is never drawn.
 
+    While paused (D-110), the audio is taken from the ring without being analyzed and nothing is
+    published, but the transport still follows MIDI Clock. On resume the sweep carries on where
+    the transport is by then, as after a relocation: the head jumps there and what was drawn
+    before the pause becomes the previous pass. A Start during the pause starts it over as usual.
+
     setStream(), setMidiQueue() and poll() are the analysis side. They must not run concurrently;
     the app calls them under one lock, which only the analysis thread and stream changes take. The
     UI thread is the only consumer of snapshots(). setWindow(), setFreeTempo(), runFree(),
-    setBandSplitting(), setMidiOffset(), setSyncInput(), takePeak() and takeSyncPeak() may be
-    called from any thread.
+    setPaused(), setBandSplitting(), setMidiOffset(), setSyncInput(), takePeak() and takeSyncPeak()
+    may be called from any thread.
 
     All storage, including the three snapshots, is allocated in the constructor. Nothing else
     allocates.
@@ -84,6 +89,15 @@ public:
         from bar 1 (D-090). Does nothing in other states. */
     void runFree() noexcept;
 
+    /** Any thread. Pauses the sweep, or resumes it (D-110). */
+    void setPaused(bool paused) noexcept;
+
+    /** Any thread. Whether the sweep is paused, or is to be from the next poll(). */
+    [[nodiscard]] bool isPaused() const noexcept
+    {
+        return requestedPause_.load(std::memory_order_relaxed);
+    }
+
     /** Any thread. Turns the band splitting for DJ colouring on or off (D-092). */
     void setBandSplitting(bool enabled) noexcept;
 
@@ -98,7 +112,7 @@ public:
     /**
         Analysis side. Handles the waiting MIDI events and analyzes the audio in the ring as far as
         the transport allows. Publishes a snapshot if anything changed. Returns the number of frames
-        analyzed.
+        taken from the ring, which are not analyzed while paused.
     */
     std::size_t poll() noexcept;
 
@@ -153,9 +167,11 @@ private:
     std::atomic<double> midiOffset_{0.0};
     std::atomic<bool> syncInput_{false};
     std::atomic<bool> bandSplitting_{false};
+    std::atomic<bool> requestedPause_{false};
     std::size_t window_;
     double freeBpm_;
     std::uint64_t handledFreeRequests_ = 0;
+    bool paused_ = false;
 
     // The block last added to the mapper, and the Start the musical sweep belongs to.
     bool mappedAnyBlock_ = false;

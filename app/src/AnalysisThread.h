@@ -60,6 +60,12 @@ public:
     }
 
     /** Any thread. */
+    void setPaused(bool paused) noexcept
+    {
+        pipeline_.setPaused(paused);
+    }
+
+    /** Any thread. */
     void setBandSplitting(bool enabled) noexcept
     {
         pipeline_.setBandSplitting(enabled);

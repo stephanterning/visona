@@ -2,6 +2,7 @@
 
 #include "Palette.h"
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -27,6 +28,19 @@ ChromeButton::ChromeButton(const juce::String& label, Icon icon)
     setTooltip(label);
 }
 
+void ChromeButton::setIcon(Icon icon)
+{
+    if (icon == icon_)
+        return;
+    icon_ = icon;
+    repaint();
+}
+
+void ChromeButton::setWidestLabel(const juce::String& label)
+{
+    widestLabel_ = label;
+}
+
 void ChromeButton::setShowsLabel(bool showsLabel)
 {
     if (showsLabel == showsLabel_)
@@ -46,8 +60,9 @@ int ChromeButton::preferredWidth(int height, bool withLabel) const
     if (!withLabel)
         return height;
     // A little slack, so rounding never cuts the last letter.
-    const auto labelWidth = juce::GlyphArrangement::getStringWidth(
-        juce::FontOptions(fontHeight_, juce::Font::bold), getButtonText());
+    const juce::FontOptions font(fontHeight_, juce::Font::bold);
+    const auto labelWidth = std::max(juce::GlyphArrangement::getStringWidth(font, getButtonText()),
+                                     juce::GlyphArrangement::getStringWidth(font, widestLabel_));
     return static_cast<int>(std::ceil(sidePadding * 2.0f + iconSize + labelGap + labelWidth)) + 4;
 }
 
@@ -147,6 +162,20 @@ void ChromeButton::paintIcon(juce::Graphics& g, juce::Rectangle<float> area,
             }
         }
         g.strokePath(path, stroke);
+        break;
+    }
+    case Icon::pause:
+    {
+        const auto bar = juce::Rectangle<float>(s * 0.22f, s * 0.7f);
+        g.fillRoundedRectangle(bar.withPosition(x + s * 0.2f, y + s * 0.15f), s * 0.05f);
+        g.fillRoundedRectangle(bar.withPosition(x + s * 0.58f, y + s * 0.15f), s * 0.05f);
+        break;
+    }
+    case Icon::play:
+    {
+        path.addTriangle(x + s * 0.25f, y + s * 0.15f, x + s * 0.25f, y + s * 0.85f, x + s * 0.85f,
+                         y + s * 0.5f);
+        g.fillPath(path);
         break;
     }
     }

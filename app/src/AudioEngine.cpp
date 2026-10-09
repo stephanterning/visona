@@ -219,6 +219,11 @@ void AudioEngine::runFree() noexcept
     analysis_.runFree();
 }
 
+void AudioEngine::setPaused(bool paused) noexcept
+{
+    analysis_.setPaused(paused);
+}
+
 void AudioEngine::setBandSplitting(bool enabled) noexcept
 {
     analysis_.setBandSplitting(enabled);

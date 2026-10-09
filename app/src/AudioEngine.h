@@ -107,6 +107,9 @@ public:
     /** Any thread. Leaves STOPPED or MIDI CLOCK LOST for the free-running sweep. */
     void runFree() noexcept;
 
+    /** Any thread. Pauses the analysis, or resumes it (D-110). */
+    void setPaused(bool paused) noexcept;
+
     /** Any thread. Runs the band splitting for DJ colouring, or stops it (D-092). */
     void setBandSplitting(bool enabled) noexcept;
 

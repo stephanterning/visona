@@ -405,8 +405,8 @@ class MidiSession
 public:
     static constexpr double hostStartNs = 9.0e12;
 
-    explicit MidiSession(double sampleRate, bool syncInput = false,
-                         double blockJitterNs = 20'000.0, std::uint32_t blockFrames = 256)
+    explicit MidiSession(double sampleRate, bool syncInput = false, double blockJitterNs = 20'000.0,
+                         std::uint32_t blockFrames = 256)
         : sampleRate_(sampleRate)
         , blockFrames_(blockFrames)
         , ring_(syncInput ? 3 : 2, static_cast<std::size_t>(sampleRate), 8'192)
@@ -951,6 +951,72 @@ TEST_CASE("The sync input listens only while it is on and MIDI Clock runs",
     CHECK(snapshot.syncOffsetFrames == 0.0);
 }
 
+TEST_CASE("A paused sweep writes and publishes nothing, and resumes in phase as a new pass",
+          "[analysis][pause]")
+{
+    // 90 BPM at 48 kHz: 128 000 frames per bar, the 1-bar window of 4096 bins.
+    constexpr std::uint64_t barFrames = 128'000;
+    MidiSession session(48'000.0);
+    session.pipeline().setFreeTempo(90.0);
+    session.run(32'000);
+    const auto before = session.snapshot().sweep;
+    REQUIRE(before.pass() == 1);
+
+    // Two and a half bars, much longer than the ring holds.
+    session.pipeline().setPaused(true);
+    CHECK(session.pipeline().isPaused());
+    session.run(352'000, [](std::uint64_t) { return -0.75f; });
+    CHECK_FALSE(session.pipeline().snapshots().fetch());
+
+    session.pipeline().setPaused(false);
+    session.run(368'384);
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::freeRunning);
+    CHECK(snapshot.overruns == 0);
+    CHECK(snapshot.nextSampleIndex == 368'384);
+    CHECK(snapshot.sweep.generation() == before.generation());
+    CHECK(snapshot.sweep.pass() == before.pass() + 1);
+    CHECK(snapshot.windowStartTick == 2 * 96.0);
+    const auto expectedHead = (368'384 - 2 * barFrames) * 4'096 / barFrames;
+    CHECK(std::abs(static_cast<std::int64_t>(snapshot.sweep.head()) -
+                   static_cast<std::int64_t>(expectedHead)) <= 1);
+
+    // What was drawn before the pause is the previous pass; nothing of the pause is drawn.
+    const auto cells = snapshot.sweep.channel(0);
+    CHECK(snapshot.sweep.passes()[500] == 1);
+    CHECK_FALSE(cells[500].isEmpty());
+    CHECK(cells[2'000].isEmpty());
+    CHECK(snapshot.sweep.passes()[3'200] == 2);
+    CHECK(std::ranges::none_of(cells, [](const SweepCell& cell)
+                               { return !cell.isEmpty() && cell.min < -0.5f; }));
+}
+
+TEST_CASE("A Start while paused starts the sweep over, shown on resume", "[analysis][pause][midi]")
+{
+    MidiSession session(48'000.0);
+    session.run(20'000);
+    const auto freeGeneration = session.snapshot().sweep.generation();
+
+    session.pipeline().setPaused(true);
+    const auto interval = session.framesPerTick(120.0);
+    session.midi(MidiClockEvent::Type::Start, 25'000.0);
+    session.clocks(26'000.0, 200, interval);
+    session.run(static_cast<std::uint64_t>(26'000.0 + 100 * interval));
+    CHECK_FALSE(session.pipeline().snapshots().fetch());
+
+    session.pipeline().setPaused(false);
+    session.run(static_cast<std::uint64_t>(26'000.0 + 150 * interval));
+    const auto& snapshot = session.snapshot();
+    CHECK(snapshot.transportState == TransportState::running);
+    CHECK(snapshot.sweep.generation() > freeGeneration);
+    CHECK(snapshot.sweep.pass() == 1);
+    CHECK(snapshot.windowStartTick == 96.0);
+    // From the resume at tick 100 on: bar 2 from its fourth tick.
+    const auto cells = snapshot.sweep.channel(0);
+    CHECK_FALSE(cells[1'000].isEmpty());
+    CHECK(cells[3'000].isEmpty());
+}
+
 TEST_CASE("AnalysisPipeline does not allocate while following MIDI Clock",
           "[analysis][midi][realtime]")
 {
@@ -968,8 +1034,9 @@ TEST_CASE("AnalysisPipeline does not allocate while following MIDI Clock",
     session.run(4'096); // let the first allocations of Catch2 and the session happen
 
     const AllocationCounter allocations;
-    session.run(static_cast<std::uint64_t>(afterClocks + 96'000.0),
-                [](std::uint64_t) { return 0.25f; }, barImpulses);
+    session.run(
+        static_cast<std::uint64_t>(afterClocks + 96'000.0), [](std::uint64_t) { return 0.25f; },
+        barImpulses);
     const auto allocationCount = allocations.count();
 
     CHECK(allocationCount == 0);

@@ -89,6 +89,11 @@ void AnalysisPipeline::runFree() noexcept
     freeRequests_.fetch_add(1, std::memory_order_relaxed);
 }
 
+void AnalysisPipeline::setPaused(bool paused) noexcept
+{
+    requestedPause_.store(paused, std::memory_order_relaxed);
+}
+
 void AnalysisPipeline::setBandSplitting(bool enabled) noexcept
 {
     bandSplitting_.store(enabled, std::memory_order_relaxed);
@@ -147,6 +152,15 @@ std::size_t AnalysisPipeline::poll() noexcept
         changed_ = true;
     }
 
+    if (const auto paused = requestedPause_.load(std::memory_order_relaxed); paused != paused_)
+    {
+        paused_ = paused;
+        // The bar the pause cuts short has no peak of its own.
+        if (paused_)
+            barPeaks_.restart();
+        changed_ = true;
+    }
+
     // The oldest waiting block is mapped first, so that MIDI events have a timeline even before
     // any audio has been analyzed.
     if (ring_ != nullptr)
@@ -186,7 +200,7 @@ std::size_t AnalysisPipeline::poll() noexcept
 
     if (transport_.state() != publishedState_)
         changed_ = true;
-    if (framesAnalyzed > 0 || changed_)
+    if (!paused_ && (framesAnalyzed > 0 || changed_))
         publish();
     return framesAnalyzed;
 }
@@ -252,6 +266,15 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
         raiseTo(syncPeak_, peak);
     }
 
+    // Paused, the sweep still follows every Start, so that it resumes as it would have been by
+    // then, but nothing is written.
+    if (paused_)
+    {
+        followStart(span.startCount, region.sampleIndex());
+        analyzer_.freeze();
+        return;
+    }
+
     switch (span.kind)
     {
     case TransportSpan::Kind::freeRunning:
@@ -274,8 +297,8 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
     }
 }
 
-void AnalysisPipeline::detectSync(const AudioRingBuffer::ReadRegion& region,
-                                  std::size_t numFrames, const TransportSpan& span) noexcept
+void AnalysisPipeline::detectSync(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
+                                  const TransportSpan& span) noexcept
 {
     const auto ticks = span.endTick - span.startTick;
     if (sync_.state() == SidechainSyncState::off || span.isOpen() || !(ticks > 0.0))

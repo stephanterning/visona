@@ -4,8 +4,6 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-#include <functional>
-
 namespace visona
 {
 
@@ -15,10 +13,7 @@ namespace visona
     an error.
 
     When the values do not fit, the bar drops them from the end, keeping the BPM and the state. It
-    repaints only when a value changes.
-
-    A state that can be acted on, such as STOPPED, which runs the sweep free (D-090), is drawn as
-    a button, and clicking or tapping it calls onStateClick.
+    repaints only when a value changes. It only informs: nothing in it is a button (D-110).
 */
 class StatusBar final : public juce::Component, public juce::TooltipClient
 {
@@ -29,9 +24,6 @@ public:
         juce::String bpm;
         juce::String state;
         bool stateIsError = false;
-        /** Whether the state is a button; the tooltip says what it does. */
-        bool stateIsAction = false;
-        juce::String stateTooltip;
         /** Sidechain sync label, for example "SC SYNC". Empty when inactive. */
         juce::String sidechainSync;
         bool sidechainSyncIsError = false;
@@ -52,20 +44,12 @@ public:
 
     [[nodiscard]] int preferredHeight() const noexcept;
 
-    /** Called when the state is clicked while it is a button. */
-    std::function<void()> onStateClick;
-
     void paint(juce::Graphics& g) override;
-    bool hitTest(int x, int y) override;
-    void mouseEnter(const juce::MouseEvent& event) override;
-    void mouseExit(const juce::MouseEvent& event) override;
-    void mouseUp(const juce::MouseEvent& event) override;
     juce::String getTooltip() override;
 
 private:
     Values values_;
-    juce::Rectangle<int> stateArea_;
-    bool stateHighlighted_ = false;
+    juce::Rectangle<int> sidechainSyncArea_;
     ChromeStep step_ = ChromeStep::wide;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StatusBar)

@@ -57,8 +57,8 @@ void TempoControl::setEditable(bool editable)
     editable_ = editable;
     setTooltip(editable ? "Tempo of the free-running sweep. The buttons step whole BPM; drag or "
                           "scroll to fine-tune."
-                        : "The tempo from MIDI Clock. Click STOPPED to run free at it, and set it "
-                          "here.");
+                        : "The tempo from MIDI Clock. Once it stops, press Run free to run free "
+                          "at it, and set it here.");
     setMouseCursor(editable ? juce::MouseCursor::UpDownResizeCursor
                             : juce::MouseCursor::NormalCursor);
     updateButtons();

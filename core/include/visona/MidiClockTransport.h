@@ -73,7 +73,7 @@ struct TransportSpan
    the audio's sample timeline, and tracks:
     - the state and the position in ticks, where the first clock after Start is tick 0, the
       downbeat of bar 1;
-    - the tempo, from the clocks of up to the last four bars while it holds steady (D-074, D-110);
+    - the tempo, from the clocks of up to the last four bars while it holds steady (D-074, D-111);
     - clock loss: running with no clock for more than half a second of audio;
     - a timeline of TransportSpans that tells the analysis how to treat each stretch of audio.
 

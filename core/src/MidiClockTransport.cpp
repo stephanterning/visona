@@ -333,7 +333,7 @@ void MidiClockTransport::addTempoClock(double sampleTime) noexcept
     }
 
     // The window grows to steadyTempoBars while the tempo holds, so the jitter averages out
-    // (D-110). When the last beat alone disagrees with it by more than that jitter explains, the
+    // (D-111). When the last beat alone disagrees with it by more than that jitter explains, the
     // tempo has changed: the estimate is the last beat until a whole beat has passed since, so
     // that the window grows again from clocks after the change only.
     constexpr auto shortCount = tempoIntervals + 1;

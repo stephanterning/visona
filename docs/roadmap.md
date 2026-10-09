@@ -44,7 +44,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 3. On Play in Ableton Live, the sweep restarts at bar 1 and the bars stand still on screen.
 4. Kicks on the beat land on the grid lines at 120, 126 and 174 BPM.
 5. The window (¼–4 bars), gain (0–18 dB) and zoom can be changed live.
-6. Stop freezes the view and shows `STOPPED`. Moving the playhead to bar 17 and pressing Continue lands correctly (SPP). Clicking `STOPPED` runs the sweep free at the last tempo.
+6. Stop freezes the view and shows `STOPPED`. Moving the playhead to bar 17 and pressing Continue lands correctly (SPP). `Run free` on the pause button runs the sweep free at the last tempo (D-110).
 7. Pulling the MIDI cable shows `MIDI CLOCK LOST` within about 0.5 s.
 8. A long studio session runs without dropouts or ring overruns.
 9. Measurements and lessons learned are documented (D-040).
