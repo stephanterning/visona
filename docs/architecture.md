@@ -266,10 +266,10 @@ The Visona plugin is a pass-through stereo effect, built as VST3, AU and CLAP (D
   - `CMAKE_OSX_ARCHITECTURES=arm64` and `CMAKE_OSX_DEPLOYMENT_TARGET=14.0` (D-053).
   - Xcode generator locally, Ninja in CI.
   - Microphone permission (`MICROPHONE_PERMISSION_ENABLED` plus a usage text) is required, or audio input stays silent.
-  - Ad-hoc signing is enough for the proof of concept.
+  - Local builds are ad-hoc signed. The `Release` workflow signs the app and plugins with a Developer ID and the hardened runtime, and notarizes them (D-111).
 - **GitHub Actions (D-043, D-095):**
   - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs.
-  - `Release` on published GitHub releases: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (ad-hoc signed, with `auval` and `clap-validator` runs), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` on published GitHub releases: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (signed with a Developer ID and notarized, with `auval` and `clap-validator` runs, D-111), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
   - `Release` run by hand on any branch builds only the artifacts ticked and publishes them to the `dev-builds` prerelease, named after the branch and commit (D-104).
   - macOS app builds locally with the `macos` or `xcode` preset while developing the GUI.
 - **Test framework:** Catch2 v3 via `FetchContent`. Its BSL-1.0 license is AGPL-compatible (D-054).
@@ -339,6 +339,6 @@ Everything below runs in CI on Linux without hardware (D-032).
 - **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2.6 ms. That is ≈ 17 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* the renderer reads each band later by its delay at the band's reference frequency (D-092).
 - **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in step 4, and OpenGL as a fallback.
 - **Toolchain versions.** CI runner images lag behind new macOS and Xcode releases, and JUCE 9's CoreAudio implementation is new code. *Mitigation:* pin the JUCE tag, the runner image and the Xcode version, and treat the maintainer's local build as the reference.
-- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3, and build locally or clear the quarantine on the artifact.
+- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3. Release builds are signed and notarized, with the `com.apple.security.device.audio-input` entitlement that the hardened runtime needs for input (D-111).
 - **Ableton Live clock behavior.** It is unclear whether Live sends clock while stopped, and exactly when SPP arrives relative to Continue. *Mitigation:* the transport handles both cases; verify in step 7.
 - **Analysis thread starvation.** *Mitigation:* a ring of about 1 s, overrun counters, and a raised thread priority if needed.

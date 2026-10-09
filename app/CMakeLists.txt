@@ -62,7 +62,8 @@ endif()
 
 target_link_libraries(Visona PRIVATE visona::core ${visona_juce_link_libs})
 
-# Ad-hoc signing is enough for local use; the app is neither notarised nor distributed.
+# Local builds are ad-hoc signed. The Release workflow signs the app again with a Developer ID,
+# the hardened runtime and Visona.entitlements, and notarizes it (D-111).
 if(APPLE)
     if(CMAKE_GENERATOR STREQUAL "Xcode")
         set_target_properties(Visona PROPERTIES

@@ -96,31 +96,76 @@ jobs:
           test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.stephanterning.visona"
           plutil -extract NSMicrophoneUsageDescription raw "$plist"
 
-      - name: Package app
-        if: env.BUILD_APP == 'true'
+      # Without the certificate secrets a manual run falls back to ad-hoc signing, but a published
+      # release fails, so it is never shipped unsigned (D-111).
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
-          mkdir -p dist
-          ditto -c -k --keepParent "$APP_BUNDLE" dist/Visona-macos-arm64.zip
+          if [[ -z "$CERTIFICATE_P12" ]]; then
+            if [[ "$GITHUB_EVENT_NAME" == release ]]; then
+              echo "::error::A published release must be signed. Set the MACOS_CERTIFICATE_P12 secret (see docs/signing.md)."
+              exit 1
+            fi
+            echo "::warning::No Developer ID certificate: the macOS bundles are ad-hoc signed and not notarized."
+            echo "SIGN_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          printf '%s' "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | grep -o '"Developer ID Application: [^"]*"' | head -n 1 | tr -d '"')"
+          test -n "$identity"
+          echo "Signing as $identity"
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 
-      - name: Sign plugin bundles
-        if: env.BUILD_VST3 == 'true' || env.BUILD_AU == 'true' || env.BUILD_CLAP == 'true'
+      - name: Sign app and plugin bundles
         run: |
-          bundles=()
-          if [[ "$BUILD_VST3" == true ]]; then
-            bundles+=("$VISONA_ARTEFACTS/VST3/Visona.vst3" "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3")
-          fi
-          if [[ "$BUILD_AU" == true ]]; then
-            bundles+=("$VISONA_ARTEFACTS/AU/Visona.component" "$SYNC_ARTEFACTS/AU/Visona Sync.component")
-          fi
-          if [[ "$BUILD_CLAP" == true ]]; then
-            bundles+=("$VISONA_ARTEFACTS/CLAP/Visona.clap" "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap")
-          fi
-          for bundle in "${bundles[@]}"; do
+          sign() {
+            local bundle="$1" entitlements="${2:-}"
             test -d "$bundle"
             test "$(lipo -archs "$bundle/Contents/MacOS/$(basename "${bundle%.*}")")" = "arm64"
-            codesign --force --sign - --timestamp=none --deep "$bundle"
-            codesign --verify --strict --verbose=2 "$bundle"
-          done
+            if [[ "$SIGN_IDENTITY" == "-" ]]; then
+              codesign --force --sign - --timestamp=none "$bundle"
+            elif [[ -n "$entitlements" ]]; then
+              codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp \
+                --entitlements "$entitlements" "$bundle"
+            else
+              codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$bundle"
+            fi
+            codesign --verify --deep --strict --verbose=2 "$bundle"
+            echo "$bundle" >> "$RUNNER_TEMP/signed-bundles"
+          }
+          if [[ "$BUILD_APP" == true ]]; then
+            sign "$APP_BUNDLE" app/Visona.entitlements
+            if [[ "$SIGN_IDENTITY" != "-" ]]; then
+              codesign -d --entitlements - --xml "$APP_BUNDLE" | grep -q com.apple.security.device.audio-input
+            fi
+          fi
+          if [[ "$BUILD_VST3" == true ]]; then
+            sign "$VISONA_ARTEFACTS/VST3/Visona.vst3"
+            sign "$SYNC_ARTEFACTS/VST3/Visona Sync.vst3"
+          fi
+          if [[ "$BUILD_AU" == true ]]; then
+            sign "$VISONA_ARTEFACTS/AU/Visona.component"
+            sign "$SYNC_ARTEFACTS/AU/Visona Sync.component"
+          fi
+          if [[ "$BUILD_CLAP" == true ]]; then
+            sign "$VISONA_ARTEFACTS/CLAP/Visona.clap"
+            sign "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap"
+          fi
 
       - name: Validate AU plugins
         if: env.BUILD_AU == 'true'
@@ -147,6 +192,45 @@ jobs:
           "$validator" validate --exclude '^param-conversions$' \
             "$VISONA_ARTEFACTS/CLAP/Visona.clap" "$SYNC_ARTEFACTS/CLAP/Visona Sync.clap"
 
+      # One submission covers every bundle; the ticket is then stapled to each, so Gatekeeper
+      # accepts them offline too.
+      - name: Notarize
+        if: env.SIGN_IDENTITY != '-'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          staging="$RUNNER_TEMP/notarize/Visona"
+          mkdir -p "$staging"
+          while IFS= read -r bundle; do
+            ditto "$bundle" "$staging/$(basename "$bundle")"
+          done < "$RUNNER_TEMP/signed-bundles"
+          ditto -c -k --keepParent "$staging" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 30m --output-format json > "$RUNNER_TEMP/notarize.json"
+          cat "$RUNNER_TEMP/notarize.json"
+          status="$(plutil -extract status raw -o - "$RUNNER_TEMP/notarize.json")"
+          if [[ "$status" != Accepted ]]; then
+            xcrun notarytool log "$(plutil -extract id raw -o - "$RUNNER_TEMP/notarize.json")" \
+              --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID"
+            exit 1
+          fi
+          while IFS= read -r bundle; do
+            xcrun stapler staple "$bundle"
+            xcrun stapler validate "$bundle"
+          done < "$RUNNER_TEMP/signed-bundles"
+          if [[ "$BUILD_APP" == true ]]; then
+            spctl --assess --type execute --verbose=2 "$APP_BUNDLE"
+          fi
+
+      - name: Package app
+        if: env.BUILD_APP == 'true'
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent "$APP_BUNDLE" dist/Visona-macos-arm64.zip
+
       - name: Package plugins
         if: env.BUILD_VST3 == 'true' || env.BUILD_AU == 'true' || env.BUILD_CLAP == 'true'
         run: |
@@ -166,6 +250,10 @@ jobs:
 
       - name: Publish
         uses: ./.github/actions/publish
+
+      - name: Remove signing keychain
+        if: always() && env.KEYCHAIN != ''
+        run: security delete-keychain "$KEYCHAIN"
 
   linux-x64-plugins:
     name: Linux x86_64 plugins
