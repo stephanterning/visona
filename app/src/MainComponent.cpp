@@ -77,7 +77,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     controlBar_.tempo().onTempoChange = [this](double bpm) { setFreeTempo(bpm); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
-    statusBar_.onStateClick = [this] { runFree(); };
+    controlBar_.onPauseButton = [this] { pressPauseButton(); };
     controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
     settingsPanel_.onWaveformColourChange = [this](std::size_t index) { setWaveformColour(index); };
     scope_.onTransportChange = [this]
@@ -246,6 +246,11 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         return false;
 
     const auto character = juce::CharacterFunctions::toLowerCase(key.getTextCharacter());
+    if (key.isKeyCode(juce::KeyPress::spaceKey) || character == 'p')
+    {
+        pressPauseButton();
+        return true;
+    }
     if (character >= '1' && character < static_cast<juce::juce_wchar>('1' + sweepWindowBars.size()))
     {
         setWindow(static_cast<std::size_t>(character - '1'));
@@ -354,6 +359,25 @@ void MainComponent::runFree()
     updateStatus();
 }
 
+void MainComponent::pressPauseButton()
+{
+    const auto state = scope_.snapshot().transportState;
+    if (scope_.isPaused())
+        setPaused(false);
+    else if (state == TransportState::stopped || state == TransportState::clockLost)
+        runFree();
+    else
+        setPaused(true);
+}
+
+void MainComponent::setPaused(bool paused)
+{
+    engine_.setPaused(paused);
+    scope_.setPaused(paused);
+    updateBanner();
+    updateStatus();
+}
+
 void MainComponent::setWaveformMode(WaveformMode mode)
 {
     scope_.setWaveformMode(mode);
@@ -421,15 +445,16 @@ void MainComponent::updateDeviceInfo()
 
 void MainComponent::updateBanner()
 {
+    // Paused, the view stays calm: errors show again on resume (D-110).
+    const bool clockLost = scope_.snapshot().transportState == TransportState::clockLost;
     if (!inputRunning_)
         banner_.setText("NO AUDIO INPUT",
                         engine_.noInputReason() + " Choose a device in Settings.");
-    else if (scope_.snapshot().transportState == TransportState::clockLost)
+    else if (clockLost)
         banner_.setText("MIDI CLOCK LOST",
                         "No MIDI Clock for over half a second. The view is frozen until it "
-                        "returns, or click MIDI CLOCK LOST above to run free.");
-    banner_.setVisible(!inputRunning_ ||
-                       scope_.snapshot().transportState == TransportState::clockLost);
+                        "returns, or press Run free to run without it.");
+    banner_.setVisible(!scope_.isPaused() && (!inputRunning_ || clockLost));
 }
 
 void MainComponent::updateStatus()
@@ -441,10 +466,28 @@ void MainComponent::updateStatus()
     controlBar_.tempo().setEditable(free);
     controlBar_.tempo().setBpm(bpm);
 
+    const bool frozen = snapshot.transportState == TransportState::stopped ||
+                        snapshot.transportState == TransportState::clockLost;
+    if (scope_.isPaused())
+        controlBar_.setPauseAction(ControlBar::PauseAction::resume, "Resume the view (Space)");
+    else if (frozen)
+        controlBar_.setPauseAction(
+            ControlBar::PauseAction::runFree,
+            "Run free at " +
+                juce::String(snapshot.bpm > 0.0 ? clampFreeBpm(snapshot.bpm) : engine_.freeTempo(),
+                             1) +
+                " BPM until MIDI Clock starts again (Space)");
+    else
+        controlBar_.setPauseAction(ControlBar::PauseAction::pause, "Pause the view (Space)");
+
     StatusBar::Values values;
     if (bpm > 0.0)
         values.bpm = juce::String(bpm, 1) + " BPM";
-    if (!inputRunning_)
+    if (scope_.isPaused())
+    {
+        values.state = "PAUSED";
+    }
+    else if (!inputRunning_)
     {
         values.state = "NO INPUT";
         values.stateIsError = true;
@@ -467,15 +510,6 @@ void MainComponent::updateStatus()
             values.stateIsError = true;
             break;
         }
-        // Stopped or without a clock, a click runs the sweep free (D-090).
-        values.stateIsAction = snapshot.transportState == TransportState::stopped ||
-                               snapshot.transportState == TransportState::clockLost;
-        if (values.stateIsAction)
-            values.stateTooltip =
-                "Run free at " +
-                juce::String(snapshot.bpm > 0.0 ? clampFreeBpm(snapshot.bpm) : engine_.freeTempo(),
-                             1) +
-                " BPM until MIDI Clock starts again";
     }
     const auto syncInput = "input " + juce::String(engine_.syncInputChannel() + 1);
     switch (snapshot.syncState)
@@ -608,10 +642,9 @@ void MainComponent::updateDiagnostics()
                                " at " + syncText::peak(syncPeak);
         break;
     case SidechainSyncState::locked:
-        values.sidechainSync =
-            syncText::offset(snapshot.syncOffsetFrames, snapshot.sampleRate) + " (" +
-            juce::String(juce::roundToInt(snapshot.syncOffsetFrames)) + " frames), impulse " +
-            syncText::peak(snapshot.syncImpulsePeak);
+        values.sidechainSync = syncText::offset(snapshot.syncOffsetFrames, snapshot.sampleRate) +
+                               " (" + juce::String(juce::roundToInt(snapshot.syncOffsetFrames)) +
+                               " frames), impulse " + syncText::peak(snapshot.syncImpulsePeak);
         break;
     }
 

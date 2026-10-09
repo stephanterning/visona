@@ -55,6 +55,7 @@ The **plugin** (pass-through stereo effect, host transport) ships as VST3, AU an
 - **Sweep scope** with bar grid, stacked L/R lanes and a bright write head
 - **MIDI Clock** sync with Start, Stop, Continue and Song Position Pointer
 - **FREE mode** — free-running sweep at a manual BPM when MIDI Clock is absent
+- **Pause** (app) — hold the view and stop the analysis when movement distracts, or to save CPU
 - **Windows** from ¼ bar to 4 bars, **horizontal zoom** and a **measurement ruler**
 - **Waveform modes** STD, PRECISE and DJ (frequency colouring in DJ mode)
 - **Display gain** 0–18 dB, with optional **auto gain** in 3 dB steps (the AUTO button), settings persistence, fullscreen

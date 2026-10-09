@@ -39,7 +39,9 @@ namespace visona
       quarter notes with more than 2 bars (D-087). Small bar numbers sit at the bottom edge, and
       the bottom right corner names the finest note value and its length, such as
       "1/16 · 125 ms".
-    - STOPPED dims the frozen view slightly and shows a pause mark.
+    - STOPPED dims the frozen view slightly and shows a pause mark. Paused (D-110), the view
+      takes no new snapshots and shows the pause mark without dimming, so that what is on screen
+      can still be zoomed and measured.
     - Display gain and zoom are applied only here (D-024, D-085).
 
     Zoom (D-085) shows part of the window, down to 1/32 of it, without changing the window. Drag
@@ -86,6 +88,14 @@ public:
 
     /** The colour of the STD and PRECISE modes (D-093). */
     void setWaveformColour(juce::Colour colour);
+
+    /** Holds what is on screen, or follows the snapshots again (D-110). */
+    void setPaused(bool paused);
+
+    [[nodiscard]] bool isPaused() const noexcept
+    {
+        return paused_;
+    }
 
     /** The snapshot on screen, for the status bar. Message thread only. */
     [[nodiscard]] const SweepSnapshot& snapshot() const noexcept
@@ -207,7 +217,7 @@ private:
     [[nodiscard]] juce::String resolutionText() const;
     [[nodiscard]] juce::Rectangle<int> barNumberArea() const noexcept;
     void drawBarNumbers(juce::Graphics& g) const;
-    void drawStopped(juce::Graphics& g) const;
+    void drawPauseMark(juce::Graphics& g) const;
 
     /** Makes the tiles match the component's size at `scale`. Returns true if they changed. */
     bool ensureTiles(float scale);
@@ -251,6 +261,7 @@ private:
     int gainDb_ = 0;
     WaveformMode mode_ = WaveformMode::precise;
     juce::PixelARGB waveformColour_;
+    bool paused_ = false;
 
     // Tiles are in physical pixels, scale_ per logical pixel.
     float scale_ = 1.0f;

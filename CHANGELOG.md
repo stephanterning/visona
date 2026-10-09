@@ -19,8 +19,11 @@ All notable changes to this project are documented here. The format is based on
 - Auto gain, off by default, turned on and off with the AUTO button next to the gain, which is lit while it is on. It zooms the view in 3 dB steps so the loudest peak fills the top 3 dB of the lane: out as soon as a peak goes past the edge, and in at a bar line after the peaks have stayed low for 10 s. Bars at or below −50 dBFS do not count, and setting the gain by hand turns it off (D-100, D-108).
 - On a touchscreen, a finger held still on a control for half a second shows its tooltip, which goes away when the finger lifts or moves (D-108).
 - The standalone app can measure how late the audio arrives after MIDI Clock from Visona Sync's bar impulse on an input of its own, chosen under **Visona Sync** in the settings, and moves MIDI Clock onto the audio by that much. The status bar shows the offset, such as `SC +12.3 ms` (D-109).
+- A pause button first in the app's control bar holds the view and stops the analysis, to keep the screen still and save CPU. The status bar shows `PAUSED`, and `Resume` goes on where MIDI Clock is by then. Space or P presses it (D-110).
 
 ### Changed
+
+- `STOPPED` and `MIDI CLOCK LOST` in the status bar are no longer buttons. While MIDI Clock is stopped or lost, the pause button reads `Run free` and does what clicking them did (D-110).
 
 - Visona Sync saves a small version tag as its state instead of nothing, so CLAP hosts can restore it.
 - Display gain goes up to +18 dB instead of +36 dB.

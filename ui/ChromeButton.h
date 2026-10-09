@@ -16,13 +16,19 @@ public:
     {
         settings,
         diagnostics,
-        fullScreen
+        fullScreen,
+        pause,
+        play
     };
 
     ChromeButton(const juce::String& label, Icon icon);
 
+    void setIcon(Icon icon);
     void setShowsLabel(bool showsLabel);
     void setFontHeight(float fontHeight);
+
+    /** Makes room for `label` too, so the button keeps its width when its label changes. */
+    void setWidestLabel(const juce::String& label);
 
     /** The width that fits the icon, and the label if `withLabel`, at `height`. */
     [[nodiscard]] int preferredWidth(int height, bool withLabel) const;
@@ -35,6 +41,7 @@ private:
     Icon icon_;
     bool showsLabel_ = true;
     float fontHeight_ = 14.0f;
+    juce::String widestLabel_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChromeButton)
 };

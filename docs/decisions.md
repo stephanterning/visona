@@ -156,7 +156,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Before the first Start: a free-running sweep with a fixed time window.
 
   These are the explicit defaults required by D-016.
-- **D-046 — MVP UI:** `Amended by D-100 and D-108`
+- **D-046 — MVP UI:** `Amended by D-100, D-108 and D-110`
   - Status at the top: BPM, MIDI state, sample rate, window and gain.
   - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB (+18 dB since D-100).
   - A settings panel for audio device, input channel pair and MIDI input, with persisted settings.
@@ -340,7 +340,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Past the end of the window, bar numbers read on into the next window, such as 12.4 and then 13, and so does the status bar, such as `ZOOM 4.0× · 1.4–2.1`.
 
   Amends D-085.
-- **D-090 — The free-running sweep is in bars at a tempo set by hand, and is called `FREE`. Clicking `STOPPED` or `MIDI CLOCK LOST` switches to it.** `Active`
+- **D-090 — The free-running sweep is in bars at a tempo set by hand, and is called `FREE`. Clicking `STOPPED` or `MIDI CLOCK LOST` switches to it.** `Amended by D-110`
   - The maintainer asked for it after testing step 7b: after Stop in Live, switch Visona to running free instead of looking at a frozen view.
   - `FREE` replaces `WAITING` and the 2 s window (D-060). The sweep then shows the chosen window, ¼ to 4 bars, at the free tempo, with the same grid and bar numbers as with MIDI Clock. It is not locked to any music: bar 1 is where the sweep started, and it starts over at bar 1 on a new tempo or window.
   - `STOPPED` and `MIDI CLOCK LOST` are drawn as buttons in the status bar. A click or tap switches to `FREE` at the tempo MIDI Clock last had, or the saved free tempo if none is known. The next Start or Continue follows MIDI Clock again; Continue resumes where the song stopped, as from `Waiting` before.
@@ -482,6 +482,18 @@ A lightweight log of decisions and open questions. The architecture is described
   - The status bar shows `SC +12.3 ms` once locked and `SC ...` while waiting for the first impulse, as in the plugin. The diagnostics overlay has a Visona Sync row, in both the app and the plugin (it was "Sidechain sync" in the plugin), with the offset in frames, the impulse level and, while waiting, the input's level. Its MIDI offset row shows the offset in use, input latency plus the measurement, which can now be negative.
 
   Amends D-078: with Visona Sync routed, the measured offset is added to the input latency.
+
+- **D-110 — In the app, a pause button first in the control bar holds the view and stops the analysis. While MIDI Clock is stopped or lost it runs the sweep free instead, and the status bar is no longer a button.** `Active`
+  - The maintainer asked for it to keep the screen still when its movement distracts, and to save CPU.
+  - *Only the app.* The plugin has no pause button. A first version had one, but the maintainer found it of no use in practice.
+  - *The button.* It sits first in the control bar, left of WINDOW, where play and pause sit in media players. Its icon and label say what a press does, not the state: ⏸ `Pause` while the view moves, ▶ `Resume`, lit, while it is paused, and ▶ `Run free` while MIDI Clock is stopped or lost and the view is already frozen. Like the other buttons it shows only its icon when the labels do not fit, and it keeps the width of its widest label, so nothing moves when it changes. Space or P presses it.
+  - *Status bar.* It only informs. `STOPPED` and `MIDI CLOCK LOST` are no longer buttons (D-090); `Run free` on the pause button does what clicking them did. While paused, the state reads `PAUSED`, and it takes precedence over every other state, errors too: `MIDI CLOCK LOST`, `NO INPUT` and their banners show again on resume, so a paused screen stays calm.
+  - *While paused.* The scope takes no new snapshots and shows the pause mark without dimming, so what is on screen can still be zoomed and measured. The analysis takes the audio from the ring without analyzing it, so it does not overflow, and publishes nothing. The transport still follows MIDI Clock, which costs next to nothing, and a Start or Continue does not resume the view. The audio callback runs as before, since it is needed for MIDI timing. The input level in the diagnostics overlay keeps updating; the MIDI values there hold.
+  - *Resume.* The view goes on where the transport is by then, `MIDI RUN`, `FREE` or `STOPPED`, as after a relocation (D-079): the head jumps there and what was drawn before the pause becomes the previous pass. `FREE` resumes in phase with the time that passed. A Start during the pause, or a new window or free tempo, starts the sweep over as usual, which shows on resume. The bar the pause cut short gives auto gain no peak.
+  - The pause is not saved: the app always starts running.
+  - The maintainer is not yet sure about `Run free` on the same button and will try it. The alternative is to leave the pause button as only pause and resume, and make `STOPPED` and `MIDI CLOCK LOST` buttons again.
+
+  Amends D-046 and D-090.
 
 ---
 

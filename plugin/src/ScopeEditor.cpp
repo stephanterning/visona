@@ -68,6 +68,7 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
     controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
+    controlBar_.setPauseVisible(false);
     controlBar_.setTempoVisible(false);
     controlBar_.setFullScreenVisible(false);
     controlBar_.onSettings = [this] { showAppearance(!appearancePanel_.isVisible()); };

@@ -30,9 +30,10 @@ class Settings;
     under it while zoomed in, the scope in the middle and the control bar at the bottom, with the
     banner, the diagnostics overlay and the settings panel over the scope (architecture.md 3.6).
 
-    Shortcuts: 1 to 5 pick the window, + and - (or the up and down arrows) change the gain by hand,
-    which turns auto gain off, F toggles full screen, D the diagnostics overlay, Cmd+, the settings
-    panel, and Esc closes the settings panel or, with it closed, resets the zoom.
+    Shortcuts: Space or P presses the pause button, 1 to 5 pick the window, + and - (or the up and
+    down arrows) change the gain by hand, which turns auto gain off, F toggles full screen, D the
+    diagnostics overlay, Cmd+, the settings panel, and Esc closes the settings panel or, with it
+    closed, resets the zoom.
 */
 class MainComponent final : public juce::Component,
                             private juce::ChangeListener,
@@ -64,6 +65,10 @@ private:
 
     /** Leaves STOPPED or MIDI CLOCK LOST for the free-running sweep, at the last MIDI tempo. */
     void runFree();
+
+    /** Resumes the paused view, runs a frozen one free, or pauses it (D-110). */
+    void pressPauseButton();
+    void setPaused(bool paused);
 
     void setWaveformMode(WaveformMode mode);
     void setWaveformColour(std::size_t index);

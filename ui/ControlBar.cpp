@@ -9,10 +9,16 @@ ControlBar::ControlBar()
 {
     setOpaque(true);
 
+    pause_.setWidestLabel("Run free");
     diagnostics_.setTooltip("Diagnostics (D)");
     fullScreen_.setTooltip("Full screen (F)");
     settings_.setTooltip("Settings (Cmd+,)");
 
+    pause_.onClick = [this]
+    {
+        if (onPauseButton)
+            onPauseButton();
+    };
     diagnostics_.onClick = [this]
     {
         if (onDiagnostics)
@@ -29,6 +35,7 @@ ControlBar::ControlBar()
             onSettings();
     };
 
+    addAndMakeVisible(pause_);
     addAndMakeVisible(window_);
     addAndMakeVisible(tempo_);
     addAndMakeVisible(gain_);
@@ -37,6 +44,27 @@ ControlBar::ControlBar()
     addAndMakeVisible(fullScreen_);
     addAndMakeVisible(settings_);
     setStep(ChromeStep::wide);
+}
+
+void ControlBar::setPauseAction(PauseAction action, const juce::String& tooltip)
+{
+    switch (action)
+    {
+    case PauseAction::pause:
+        pause_.setButtonText("Pause");
+        pause_.setIcon(ChromeButton::Icon::pause);
+        break;
+    case PauseAction::resume:
+        pause_.setButtonText("Resume");
+        pause_.setIcon(ChromeButton::Icon::play);
+        break;
+    case PauseAction::runFree:
+        pause_.setButtonText("Run free");
+        pause_.setIcon(ChromeButton::Icon::play);
+        break;
+    }
+    pause_.setToggleState(action == PauseAction::resume, juce::dontSendNotification);
+    pause_.setTooltip(tooltip);
 }
 
 void ControlBar::setToggles(bool diagnostics, bool fullScreen, bool settings)
@@ -55,10 +83,20 @@ void ControlBar::setStep(ChromeStep step)
     tempo_.setFontHeight(metrics.fontHeight);
     gain_.setFontHeight(metrics.fontHeight);
     waveform_.setFontHeight(metrics.fontHeight);
-    for (auto* button : {&diagnostics_, &fullScreen_, &settings_})
+    for (auto* button : {&pause_, &diagnostics_, &fullScreen_, &settings_})
         button->setFontHeight(metrics.fontHeight);
     diagnostics_.setVisible(showsSecondaryControls());
     fullScreen_.setVisible(showsSecondaryControls() && fullScreenVisible_);
+    resized();
+    repaint();
+}
+
+void ControlBar::setPauseVisible(bool visible)
+{
+    if (pauseVisible_ == visible)
+        return;
+    pauseVisible_ = visible;
+    pause_.setVisible(visible);
     resized();
     repaint();
 }
@@ -112,11 +150,14 @@ void ControlBar::resized()
     const auto rowBounds = [&](int row)
     { return area.withY(area.getY() + row * (height + metrics.gap)).withHeight(height); };
 
-    // The window, tempo, gain and waveform flow from the left; the buttons sit at the right of
-    // their row.
-    std::array<juce::Rectangle<int>, 5> rows{rowBounds(0), rowBounds(1), rowBounds(2), rowBounds(3),
-                                             rowBounds(4)};
-    const std::array<juce::Component*, 4> controls{&window_, &tempo_, &gain_, &waveform_};
+    // The pause button, window, tempo, gain and waveform flow from the left; the buttons sit at
+    // the right of their row.
+    std::array<juce::Rectangle<int>, numGroups> rows;
+    for (std::size_t row = 0; row < rows.size(); ++row)
+        rows[row] = rowBounds(static_cast<int>(row));
+    pause_.setShowsLabel(placement.buttonLabels);
+    const std::array<juce::Component*, numGroups - 1> controls{&pause_, &window_, &tempo_, &gain_,
+                                                               &waveform_};
     for (std::size_t group = 0; group < controls.size(); ++group)
     {
         if (widths[group] == 0)
@@ -126,7 +167,7 @@ void ControlBar::resized()
         row.removeFromLeft(metrics.groupGap);
     }
 
-    auto& buttonRow = rows[static_cast<std::size_t>(placement.rows[4])];
+    auto& buttonRow = rows[static_cast<std::size_t>(placement.rows[numGroups - 1])];
     for (auto* button : {&settings_, &fullScreen_, &diagnostics_})
     {
         if (!button->isVisible())
@@ -138,7 +179,7 @@ void ControlBar::resized()
     }
 }
 
-std::array<int, 5> ControlBar::groupWidths(bool buttonLabels) const
+std::array<int, ControlBar::numGroups> ControlBar::groupWidths(bool buttonLabels) const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
     auto buttons = 0;
@@ -146,13 +187,15 @@ std::array<int, 5> ControlBar::groupWidths(bool buttonLabels) const
         if (button->isVisible())
             buttons += (buttons > 0 ? metrics.gap : 0) +
                        button->preferredWidth(metrics.controlHeight, buttonLabels);
-    return {window_.preferredWidth(metrics.controlHeight),
+    return {pauseVisible_ ? pause_.preferredWidth(metrics.controlHeight, buttonLabels) : 0,
+            window_.preferredWidth(metrics.controlHeight),
             tempoVisible_ ? tempo_.preferredWidth(metrics.controlHeight) : 0,
             gain_.preferredWidth(metrics.controlHeight),
-            waveform_.preferredWidth(metrics.controlHeight), buttons};
+            waveform_.preferredWidth(metrics.controlHeight),
+            buttons};
 }
 
-int ControlBar::rowWidth(const std::array<int, 5>& widths) const
+int ControlBar::rowWidth(const std::array<int, numGroups>& widths) const
 {
     const auto metrics = ChromeMetrics::forStep(step_);
     auto used = 0;
