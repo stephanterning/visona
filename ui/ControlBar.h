@@ -21,9 +21,9 @@ namespace visona
     display gain and the waveform mode (D-091) on the left; diagnostics, full screen and settings on
     the right. No knobs, and touch-sized targets (D-025).
 
-    Everything stays on one row (D-108): each control carries its caption inside, the buttons drop
-    their labels for their icons when the labels do not fit, and in the compact step the secondary
-    buttons move into the settings panel. Only when even that does not fit do the groups flow onto
+    Everything stays on one row (D-108): each control carries its caption inside, the buttons show
+    only their icons (D-113), and in the compact step the secondary buttons move into the settings
+    panel. Only when even that does not fit do the groups flow onto
     more rows.
 */
 class ControlBar final : public juce::Component
@@ -51,7 +51,7 @@ public:
         return waveform_;
     }
 
-    /** What the pause button does when pressed: its icon and label say which (D-110). */
+    /** What the pause button does when pressed: its icon and tooltip say which (D-110). */
     enum class PauseAction
     {
         pause,
@@ -88,7 +88,7 @@ public:
     /** The height that fits the controls at `width`. */
     [[nodiscard]] int preferredHeight(int width) const;
 
-    /** The narrowest width that fits everything on one row, with icon-only buttons. */
+    /** The narrowest width that fits everything on one row. */
     [[nodiscard]] int minimumWidth() const;
 
     void paint(juce::Graphics& g) override;
@@ -103,10 +103,9 @@ private:
     {
         std::array<int, numGroups> rows{};
         int numRows = 1;
-        bool buttonLabels = false;
     };
 
-    [[nodiscard]] std::array<int, numGroups> groupWidths(bool buttonLabels) const;
+    [[nodiscard]] std::array<int, numGroups> groupWidths() const;
     /** The width of the groups on one row, with the gaps between them. */
     [[nodiscard]] int rowWidth(const std::array<int, numGroups>& widths) const;
     [[nodiscard]] Placement place(int width) const;

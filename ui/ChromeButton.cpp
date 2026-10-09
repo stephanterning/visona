@@ -2,7 +2,6 @@
 
 #include "Palette.h"
 
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -14,8 +13,6 @@ namespace
 
 constexpr float cornerRadius = 6.0f;
 constexpr float iconSize = 18.0f;
-constexpr float labelGap = 8.0f;
-constexpr float sidePadding = 12.0f;
 
 } // namespace
 
@@ -36,34 +33,9 @@ void ChromeButton::setIcon(Icon icon)
     repaint();
 }
 
-void ChromeButton::setWidestLabel(const juce::String& label)
+int ChromeButton::preferredWidth(int height) const
 {
-    widestLabel_ = label;
-}
-
-void ChromeButton::setShowsLabel(bool showsLabel)
-{
-    if (showsLabel == showsLabel_)
-        return;
-    showsLabel_ = showsLabel;
-    repaint();
-}
-
-void ChromeButton::setFontHeight(float fontHeight)
-{
-    fontHeight_ = fontHeight;
-    repaint();
-}
-
-int ChromeButton::preferredWidth(int height, bool withLabel) const
-{
-    if (!withLabel)
-        return height;
-    // A little slack, so rounding never cuts the last letter.
-    const juce::FontOptions font(fontHeight_, juce::Font::bold);
-    const auto labelWidth = std::max(juce::GlyphArrangement::getStringWidth(font, getButtonText()),
-                                     juce::GlyphArrangement::getStringWidth(font, widestLabel_));
-    return static_cast<int>(std::ceil(sidePadding * 2.0f + iconSize + labelGap + labelWidth)) + 4;
+    return height;
 }
 
 void ChromeButton::paintButton(juce::Graphics& g, bool isHighlighted, bool isDown)
@@ -81,19 +53,8 @@ void ChromeButton::paintButton(juce::Graphics& g, bool isHighlighted, bool isDow
         g.drawRoundedRectangle(bounds, cornerRadius, 1.0f);
     }
 
-    const auto content = on ? palette::text : palette::level;
-    if (!showsLabel_)
-    {
-        paintIcon(g, bounds.withSizeKeepingCentre(iconSize, iconSize), content);
-        return;
-    }
-
-    auto area = bounds.reduced(sidePadding, 0.0f);
-    paintIcon(g, area.removeFromLeft(iconSize).withSizeKeepingCentre(iconSize, iconSize), content);
-    area.removeFromLeft(labelGap);
-    g.setColour(content);
-    g.setFont(juce::FontOptions(fontHeight_, juce::Font::bold));
-    g.drawText(getButtonText(), area, juce::Justification::centredLeft, false);
+    paintIcon(g, bounds.withSizeKeepingCentre(iconSize, iconSize),
+              on ? palette::text : palette::level);
 }
 
 void ChromeButton::paintIcon(juce::Graphics& g, juce::Rectangle<float> area,

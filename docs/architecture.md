@@ -220,19 +220,19 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - While zoomed, the zoom comes last, such as `ZOOM 4.0× · 1.3–1.4` (D-085).
 - **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom. Dragging anywhere on it moves the view, round past either end of the window, and a click outside the part in view centres the view there (D-089).
 - **Controls (bottom):** no knobs. Each control carries a small caption above its value: WINDOW, BPM, GAIN and WAVE (D-108).
-  - The pause button comes first, in the app only (D-110). Its icon and label say what a press does: `Pause` while the view moves, `Resume`, lit, while it is paused, and `Run free` while MIDI Clock is stopped or lost. It keeps the width of its widest label.
+  - The pause button comes first, in the app only (D-110). Its icon and tooltip say what a press does: ⏸ pause while the view moves, ▶ resume, lit, while it is paused, and ▶ run free while MIDI Clock is stopped or lost.
   - WINDOW is a select menu, `¼ BAR` to `4 BARS`, whose list opens above it (D-108).
   - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
   - GAIN is `[−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB (D-100).
   - AUTO, right of GAIN, turns auto gain on and off. While it is on, the button is lit, the value is green and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, in at bar lines once the peaks have stayed low for 10 s. A change by hand turns auto gain off (D-100, D-108).
   - WAVE is a select menu of `STD`, `PRECISE` and `DJ`, the drawing modes (D-091, D-108).
-  - Secondary buttons: Diagnostics and Full screen, next to ⚙. They and ⚙ show only their icons when their labels do not fit (D-108).
+  - Secondary buttons: Diagnostics and Full screen, next to ⚙. All the buttons in the control bar show only their icons, with the label as the tooltip (D-113).
   - Keyboard shortcuts: Space or P for the pause button, 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
 - **Zoom on the scope** (D-085): drag to zoom to the selection, scroll to zoom around the pointer, scroll sideways or Shift-scroll to move the view (D-089), and double-click or double-tap to reset. A pinch zooms around the point between the fingers and moves the view with them, so what was between them stays there (D-108).
 - **Measurement ruler** (D-094): drag with the right button, a two-finger click or Control, or hold a finger still for half a second and drag, to draw a rectangle. While it is held, a readout above and to the right of the pointer, or on another side where it does not fit, shows its width as ms, samples, frequency, note and musical length, read against the time axis as shown. It never reads the audio, and it goes away on release.
 - **Tooltips** (D-108): shown on hover with a mouse. On a touchscreen a finger held still on a control for half a second shows its tooltip, and lifting or moving the finger hides it.
 - **Responsive chrome** (D-069, D-108). The layout reflows in steps:
-  - The control bar stays on one row. The buttons drop their labels first, and the groups wrap onto a second row only when even that does not fit, which a desktop window reaches below about 710 logical pixels of width.
+  - The control bar stays on one row. The groups wrap onto a second row only when even that does not fit, which a desktop window reaches below about 710 logical pixels of width.
   - Narrower windows use smaller text and gaps.
   - Very small windows move secondary controls behind ⚙.
   - In kiosk mode the control bar is drawn at up to twice the size, and smaller when that is what keeps it on one row (D-105).
