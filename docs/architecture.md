@@ -111,7 +111,7 @@ Position is counted in ticks, with `ticksPerBar = 24 × numerator × 4 / denomin
 | Continue | `Running` from the current position. The write head jumps to that phase, and existing content becomes the previous pass. From `FREE`, the sweep starts over as on Start, but at the SPP position |
 | > 0.5 s without Clock in `Running` | `ClockLost`: freeze and show `MIDI CLOCK LOST` |
 | Clock returns in `ClockLost` | `Running` again, continuing the tick count. Position may be off until the next Start, or SPP + Continue |
-| Click on `STOPPED` or `MIDI CLOCK LOST` | `FREE` at the last MIDI tempo; the sweep starts over at bar 1. The position is kept for Continue (D-090) |
+| `Run free` on the pause button in `Stopped` or `ClockLost` | `FREE` at the last MIDI tempo; the sweep starts over at bar 1. The position is kept for Continue (D-090, D-110) |
 
 The clock-loss timeout only applies in `Running`, so a DAW that stops sending clock on Stop does not trigger a false `MIDI CLOCK LOST`.
 
@@ -153,6 +153,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - Frames missing because the ring dropped a block leave their bins empty in the current pass (D-067).
 - **Free-running (`FREE`).** The position in ticks is (sampleIndex − s₀) / framesPerTick at the free tempo, from the frame s₀ where the free sweep started, and φ is as above (D-090). A new tempo or window starts it over.
 - **Freeze (`Stopped`/`ClockLost`).** No bins are written, but the ring is still drained and status keeps updating.
+- **Pause** (D-110, app only). In any state, the ring is drained without analysis and no snapshot is published, while the transport still follows MIDI Clock and the sweep still follows Start. On resume the head jumps to where the transport is then, as after a relocation, and the content before the pause becomes the previous pass.
 - **Snapshot.** Contains the sweep buffer (whole or dirty range), write head bin, `passId`, transport state, BPM, sample rate, window and overrun counters. Display gain is not part of it.
   - Each triple-buffer slot remembers the sweep state it holds, and publishing copies only the bins that changed since then, so the consumer always reads a whole buffer.
 - **`BandSplitter`.** An in-house fourth-order Linkwitz-Riley (LR4) crossover, with starting values around 200 Hz and 2.5 kHz (D-051).
@@ -203,29 +204,30 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ├──────────────────────────────────────────────────────────────┤
 │ R  ~~~~~~~~~ sweep ~~~~~~~~~│                                 │
 ├──────────────────────────────────────────────────────────────┤
-│  WINDOW       BPM         GAIN               WAVE            │
-│ [1 BAR ▴] [− 126.0 +] [− +12 dB +] [AUTO] [PRECISE ▴]    [⚙] │  controls
+│      WINDOW    BPM         GAIN                WAVE          │
+│ [⏸] [1 BAR ▴] [− 126.0 +] [− +12 dB +] [AUTO] [STD ▴]    [⚙] │  controls
 └──────────────────────────────────────────────────────────────┘
 ```
 
 - **Status (top)** (D-046): BPM, MIDI state (`FREE`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
-  - The state reads `FREE`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080, D-090).
-  - `STOPPED` and `MIDI CLOCK LOST` are buttons that switch to `FREE` (D-090).
+  - The state reads `FREE`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080, D-090). While the view is paused it reads `PAUSED`, which takes precedence over everything else, errors and their banners too (D-110).
+  - Nothing in the status bar is a button (D-110).
   - With a Visona Sync input chosen, `SC +12.3 ms` follows the state once the offset is measured, and `SC ...` before (D-109).
   - Values are calm white or gray text with tabular digits.
   - Color is used for state only, and red is reserved for errors.
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
-  - `STOPPED` shows a freeze indicator and slightly dims the scope.
+  - `STOPPED` shows a freeze indicator and slightly dims the scope. `PAUSED` shows the indicator without dimming.
   - While zoomed, the zoom comes last, such as `ZOOM 4.0× · 1.3–1.4` (D-085).
 - **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom. Dragging anywhere on it moves the view, round past either end of the window, and a click outside the part in view centres the view there (D-089).
 - **Controls (bottom):** no knobs. Each control carries a small caption above its value: WINDOW, BPM, GAIN and WAVE (D-108).
+  - The pause button comes first, in the app only (D-110). Its icon and label say what a press does: `Pause` while the view moves, `Resume`, lit, while it is paused, and `Run free` while MIDI Clock is stopped or lost. It keeps the width of its widest label.
   - WINDOW is a select menu, `¼ BAR` to `4 BARS`, whose list opens above it (D-108).
   - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
   - GAIN is `[−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB (D-100).
   - AUTO, right of GAIN, turns auto gain on and off. While it is on, the button is lit, the value is green and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, in at bar lines once the peaks have stayed low for 10 s. A change by hand turns auto gain off (D-100, D-108).
   - WAVE is a select menu of `STD`, `PRECISE` and `DJ`, the drawing modes (D-091, D-108).
   - Secondary buttons: Diagnostics and Full screen, next to ⚙. They and ⚙ show only their icons when their labels do not fit (D-108).
-  - Keyboard shortcuts: 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
+  - Keyboard shortcuts: Space or P for the pause button, 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
 - **Zoom on the scope** (D-085): drag to zoom to the selection, scroll to zoom around the pointer, scroll sideways or Shift-scroll to move the view (D-089), and double-click or double-tap to reset. A pinch zooms around the point between the fingers and moves the view with them, so what was between them stays there (D-108).
 - **Measurement ruler** (D-094): drag with the right button, a two-finger click or Control, or hold a finger still for half a second and drag, to draw a rectangle. While it is held, a readout above and to the right of the pointer, or on another side where it does not fit, shows its width as ms, samples, frequency, note and musical length, read against the time axis as shown. It never reads the audio, and it goes away on release.
 - **Tooltips** (D-108): shown on hover with a mouse. On a touchscreen a finger held still on a control for half a second shows its tooltip, and lifting or moving the finger hides it.

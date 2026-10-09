@@ -30,8 +30,6 @@ void StatusBar::setValues(const Values& values)
     if (values == values_)
         return;
     values_ = values;
-    if (!values_.stateIsAction)
-        stateHighlighted_ = false;
     repaint();
 }
 
@@ -79,6 +77,7 @@ void StatusBar::paint(juce::Graphics& g)
         {values_.zoom, "", true, palette::text},
     }};
 
+    sidechainSyncArea_ = {};
     for (std::size_t index = 0; index < items.size(); ++index)
     {
         const auto& item = items[index];
@@ -89,20 +88,9 @@ void StatusBar::paint(juce::Graphics& g)
                                     juce::GlyphArrangement::getStringWidthInt(font, item.widest));
         if (index > 2 && width > area.getWidth())
             break;
-        const bool button = index == 1 && values_.stateIsAction;
-        const auto padding = button ? metrics.gap * 2 : 0;
-        auto itemArea = area.removeFromLeft(width + 2 * padding);
-        if (index == 1)
-            stateArea_ = button ? itemArea.reduced(0, std::max(2, itemArea.getHeight() / 6))
-                                : juce::Rectangle<int>();
-        if (button)
-        {
-            g.setColour(stateHighlighted_ ? palette::highlight : palette::surface);
-            g.fillRoundedRectangle(stateArea_.toFloat(), 4.0f);
-            g.setColour(palette::outline.brighter(0.2f));
-            g.drawRoundedRectangle(stateArea_.toFloat().reduced(0.5f), 4.0f, 1.0f);
-            itemArea.reduce(padding, 0);
-        }
+        const auto itemArea = area.removeFromLeft(width);
+        if (index == 2)
+            sidechainSyncArea_ = itemArea;
         g.setFont(font);
         g.setColour(item.colour);
         g.drawText(item.text, itemArea, juce::Justification::centredLeft, true);
@@ -110,38 +98,10 @@ void StatusBar::paint(juce::Graphics& g)
     }
 }
 
-bool StatusBar::hitTest(int x, int y)
-{
-    return values_.stateIsAction && stateArea_.contains(x, y);
-}
-
-void StatusBar::mouseEnter(const juce::MouseEvent&)
-{
-    stateHighlighted_ = values_.stateIsAction;
-    setMouseCursor(juce::MouseCursor::PointingHandCursor);
-    repaint(stateArea_);
-}
-
-void StatusBar::mouseExit(const juce::MouseEvent&)
-{
-    stateHighlighted_ = false;
-    repaint(stateArea_);
-}
-
-void StatusBar::mouseUp(const juce::MouseEvent& event)
-{
-    if (values_.stateIsAction && stateArea_.contains(event.getPosition()) &&
-        !event.mouseWasDraggedSinceMouseDown() && onStateClick)
-        onStateClick();
-}
-
 juce::String StatusBar::getTooltip()
 {
-    if (values_.stateIsAction)
-        return values_.stateTooltip;
-    if (values_.sidechainSync.isNotEmpty())
-        return values_.sidechainSyncTooltip;
-    return {};
+    return sidechainSyncArea_.contains(getMouseXYRelative()) ? values_.sidechainSyncTooltip
+                                                             : juce::String();
 }
 
 } // namespace visona
