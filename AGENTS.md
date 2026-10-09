@@ -26,6 +26,13 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 - `tests/`: Catch2 tests for `core/`. Keep JUCE out of `core/` and `tests/`. Multi-threaded stress tests are tagged `[stress]`.
 - `site/`: the static website, visona.org, with the download page and the user manual. `python3 site/build.py --serve` previews it; `.github/workflows/site.yml` deploys it to GitHub Pages. See `docs/website.md`. When a change alters what the user sees or does, update the manual in `site/static/manual/index.html` too.
 
+## Website and manual on every pull request
+
+Before opening a pull request, check the website (`site/`) and the manual (`site/static/manual/index.html`) against the change:
+
+- If the change makes anything they already say wrong or out of date (features, settings, controls, keyboard shortcuts, formats, supported platforms, system requirements, screenshots), update it in the same pull request.
+- If the change adds a feature users may need explained, consider adding it to the manual and, if it is a notable feature, to the presentation page. If you decide not to, say why in the pull request description.
+
 The audio callback must not allocate, lock, wait or log. Debug builds of the app count allocations made in it (`app/src/RealtimeAllocationCheck.h`), and the diagnostics overlay (press D) shows the count, which must stay at 0.
 
 ### macOS prerequisites
