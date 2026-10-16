@@ -3,6 +3,7 @@ set(visona_app_options
     VERSION "${PROJECT_VERSION}"
     COMPANY_NAME "Visona"
     BUNDLE_ID "io.github.stephanterning.visona"
+    ICON_BIG "${PROJECT_SOURCE_DIR}/assets/icon/visona-icon-1024.png"
     NEEDS_CURL FALSE
     NEEDS_WEB_BROWSER FALSE)
 
