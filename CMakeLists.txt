@@ -5,7 +5,7 @@ set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Target architectures for macOS
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version to target")
 
 project(Visona
-    VERSION 0.1.0
+    VERSION 1.0.0
     DESCRIPTION "Beat-synced stereo oscilloscope"
     HOMEPAGE_URL "https://github.com/stephanterning/visona"
     LANGUAGES C CXX)
