@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.0.0-beta.1] - 2026-10-16
+
 ### Added
 
 - The macOS app and the VST3, AU and CLAP plugins in releases are signed with a Developer ID and notarized by Apple, so they install without Gatekeeper warnings or `xattr` and ad-hoc signing by hand (D-111).
@@ -83,5 +85,7 @@ All notable changes to this project are documented here. The format is based on
 - Raspberry Pi builds are provided as a binary tarball; build on the Pi only for development.
 - Plugins (VST3/AU/CLAP) are not included yet.
 
+[Unreleased]: https://github.com/stephanterning/visona/compare/v1.0.0-beta.1...HEAD
+[1.0.0-beta.1]: https://github.com/stephanterning/visona/releases/tag/v1.0.0-beta.1
 [0.1.0-alpha.2]: https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.1
