@@ -20,8 +20,9 @@ Without `MACOS_CERTIFICATE_P12`, a manual run signs ad hoc and warns, and a publ
 
 1. In **Keychain Access**, choose **Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority**. Enter the Apple ID email, choose **Saved to disk**, and save the `.certSigningRequest` file.
 2. On [developer.apple.com/account/resources/certificates](https://developer.apple.com/account/resources/certificates/list), press **+**, choose **Developer ID Application**, the **G2 Sub-CA** profile, and upload the request. Download the `.cer` and double-click it, so it lands in the login keychain next to its private key.
-3. In Keychain Access, under **My Certificates**, right-click **Developer ID Application: *name* (*team ID*)**, choose **Export**, save it as `DeveloperID.p12` and give it a strong password.
-4. Store it, then delete the file:
+3. If **Developer ID Certification Authority** with **G2** is missing from the keychain, `security find-identity -v -p codesigning` finds no valid identity. Import it with `curl -fsSLO https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer && security import DeveloperIDG2CA.cer -k ~/Library/Keychains/login.keychain-db`.
+4. In Keychain Access, under **My Certificates** (not **Certificates**, which has no **Export**), right-click **Developer ID Application: *name* (*team ID*)**, choose **Export**, save it as `DeveloperID.p12` and give it a strong password.
+5. Store it, then delete the file:
 
    ```sh
    base64 -i DeveloperID.p12 | gh secret set MACOS_CERTIFICATE_P12
@@ -57,4 +58,4 @@ xcrun stapler validate ~/Library/Audio/Plug-Ins/Components/Visona.component
 
 ## Renewal
 
-A Developer ID certificate is valid for five years. Signed and notarized builds keep working after it expires, because they carry a secure timestamp. Before it expires, create a new one as above and replace the two certificate secrets. If the membership lapses, notarization stops, but builds published before keep working. A new app-specific password is needed if the Apple ID password changes.
+The current certificate, issued in October 2026, expires on 15 November 2027; check the date with `security find-identity -p codesigning` and Keychain Access. Signed and notarized builds keep working after it expires, because they carry a secure timestamp, but new builds cannot be signed. Before it expires, create a new one as above and replace the two certificate secrets. If the membership lapses, notarization stops, but builds published before keep working. A new app-specific password is needed if the Apple ID password changes.
