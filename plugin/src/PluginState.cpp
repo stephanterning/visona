@@ -88,6 +88,8 @@ void PluginGlobalDefaults::setWaveformColour(std::size_t index)
 
 void PluginInstanceState::writeTo(juce::XmlElement& root) const
 {
+    root.setAttribute("analysisView", analysisView);
+    root.setAttribute("spectrumSettings", spectrumSettings);
     root.setAttribute("gainDb", gainDb);
     root.setAttribute("autoGain", autoGain);
     root.setAttribute("window", static_cast<int>(window));
@@ -98,6 +100,8 @@ void PluginInstanceState::writeTo(juce::XmlElement& root) const
 
 void PluginInstanceState::readFrom(const juce::XmlElement& root, PluginGlobalDefaults& defaults)
 {
+    analysisView = root.getIntAttribute("analysisView", 0) == 1 ? 1 : 0;
+    spectrumSettings = root.getStringAttribute("spectrumSettings");
     gainDb = DisplayGain::clampDb(root.getIntAttribute("gainDb", gainDb));
     autoGain = root.getBoolAttribute("autoGain", false);
     window = static_cast<std::size_t>(root.getIntAttribute("window", static_cast<int>(window)));

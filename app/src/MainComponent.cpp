@@ -52,6 +52,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     , settings_(settings)
     , kioskMode_(kioskMode)
     , scope_(engine.snapshots(), engine.layout())
+    , spectrum_(engine.spectrum())
     , settingsPanel_(engine)
     , window_(defaultSweepWindow)
     , peaks_(engine.layout().totalChannelCount(), 0.0f)
@@ -67,12 +68,23 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     addAndMakeVisible(statusBar_);
     addChildComponent(zoomOverview_);
     addAndMakeVisible(scope_);
+    addChildComponent(spectrum_);
     addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
     addChildComponent(diagnostics_);
     addChildComponent(scrim_);
     addChildComponent(settingsPanel_);
 
+    controlBar_.viewSelector().onSelect = [this](int view) { setAnalysisView(view); };
+    controlBar_.onSpectrumSettings = [this]
+    {
+        spectrum_.showSettings(!spectrum_.settingsVisible());
+        updateBanner();
+    };
+    controlBar_.viewSelector().setTouchMode(kioskMode_);
+    spectrum_.restoreSettings(settings_.spectrumSettings());
+    spectrum_.onSettingsChange = [this]
+    { settings_.setSpectrumSettings(spectrum_.saveSettings()); };
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.tempo().onTempoChange = [this](double bpm) { setFreeTempo(bpm); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
@@ -124,6 +136,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
 
     engine_.deviceManager().addChangeListener(this);
     updateDeviceInfo();
+    setAnalysisView(settings_.analysisView());
     startTimerHz(idleRefreshHz);
 }
 
@@ -172,6 +185,7 @@ void MainComponent::resized()
             .translated(0.0f, static_cast<float>(area.getBottom() - scaledHeight)));
     area.removeFromBottom(scaledHeight);
     scope_.setBounds(area);
+    spectrum_.setBounds(area);
 
     banner_.setBounds(
         juce::Rectangle<int>(std::min(bannerWidth, area.getWidth() - 2 * margin), bannerHeight)
@@ -225,11 +239,27 @@ float MainComponent::fitControlBar()
 
 bool MainComponent::keyPressed(const juce::KeyPress& key)
 {
+    if (key.getModifiers().isAltDown() && (key.isKeyCode('1') || key.isKeyCode('2')))
+    {
+        setAnalysisView(key.isKeyCode('2') ? 1 : 0);
+        return true;
+    }
+    if (!key.getModifiers().isAnyModifierKeyDown() &&
+        (key.getTextCharacter() == 'v' || key.getTextCharacter() == 'V'))
+    {
+        controlBar_.viewSelector().showChoices();
+        return true;
+    }
     if (key == juce::KeyPress::escapeKey && settingsPanel_.isVisible())
     {
         showSettings(false);
         return true;
     }
+    if (analysisView_ == 1 && key.isKeyCode(juce::KeyPress::escapeKey))
+    {
+        return spectrum_.keyPressed(key);
+    }
+
     if (key == juce::KeyPress::escapeKey && scope_.zoom().isZoomed())
     {
         scope_.resetZoom();
@@ -251,19 +281,22 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         pressPauseButton();
         return true;
     }
-    if (character >= '1' && character < static_cast<juce::juce_wchar>('1' + sweepWindowBars.size()))
+    if (analysisView_ == 0 && character >= '1' &&
+        character < static_cast<juce::juce_wchar>('1' + sweepWindowBars.size()))
     {
         setWindow(static_cast<std::size_t>(character - '1'));
         return true;
     }
-    if (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
-        character == '+' || character == '=')
+    if (analysisView_ == 0 &&
+        (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
+         character == '+' || character == '='))
     {
         setGainDb(gainDb_ + 1);
         return true;
     }
-    if (key.isKeyCode(juce::KeyPress::downKey) ||
-        key.isKeyCode(juce::KeyPress::numberPadSubtract) || character == '-')
+    if (analysisView_ == 0 &&
+        (key.isKeyCode(juce::KeyPress::downKey) ||
+         key.isKeyCode(juce::KeyPress::numberPadSubtract) || character == '-'))
     {
         setGainDb(gainDb_ - 1);
         return true;
@@ -278,7 +311,7 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         showDiagnostics(!diagnostics_.isVisible());
         return true;
     }
-    if (character == 'w')
+    if (analysisView_ == 0 && character == 'w')
     {
         const auto next = (static_cast<int>(scope_.waveformMode()) + 1) % 3;
         setWaveformMode(static_cast<WaveformMode>(next));
@@ -297,6 +330,19 @@ void MainComponent::timerCallback()
     updateToggles();
     updateStatus();
     updateDiagnostics();
+}
+
+void MainComponent::setAnalysisView(int view)
+{
+    analysisView_ = view == 1 ? 1 : 0;
+    scope_.setVisible(analysisView_ == 0);
+    spectrum_.setActive(analysisView_ == 1);
+    controlBar_.setSpectrum(analysisView_ == 1);
+    settings_.setAnalysisView(analysisView_);
+    updateBanner();
+    updateZoom();
+    resized();
+    updateStatus();
 }
 
 void MainComponent::setGainDb(int gainDb)
@@ -361,6 +407,11 @@ void MainComponent::runFree()
 
 void MainComponent::pressPauseButton()
 {
+    if (analysisView_ == 1)
+    {
+        setPaused(!scope_.isPaused());
+        return;
+    }
     const auto state = scope_.snapshot().transportState;
     if (scope_.isPaused())
         setPaused(false);
@@ -374,6 +425,7 @@ void MainComponent::setPaused(bool paused)
 {
     engine_.setPaused(paused);
     scope_.setPaused(paused);
+    spectrum_.setPaused(paused);
     updateBanner();
     updateStatus();
 }
@@ -446,7 +498,8 @@ void MainComponent::updateDeviceInfo()
 void MainComponent::updateBanner()
 {
     // Paused, the view stays calm: errors show again on resume (D-110).
-    const bool clockLost = scope_.snapshot().transportState == TransportState::clockLost;
+    const bool clockLost =
+        analysisView_ == 0 && scope_.snapshot().transportState == TransportState::clockLost;
     if (!inputRunning_)
         banner_.setText("NO AUDIO INPUT",
                         engine_.noInputReason() + " Choose a device in Settings.");
@@ -454,7 +507,8 @@ void MainComponent::updateBanner()
         banner_.setText("MIDI CLOCK LOST",
                         "No MIDI Clock for over half a second. The view is frozen until it "
                         "returns, or press Run free to run without it.");
-    banner_.setVisible(!scope_.isPaused() && (!inputRunning_ || clockLost));
+    banner_.setVisible(!spectrum_.settingsVisible() && !scope_.isPaused() &&
+                       (!inputRunning_ || clockLost));
 }
 
 void MainComponent::updateStatus()
@@ -470,7 +524,7 @@ void MainComponent::updateStatus()
                         snapshot.transportState == TransportState::clockLost;
     if (scope_.isPaused())
         controlBar_.setPauseAction(ControlBar::PauseAction::resume, "Resume the view (Space)");
-    else if (frozen)
+    else if (frozen && analysisView_ == 0)
         controlBar_.setPauseAction(
             ControlBar::PauseAction::runFree,
             "Run free at " +
@@ -534,10 +588,16 @@ void MainComponent::updateStatus()
     }
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
-    values.window = WindowControl::describe(window_);
-    values.gain = GainControl::format(gainDb_, autoGainOn_);
-    if (scope_.zoom().isZoomed())
+    values.window = analysisView_ == 1 ? "SPECTRUM" : WindowControl::describe(window_);
+    if (analysisView_ == 0)
+        values.gain = GainControl::format(gainDb_, autoGainOn_);
+    if (analysisView_ == 0 && scope_.zoom().isZoomed())
         values.zoom = ZoomOverview::describe(scope_.zoom(), snapshot);
+    if (analysisView_ == 1 && inputRunning_ && !scope_.isPaused())
+    {
+        values.state = "LIVE";
+        values.stateIsError = false;
+    }
     statusBar_.setValues(values);
 }
 
@@ -545,11 +605,11 @@ void MainComponent::updateZoom()
 {
     const auto zoom = scope_.zoom();
     zoomOverview_.setZoom(zoom);
-    if (zoom.isZoomed() != zoomOverview_.isVisible())
+    if ((analysisView_ == 0 && zoom.isZoomed()) != zoomOverview_.isVisible())
     {
         zoomOverview_.setTimeline(scope_.snapshot());
         zoomOverview_.setHead(scope_.headPosition());
-        zoomOverview_.setVisible(zoom.isZoomed());
+        zoomOverview_.setVisible(analysisView_ == 0 && zoom.isZoomed());
         resized();
     }
     updateStatus();

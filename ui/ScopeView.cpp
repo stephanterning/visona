@@ -225,6 +225,19 @@ void ScopeView::onVBlank(double timestampSeconds)
     updateStats(timestampSeconds);
     checkLongPress();
 
+    // Keep transport/status current while another analysis view is visible, without drawing.
+    if (!isVisible())
+    {
+        if (!paused_ && snapshots_.fetch())
+        {
+            noticeTransport();
+            needsFullRender_ = true;
+            if (onFrame)
+                onFrame();
+        }
+        return;
+    }
+
     // Nothing to draw into before the first paint has sized the tiles.
     if (tiles_.empty() || timestampSeconds + frameTolerance < nextFrameSeconds_)
         return;

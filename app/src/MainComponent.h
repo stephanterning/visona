@@ -6,6 +6,7 @@
 #include "ui/DiagnosticsOverlay.h"
 #include "ui/ScopeView.h"
 #include "ui/SettingsPanel.h"
+#include "ui/SpectrumView.h"
 #include "ui/StatusBar.h"
 #include "ui/Tooltips.h"
 #include "ui/ZoomOverview.h"
@@ -55,6 +56,8 @@ private:
     float fitControlBar();
 
     /** Sets the gain by hand, which turns auto gain off. */
+    void setAnalysisView(int view);
+    int analysisView_ = 0;
     void setGainDb(int gainDb);
     void showGainDb(int gainDb);
     void setAutoGain(bool isOn);
@@ -92,6 +95,7 @@ private:
     StatusBar statusBar_;
     ZoomOverview zoomOverview_;
     ScopeView scope_;
+    SpectrumView spectrum_;
     ControlBar controlBar_;
     Banner banner_;
     DiagnosticsOverlay diagnostics_;

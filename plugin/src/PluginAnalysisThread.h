@@ -61,6 +61,11 @@ public:
         return busyNanoseconds_.load(std::memory_order_relaxed);
     }
 
+    SpectrumAnalyzer& spectrum() noexcept
+    {
+        return pipeline_.spectrum();
+    }
+
 private:
     void run() override;
 

@@ -28,6 +28,9 @@ function(visona_sign_plugin_formats target)
     endforeach()
 endfunction()
 
+option(VISONA_COPY_PLUGINS "Copy built plugins to the system plugin folders" ${visona_copy_plugins})
+set(visona_copy_plugins ${VISONA_COPY_PLUGINS})
+
 juce_add_plugin(VisonaPlugin
     COMPANY_NAME "Stephan Terning"
     PLUGIN_MANUFACTURER_CODE Ster

@@ -2,6 +2,10 @@
 
 The plan from MVP 1.0 to the long-term platform. The architecture is described in [architecture.md](architecture.md); decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
 
+**Current development:** Spectrum (milestone 9) and an extensible analysis-view selector
+are implemented ahead of the full dashboard editor. The first version displays one view at a
+time; split-screen layouts remain future work. See [spectrum.md](spectrum.md).
+
 **Status:**
 - **MVP 1.0 proof of concept is achieved** (alpha). The maintainer verified the scenario on Apple Silicon Mac and on Raspberry Pi hardware with an RME Babyface Pro FS.
 - Steps 1–7b and step 5 (waveform modes) are merged. Step 8 (formal logging and written measurements) is deferred polish, not a blocker for alpha.

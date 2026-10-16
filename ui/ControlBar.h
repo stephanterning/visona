@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AnalysisSelector.h"
 #include "ChromeButton.h"
 #include "ChromeLayout.h"
 #include "GainControl.h"
@@ -30,6 +31,12 @@ class ControlBar final : public juce::Component
 {
 public:
     ControlBar();
+    AnalysisSelector& viewSelector() noexcept
+    {
+        return view_;
+    }
+    void setSpectrum(bool enabled);
+    std::function<void()> onSpectrumSettings;
 
     [[nodiscard]] WindowControl& window() noexcept
     {
@@ -95,7 +102,7 @@ public:
     void resized() override;
 
 private:
-    static constexpr std::size_t numGroups = 6;
+    static constexpr std::size_t numGroups = 8;
 
     /** The groups in order, pause, window, tempo, gain, waveform and buttons, each placed in a
         row. */
@@ -110,6 +117,9 @@ private:
     [[nodiscard]] int rowWidth(const std::array<int, numGroups>& widths) const;
     [[nodiscard]] Placement place(int width) const;
 
+    AnalysisSelector view_;
+    juce::TextButton spectrumSettings_{"Analysis settings"};
+    bool spectrum_ = false;
     ChromeButton pause_{"Pause", ChromeButton::Icon::pause};
     WindowControl window_;
     TempoControl tempo_;

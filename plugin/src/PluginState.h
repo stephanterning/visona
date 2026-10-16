@@ -33,6 +33,8 @@ struct PluginInstanceState
 {
     /** The gain set by hand. While auto gain is on, the processor's AutoGain sets the gain shown.
      */
+    int analysisView = 0;
+    juce::String spectrumSettings;
     int gainDb = 0;
     bool autoGain = false;
     std::size_t window = 2;

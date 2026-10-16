@@ -40,6 +40,7 @@
         <li><a href="#window">Window</a></li>
         <li><a href="#tempo">Tempo</a></li>
         <li><a href="#gain">Gain and auto gain</a></li>
+        <li><a href="#spectrum">Spectrum and analysis views</a></li>
         <li><a href="#waveform">Waveform modes</a></li>
         <li><a href="#colour">Waveform colour</a></li>
         <li><a href="#grid">Grid, lanes and labels</a></li>
@@ -196,7 +197,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
         <ul>
           <li><strong>Status bar</strong>, at the top: tempo, sync state, sample rate, window, gain and zoom.</li>
           <li><strong>Zoom strip</strong>, under the status bar, only while you are zoomed in.</li>
-          <li><strong>Scope</strong>: one lane per channel, left above right, with the bar grid and the green write head.</li>
+          <li><strong>Analysis view</strong>: choose Scope or Spectrum from the control bar. Scope has one lane per channel, left above right, with the bar grid and the green write head.</li>
           <li><strong>Control bar</strong>, at the bottom: Pause, WINDOW, BPM, GAIN with AUTO, WAVE, then Diagnostics, Full screen and Settings.</li>
         </ul>
         <p>The layout adapts to the window. In a narrow window the buttons drop their labels and show only their icons, and in a very small window some controls move behind the gear button.</p>
@@ -264,6 +265,15 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
         <p><strong>GAIN</strong> zooms the display vertically, from 0 to +18 dB in 1 dB steps, so quiet material fills the lanes. It changes only what you see, never the audio. Drag or scroll on it, use its buttons, or press <kbd>+</kbd>/<kbd>−</kbd> or <kbd>↑</kbd>/<kbd>↓</kbd>. Double-click or double-tap resets it to 0 dB.</p>
         <p><strong>AUTO</strong>, next to it, turns on auto gain. The button lights, the value turns green, and the gain moves in 3 dB steps so the loudest peak fills the top 3 dB: out as soon as a peak goes past the edge of a lane, and in at a bar line once the peaks have stayed low for 10 seconds. Setting the gain by hand turns auto gain off.</p>
         <p>Faint reference lines mark where 0 dBFS and −6 dBFS land after the gain, joined by −12 dBFS from +4 dB of gain and −18 dBFS from +10 dB, so you can still read levels. A peak beyond the edge of a lane is cut off with a grey marker. Grey, not red, because it is the display that overshoots, not your audio that clips.</p>
+      </section>
+
+      <section id="spectrum">
+        <h2>Spectrum and analysis views</h2>
+        <p>The view selector at the left of the control bar switches between <strong>Scope</strong> and <strong>Spectrum</strong>. On desktop it opens a compact list; on touch and in kiosk mode it opens large tiles. Press <strong>V</strong> to open the selector, or <strong>Alt+1 / Alt+2</strong> to select a view when the app or plugin editor has focus. The app remembers your choice; plugins save it per instance. Scope's existing 1–5 window shortcuts are unchanged.</p>
+        <p>Spectrum shows incoming audio on a logarithmic frequency axis. Its defaults are a fast coloured peak curve with a glowing fill and a slow white peak line, both smoothed over 1/12 octave. It follows audio even when MIDI Clock or host playback is stopped. In the standalone app, Pause holds the spectrum and stops its analysis.</p>
+        <p>Open <strong>Analysis settings</strong> to configure each curve: Peak or RMS, Fast (150 ms), Medium (500 ms), Slow (1.5 s), or Peak Hold; Raw or 1/24–1 octave smoothing; Line, Fill or Glow; and colour. Use <strong>Reset peaks</strong> to clear history. RMS does not use Hold. The panel scrolls on small screens and supports touch.</p>
+        <p>Channel choices are Stereo average, Left, Right, Mid and Side. Stereo average combines power without phase cancellation; Mid and Side use (L+R)/2 and (L-R)/2. Top and Range set the vertical scale. Slope adds 0–6 dB per octave around 1 kHz for display only; the default is 3 dB/octave. Move the pointer, or touch and drag, to read frequency and curve levels. Readouts include the slope when selected.</p>
+        <p>Peak is calibrated to a sine's peak amplitude. RMS is an average of spectral power and reads 3.01 dB lower for a steady sine before smoothing. Octave smoothing averages power and reduces narrow tone peaks. These are FFT measurements, not calibrated SPL or LUFS. The fixed 16,384-sample window gives 2.93 Hz bin spacing and takes 341 ms to fill at 48 kHz; smoothing cannot add frequency resolution. The display ends at 20 kHz or Nyquist, whichever is lower.</p>
       </section>
 
       <section id="waveform">
