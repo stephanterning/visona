@@ -74,7 +74,7 @@
         <p>MIDI Clock stopped arriving for more than half a second while the transport ran. Check that your DAW sends MIDI Clock to the port chosen in <strong>Settings → MIDI input</strong>. To keep watching without clock, press <strong>Run free</strong> (or <kbd>Space</kbd>). See <a href="#midi-clock">MIDI Clock sync</a>.</p>
 
         <h3>macOS says Visona can't be opened.</h3>
-        <p>The builds are not notarized yet. Remove the quarantine flag with <code>xattr -cr /path/to/Visona.app</code> and open it again. For the plugins, see <a href="#install-plugins">Installing the plugins</a>.</p>
+        <p>Builds from 1.0.0 beta 1 on are signed and notarized by Apple, so macOS opens them. An older alpha build is not: remove its quarantine flag with <code>xattr -cr /path/to/Visona.app</code> and open it again. For the plugins, see <a href="#install-plugins">Installing the plugins</a>.</p>
 
         <h3>Ableton Live doesn't list the CLAP plugin.</h3>
         <p>Live doesn't load CLAP plugins. Use the VST3 or, on macOS, the AU in Live. Reaper and Bitwig Studio load CLAP.</p>
@@ -116,8 +116,7 @@
       <section id="install-app">
         <h2><span class="num">4</span>Installing the app</h2>
         <h3>macOS</h3>
-        <p>The app needs a Mac with Apple Silicon and macOS 14 or later. Unzip <code>Visona-macos-arm64.zip</code>, move <code>Visona.app</code> to <em>Applications</em> and open it. If macOS blocks it, run:</p>
-        <pre><code>xattr -cr /Applications/Visona.app</code></pre>
+        <p>The app needs a Mac with Apple Silicon and macOS 14 or later. Unzip <code>Visona-macos-arm64.zip</code>, move <code>Visona.app</code> to <em>Applications</em> and open it. The app is signed and notarized by Apple, so macOS opens it without warnings.</p>
         <p>The first time, macOS asks for permission to use the microphone. Visona needs it to read any audio input, including your audio interface.</p>
 
         <h3>Raspberry Pi</h3>
@@ -144,12 +143,7 @@
         </table>
 
         <h3>macOS</h3>
-        <p>The plugin builds are not notarized. After copying, remove the quarantine flag and sign the bundles on your Mac, or your DAW may refuse to load them. For VST3, for example:</p>
-        <pre><code>cd ~/Library/Audio/Plug-Ins
-xattr -cr VST3/Visona.vst3 VST3/Visona\ Sync.vst3
-codesign --force --sign - --deep VST3/Visona.vst3
-codesign --force --sign - --deep VST3/Visona\ Sync.vst3</code></pre>
-        <p>Do the same for <code>Components/*.component</code> and <code>CLAP/*.clap</code> if you installed those. If a new AU doesn't show up, run <code>killall -9 AudioComponentRegistrar</code> and restart the DAW. In Ableton Live, turn on <strong>Use Audio Units</strong> under <strong>Settings → Plug-Ins</strong> and press <strong>Rescan</strong>.</p>
+        <p>The plugins are signed and notarized by Apple, so your DAW loads them once they are copied. If a new AU doesn't show up, run <code>killall -9 AudioComponentRegistrar</code> and restart the DAW. In Ableton Live, turn on <strong>Use Audio Units</strong> under <strong>Settings → Plug-Ins</strong> and press <strong>Rescan</strong>.</p>
 
         <h3>Windows</h3>
         <p>Before unpacking, right-click each zip, choose <strong>Properties</strong> and tick <strong>Unblock</strong>, or run <code>Unblock-File .\Visona-*.zip</code> in PowerShell. Copying into <em>Common Files</em> needs administrator rights. No Visual C++ redistributable is needed.</p>
@@ -417,7 +411,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
             <tr><td>The scope runs but stays flat</td><td>Check <strong>Left input</strong> and <strong>Right input</strong> in Settings, and the input levels in the diagnostics overlay.</td></tr>
             <tr><td><strong>MIDI CLOCK LOST</strong> or no tempo</td><td>Check that the DAW sends MIDI Clock to the chosen MIDI input, and that the DAW is playing.</td></tr>
             <tr><td>The waveform is off the grid</td><td>In a DAW, use <a href="#sync-plugin">Visona Sync on the sidechain</a>. With the app, use <a href="#sync-app">Visona Sync on an input</a>.</td></tr>
-            <tr><td>The plugin doesn't show up</td><td>Check the install folder, clear the quarantine flag and sign the bundle on macOS, unblock the zip on Windows, and rescan in the DAW.</td></tr>
+            <tr><td>The plugin doesn't show up</td><td>Check the install folder, unblock the zip on Windows, and rescan in the DAW. An alpha build on macOS also needs its quarantine flag cleared with <code>xattr -cr</code> and an ad-hoc signature with <code>codesign --force --sign -</code>.</td></tr>
             <tr><td>The scope stops updating in a DAW</td><td>Note the status bar and the diagnostics overlay, then close and reopen the plugin window. Report it with those details.</td></tr>
           </tbody>
         </table>

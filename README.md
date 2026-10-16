@@ -17,7 +17,7 @@ Pre-built binaries are published on **[GitHub Releases](https://github.com/steph
 | **Linux plugins** | x86_64, Ubuntu 24.04, Debian 13, Fedora 39 or newer | `Visona-vst3-linux-x86_64.tar.gz`, `Visona-clap-linux-x86_64.tar.gz` and the `Visona-sync-…` tarballs ([install](docs/plugins.md#linux)) |
 | **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64 | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
 
-The macOS app and plugins are signed with a Developer ID and notarized by Apple, so they open without Gatekeeper warnings.
+From 1.0.0 beta 1 on, the macOS app and plugins are signed with a Developer ID and notarized by Apple, so they open without Gatekeeper warnings.
 
 On macOS, copy each plugin bundle into the folder for its format (Windows and Linux: see the [plugin guide](docs/plugins.md#install)):
 
