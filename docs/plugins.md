@@ -36,24 +36,7 @@ Release builds are published on [GitHub Releases](https://github.com/stephantern
 | `Visona-clap-macos-arm64.zip` | `Visona.clap` | `~/Library/Audio/Plug-Ins/CLAP/` |
 | `Visona-sync-clap-macos-arm64.zip` | `Visona Sync.clap` | `~/Library/Audio/Plug-Ins/CLAP/` |
 
-Unzip and copy each bundle into its folder; create the folder if it does not exist.
-
-Alpha plugin builds are **unsigned** (ad-hoc signed in CI). Remove the quarantine flag after copying the bundles, then sign them ad hoc on your Mac. A DAW may refuse to load a bundle that is quarantined or whose signature no longer matches, for example after it was copied or rebuilt. For the formats you installed:
-
-```sh
-cd ~/Library/Audio/Plug-Ins
-xattr -cr VST3/Visona.vst3 VST3/Visona\ Sync.vst3
-xattr -cr Components/Visona.component Components/Visona\ Sync.component
-xattr -cr CLAP/Visona.clap CLAP/Visona\ Sync.clap
-codesign --force --sign - --deep VST3/Visona.vst3
-codesign --force --sign - --deep VST3/Visona\ Sync.vst3
-codesign --force --sign - --deep Components/Visona.component
-codesign --force --sign - --deep Components/Visona\ Sync.component
-codesign --force --sign - --deep CLAP/Visona.clap
-codesign --force --sign - --deep CLAP/Visona\ Sync.clap
-```
-
-Do the same after installing a local build. Then restart the DAW or rescan its plugins.
+Unzip and copy each bundle into its folder; create the folder if it does not exist. The bundles are signed with a Developer ID and notarized by Apple, so nothing more is needed. Restart the DAW or rescan its plugins.
 
 ### Windows
 
@@ -158,7 +141,7 @@ Plugin-only build, with the bundles under `build/macos-plugin/` instead:
 cmake --preset macos-plugin && cmake --build --preset macos-plugin
 ```
 
-The build also copies each bundle into its install folder under `~/Library/Audio/Plug-Ins/`, but it signs the build-tree copy only after that. To install a local build, replace the old bundles, then clear the quarantine flag and sign them as described in [Install](#install):
+A local build is only ad-hoc signed. The build also copies each bundle into its install folder under `~/Library/Audio/Plug-Ins/`, but it signs the build-tree copy only after that. To install a local build, replace the old bundles with the signed build-tree copies:
 
 ```sh
 plugins=~/Library/Audio/Plug-Ins
@@ -168,6 +151,13 @@ mkdir -p "$plugins"/VST3 "$plugins"/Components "$plugins"/CLAP
 cp -R "$build"/Visona*Plugin_artefacts/Release/VST3/*.vst3 "$plugins"/VST3/
 cp -R "$build"/Visona*Plugin_artefacts/Release/AU/*.component "$plugins"/Components/
 cp -R "$build"/Visona*Plugin_artefacts/Release/CLAP/*.clap "$plugins"/CLAP/
+```
+
+If a DAW still refuses a bundle, clear its quarantine flag and sign it ad hoc again, as `scripts/macos/build-and-install.sh` does:
+
+```sh
+xattr -cr ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
+codesign --force --sign - ~/Library/Audio/Plug-Ins/VST3/Visona.vst3
 ```
 
 ### Windows and Linux
