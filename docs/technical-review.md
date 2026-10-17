@@ -151,7 +151,7 @@ On the VM, each of the stereo, spectrum and band analyzers cost about three time
 ### 3.7 Repository and process
 
 - **H1.** 48 remote branches besides `main`: 25 are merged, about 20 more belong to squash-merged PRs, and 3 to closed PRs. "Automatically delete head branches" is off.
-- **H2.** The CHANGELOG has no sections for the published 0.1.0-alpha.3 and alpha.4; `[Unreleased]` now covers #48 and #49 (this PR).
+- **H2.** The CHANGELOG had no sections for the published 0.1.0-alpha.3 and alpha.4, and `[Unreleased]` did not cover #49; this PR adds short sections for both alphas and covers #48 and #49. Only 1 of the 4 PRs merged since beta.1 had touched the CHANGELOG, which a PR template checkbox would help with.
 - **H3.** No `SECURITY.md`, `CONTRIBUTING.md`, PR template, Dependabot or Renovate configuration, or ruleset requiring CI on `main`. A security policy matters here, since the project ships Developer ID-signed binaries and a `curl | bash` installer.
 - **H4.** The analysis docs had become development logs with contradicting sections, the site advertised unreleased views, and the screenshots in `docs/images/` still show the control bar from before 1.0.0-beta.1 (labelled buttons, segmented WINDOW and WAVE, no pause, AUTO or view selector). This PR fixes the text; the screenshots need retaking on a Mac with real audio.
 - **H5.** The Pi appliance has no supervised restart, no crash handler and no file log: one crash leaves the touchscreen on an empty desktop until someone reboots, and nothing records why.
@@ -198,7 +198,7 @@ Each item is meant to be one pull request that can be merged on its own, in the 
 ### Phase 5: release and supply chain
 
 1. **Notices and licences:** `THIRD_PARTY_NOTICES`, `LICENSE` in every archive, a source archive with the fetched dependencies, and the AGPL-3.0-only combination stated in the README (L1).
-2. **Versions:** a version suffix or build ID from the tag in `versionString()`, the diagnostics and the bundles; a release step that checks the tag against `PROJECT_VERSION`; the missing CHANGELOG sections (C7, H2).
+2. **Versions:** a version suffix or build ID from the tag in `versionString()`, the diagnostics and the bundles, and a release step that checks the tag against `PROJECT_VERSION` (C7).
 3. **The Pi build environment** chosen in section 6, with a glibc assertion in CI, a stripped binary and an explicit file list for the tarball (B3, C7).
 4. **Dependencies:** JUCE 9.0.4, an evaluated clap-juce-extensions bump, and Dependabot for actions plus Renovate for the `FetchContent` pins (C5).
 5. **Release hardening:** checksummed validators, validation before the certificate import, `security import -x`, `persist-credentials: false`, read-only build jobs with a final upload job, an App Store Connect API key for notarization (C6).

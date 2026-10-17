@@ -65,6 +65,14 @@ All notable changes to this project are documented here. The format is based on
 - On a touchscreen, hover tooltips no longer appear after a tap and stay on screen (D-108).
 - On the Pi touchscreen, a tap on a choice in the settings panel picks it. The lists for the audio system, device, sample rate, buffer size, inputs and MIDI input now open inside the window, like WINDOW and WAVE, and scroll with a drag when they are long (D-108).
 
+## [0.1.0-alpha.4] - 2026-10-09
+
+Released from `main` without a section of its own here; its changes are listed under 1.0.0-beta.1 above. It added the pause button, Visona Sync with the app, the steady MIDI Clock tempo, the in-window settings lists, the ruler readout above the pointer, the native dark title bar, the app icon and the visona.org website ([release notes](https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.4)).
+
+## [0.1.0-alpha.3] - 2026-10-05
+
+Released from `main` without a section of its own here; its changes are listed under 1.0.0-beta.1 above. It added AU, CLAP and the Windows and Linux plugins, auto gain, the hidden idle cursor, device and display following, `install-visona.sh`, Development builds from a manual Release run, the faster Pi builds and the kiosk touch refinements ([release notes](https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.3)).
+
 ## [0.1.0-alpha.2] - 2026-09-28
 
 ### Added
@@ -104,6 +112,8 @@ All notable changes to this project are documented here. The format is based on
 - Plugins (VST3/AU/CLAP) are not included yet.
 
 [Unreleased]: https://github.com/stephanterning/visona/compare/v1.0.0-beta.1...HEAD
-[1.0.0-beta.1]: https://github.com/stephanterning/visona/releases/tag/v1.0.0-beta.1
+[1.0.0-beta.1]: https://github.com/stephanterning/visona/compare/v0.1.0-alpha.4...v1.0.0-beta.1
+[0.1.0-alpha.4]: https://github.com/stephanterning/visona/compare/v0.1.0-alpha.3...v0.1.0-alpha.4
+[0.1.0-alpha.3]: https://github.com/stephanterning/visona/compare/v0.1.0-alpha.2...v0.1.0-alpha.3
 [0.1.0-alpha.2]: https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/stephanterning/visona/releases/tag/v0.1.0-alpha.1
