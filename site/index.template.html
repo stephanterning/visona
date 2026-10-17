@@ -7,7 +7,7 @@
   <meta name="description" content="Visona is a beat-synced stereo oscilloscope for music production. Standalone app for macOS and Raspberry Pi, and VST3, AU and CLAP plugins.">
   <link rel="canonical" href="{{SITE_URL}}/">
   <meta property="og:title" content="Visona: beat-synced stereo oscilloscope">
-  <meta property="og:description" content="See your audio as a musical sweep scope locked to the beat.">
+  <meta property="og:description" content="A beat-synced stereo oscilloscope. Run standalone on macOS or Raspberry Pi, or as a plugin in your DAW.">
   <meta property="og:image" content="{{SITE_URL}}/images/visona-scope.png">
   <meta property="og:url" content="{{SITE_URL}}/">
   <meta name="theme-color" content="#0b0c0f">
@@ -30,12 +30,12 @@
       <div class="hero-text">
         <p class="eyebrow">Beat-synced scope &amp; spectrum analysis</p>
         <h1>See the groove,<br>not just the waveform.</h1>
-        <p class="lead">Visona draws your audio as a sweep scope locked to the bar. Follow MIDI Clock from your DAW, or run it as a plugin that follows the host transport.</p>
+        <p class="lead">Visona draws your audio as a sweep scope locked to the bar. Run it as a standalone app on macOS or Raspberry Pi, with audio from your interface and optional MIDI Clock sync. Or use the plugin inside your DAW.</p>
         <div class="cta">
           <a class="button" href="#download">Download {{LATEST_TAG}}</a>
           <a class="button button-ghost" href="/manual/">Read the manual</a>
         </div>
-        <p class="platforms">macOS app · VST3 · AU · CLAP · Windows · Linux · Raspberry Pi</p>
+        <p class="platforms">Standalone: macOS · Raspberry Pi<br>Plugins: VST3 · AU · CLAP · macOS · Windows · Linux</p>
       </div>
       <figure class="screen">
         <img src="/images/visona-scope.png" alt="Visona showing a stereo sweep over one bar with the bar grid" width="2556" height="1502">
@@ -64,8 +64,18 @@
         <p>Visona Sync puts a bar impulse on the plugin's sidechain, so Visona measures how late the audio arrives after plugins with latency, and draws it on the grid.</p>
       </article>
       <article>
-        <h3>Everywhere you work</h3>
-        <p>Standalone app on macOS, VST3, AU and CLAP plugins, Windows and Linux plugins, and a Raspberry Pi kiosk appliance for a dedicated screen in the studio.</p>
+        <h3>Your own studio display</h3>
+        <p>Run Visona standalone on Raspberry Pi with a screen and an audio interface. Keep your scope beside your gear, with full-screen kiosk mode, touch controls and automatic startup. No DAW needed on the Pi.</p>
+        <p><a href="/manual/#install-pi">Set up Visona on Raspberry Pi →</a></p>
+      </article>
+      <article>
+        <h3>A standalone app for your Mac</h3>
+        <p>Open Visona directly on macOS and monitor your audio interface without a plugin host. Follow MIDI Clock or set your own tempo. Available for Apple Silicon with macOS 14 or later.</p>
+        <p><a href="/manual/#install-macos">Get started on macOS →</a></p>
+      </article>
+      <article>
+        <h3>Inside your DAW, too</h3>
+        <p>Use Visona as a plugin that follows your host transport: VST3, AU and CLAP on macOS, and VST3 and CLAP on Windows and Linux.</p>
       </article>
       <article>
         <h3>Open source</h3>
@@ -80,12 +90,14 @@
 
     <section id="download" class="download">
       <h2>Download</h2>
+      <p>Choose the standalone app for macOS or Raspberry Pi to monitor an audio interface directly, or a plugin for your DAW. Visona is free and open source.</p>
       <p class="muted">This list updates itself whenever a release is published on GitHub. Each file links straight to its GitHub release asset; the SHA-256 is the digest GitHub computed for that asset. The <em>link</em> column gives a permanent URL that always points to the newest build in that channel, and <code>/download/latest/&lt;file&gt;/</code> follows the most mature channel that has a release.</p>
       {{CHANNELS}}
 
       <div class="notes">
         <div>
-          <h3>Installing on macOS</h3>
+          <h3>Standalone for macOS</h3>
+          <p>Download <code>Visona-macos-arm64.zip</code>, unzip it and move <code>Visona.app</code> to Applications. Requires Apple Silicon and macOS 14 or later. <a href="/manual/#install-macos">Standalone setup</a>.</p>
           <p>From 1.0.0 beta 1 on, the app and plugins are signed and notarized by Apple, so macOS opens them without warnings. Plugin bundles go into <code>~/Library/Audio/Plug-Ins/VST3</code>, <code>Components</code> or <code>CLAP</code>; see the <a href="/manual/#install-plugins">manual</a>.</p>
         </div>
         <div>
@@ -93,8 +105,8 @@
           <p>VST3 and CLAP plugins for Windows x64 and Linux x86_64. Install folders are listed in the <a href="/manual/#install-plugins">manual</a>.</p>
         </div>
         <div>
-          <h3>Raspberry Pi</h3>
-          <p>Raspberry Pi OS 64-bit. See <a href="{{DOCS}}/pi-setup.md">Pi setup</a> and <a href="{{DOCS}}/pi-kiosk.md">kiosk mode</a>, or install over SSH with <code>install-visona.sh</code>.</p>
+          <h3>Standalone for Raspberry Pi</h3>
+          <p>Download <code>Visona-linux-arm64-pi.tar.gz</code> for Raspberry Pi OS 64-bit with the desktop. Add a screen and an audio interface for a dedicated studio display. <a href="/manual/#install-pi">Standalone setup</a>. See <a href="{{DOCS}}/pi-setup.md">Pi setup</a> and <a href="{{DOCS}}/pi-kiosk.md">kiosk mode</a>, or install over SSH with <code>install-visona.sh</code>.</p>
         </div>
         <div>
           <h3>Verify a download</h3>
@@ -106,6 +118,7 @@
 
   <footer>
     <p>© {{YEAR}} Stephan Terning · Visona is free software under the <a href="https://github.com/{{REPO}}/blob/main/LICENSE">AGPL-3.0</a> · <a href="/manual/">Manual</a> · <a href="https://github.com/{{REPO}}">Source on GitHub</a> · <a href="https://github.com/{{REPO}}/releases">All releases</a></p>
+    <p>Raspberry Pi is a trademark of Raspberry Pi Ltd.</p>
   </footer>
 </body>
 </html>

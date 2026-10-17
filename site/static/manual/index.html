@@ -92,7 +92,7 @@
         <p>Visona is a beat-synced stereo oscilloscope for music production. It draws your audio as a sweep that runs from left to right across one window of musical time, from a quarter bar to four bars, and starts over at the next window. Because the sweep is locked to the bar, a kick that sits on the beat lands on the same grid line every pass, and you see timing, transients and envelopes in their musical context.</p>
         <p>Visona comes in two forms:</p>
         <ul>
-          <li><strong>The app</strong>, for macOS on Apple Silicon and Raspberry Pi. It listens to an audio interface and follows MIDI Clock from your DAW, or runs free at a tempo you set. On a Raspberry Pi with a screen it becomes a dedicated studio display.</li>
+          <li><strong>The standalone app</strong>, for macOS on Apple Silicon and for Raspberry Pi. It runs without a DAW or plugin host, on your Mac or as a dedicated display beside your studio gear. It listens to an audio interface and follows MIDI Clock from your DAW, or runs free at a tempo you set. On a Raspberry Pi with a screen it becomes a dedicated studio display.</li>
           <li><strong>The plugins</strong>, VST3, AU and CLAP on macOS and VST3 and CLAP on Windows and Linux. <strong>Visona</strong> is a pass-through stereo effect that follows the DAW's transport directly. <strong>Visona Sync</strong> is a companion instrument that measures latency for it.</li>
         </ul>
         <p>Visona is free, open-source software under the AGPL-3.0. It is in beta: things can still change from release to release, and your feedback shapes what comes next.</p>
@@ -116,11 +116,11 @@
 
       <section id="install-app">
         <h2><span class="num">4</span>Installing the app</h2>
-        <h3>macOS</h3>
+        <h3 id="install-macos">macOS standalone</h3>
         <p>The app needs a Mac with Apple Silicon and macOS 14 or later. Unzip <code>Visona-macos-arm64.zip</code>, move <code>Visona.app</code> to <em>Applications</em> and open it. The app is signed and notarized by Apple, so macOS opens it without warnings.</p>
         <p>The first time, macOS asks for permission to use the microphone. Visona needs it to read any audio input, including your audio interface.</p>
 
-        <h3>Raspberry Pi</h3>
+        <h3 id="install-pi">Standalone on Raspberry Pi</h3>
         <p>Visona runs on Raspberry Pi OS 64-bit with the desktop. Over SSH, this installs the newest release to <code>~/visona</code> and starts Visona full screen at login:</p>
         <pre><code>curl -fsSL https://raw.githubusercontent.com/stephanterning/visona/main/scripts/pi/install-visona.sh | bash</code></pre>
         <p>Run the same command again to upgrade; your settings are kept. The <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-setup.md">Pi setup guide</a> covers flashing the card and setting up the audio interface, and the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-kiosk.md">kiosk guide</a> covers autostart, displays and touchscreens.</p>
@@ -441,6 +441,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
 
   <footer>
     <p>Visona is free software under the <a href="https://github.com/stephanterning/visona/blob/main/LICENSE">AGPL-3.0</a> · <a href="/">visona.org</a> · <a href="https://github.com/stephanterning/visona/releases">All releases</a></p>
+    <p>Raspberry Pi is a trademark of Raspberry Pi Ltd.</p>
   </footer>
 </body>
 </html>
