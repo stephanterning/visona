@@ -524,3 +524,28 @@ UI checks cover elapsed-time decay, frame-rate independence, attack, Off and
 pixel-by-pixel comparison with a dense reference for both sample views.
 The earlier statement that Lissajous was unchanged describes the original
 Polar Sample/Level afterglow implementation, before this extension.
+
+
+### Physical-pixel rendering on high-density displays
+
+Stereo previously cached its plot at logical component resolution and painted
+it with `drawImageAt`. On a 2x Retina display the cached image was enlarged;
+on a 1x Pi display each cached pixel already matched a physical pixel. This
+provided a concrete source of softer-looking stereo plots on macOS, independent
+of the analysis or the different panel characteristics.
+
+The stereo cache now follows the paint context's physical scale (1x to 3x),
+like the spectrum views. It is presented with the inverse transform and no
+smoothing resampling. Sample dots occupy 2x2 physical pixels, so their footprint
+is finer on Retina; grid and Polar Level strokes retain their logical thickness.
+All samples still contribute, and projections, measurement values, gain and
+validity are unchanged. Pixel-density brightness can differ because samples
+are distributed over more pixels; it is a visualization, not a level reading.
+Dirty regions are converted back to logical coordinates before repainting.
+Moving between display scales rebuilds the cache and clears display history.
+
+UI checks exercise all three views at 1x, 2x and 1.5x and back to 1x, checking
+physical cache dimensions, unchanged measurements and sample contributions.
+High-density caches use more memory and can cost more to render. This change
+does not constitute a new Pi FPS measurement; the 1x rendering path retains its
+previous dimensions.

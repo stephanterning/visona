@@ -40,6 +40,7 @@ private:
     void clearHistory();
     int refreshRate() const noexcept;
     juce::Rectangle<float> plot() const;
+    juce::Rectangle<int> logicalImageBounds(juce::Rectangle<int> pixels) const;
     juce::String status() const;
     StereoAnalyzer& analyzer_;
     std::unique_ptr<StereoSnapshot> snapshot_ = std::make_unique<StereoSnapshot>();
@@ -71,6 +72,7 @@ private:
     bool paused_ = false, stale_ = true, clipped_ = false;
     juce::Colour colour_;
     juce::Image density_, background_;
+    float renderScale_ = 1.0f;
     std::array<std::array<juce::Point<float>, 2>, polarLevelBins> levelDirections_{};
     std::array<juce::Point<float>, (polarLevelBins - 1) * 4 + 1> smoothDirections_{};
     juce::Path levelFill_, levelPeak_;

@@ -223,6 +223,13 @@ juce::Rectangle<float> StereoView::plot() const
         1.0f, std::min(available.getWidth(), available.getHeight() * (mode_ != 1 ? 2.0f : 1.0f)));
     return available.withSizeKeepingCentre(width, mode_ != 1 ? width * 0.5f : width);
 }
+juce::Rectangle<int> StereoView::logicalImageBounds(juce::Rectangle<int> pixels) const
+{
+    return (pixels.toFloat() / renderScale_)
+        .translated(static_cast<float>(juce::roundToInt(plot().getX())),
+                    static_cast<float>(juce::roundToInt(plot().getY())))
+        .getSmallestIntegerContainer();
+}
 void StereoView::resized()
 {
     levelProfile_.setBounds(16, 54, 190, 26);
@@ -285,7 +292,7 @@ void StereoView::render()
         decay_ = 0;
     damage_ = cloudBounds_;
     cloudBounds_ = {};
-    const int width = std::max(4, juce::roundToInt(plot().getWidth()));
+    const int width = std::max(4, juce::roundToInt(plot().getWidth() * renderScale_));
     const int height = mode_ != 1 ? width / 2 : width;
     if (!background_.isValid() || density_.getWidth() != width || density_.getHeight() != height)
     {
@@ -326,7 +333,7 @@ void StereoView::render()
         }
         grid.startNewSubPath(cx, area.getY());
         grid.lineTo(cx, area.getBottom());
-        g.strokePath(grid, juce::PathStrokeType(1));
+        g.strokePath(grid, juce::PathStrokeType(renderScale_));
 
         density_ = background_.createCopy();
         counts_.assign(static_cast<std::size_t>(width * height), 0);
@@ -359,10 +366,10 @@ void StereoView::render()
                 10.0f,
                 static_cast<float>(gains[static_cast<std::size_t>(gain_.getSelectedItemIndex())]) /
                     20.0f);
-            const float radius = static_cast<float>(width - 4) * 0.5f;
+            const float radius = (static_cast<float>(width) - 4.0f * renderScale_) * 0.5f;
             const float cx = static_cast<float>(width) * 0.5f;
-            const float cy =
-                mode_ != 1 ? static_cast<float>(height - 2) : static_cast<float>(height) * 0.5f;
+            const float cy = mode_ != 1 ? (static_cast<float>(height) - 2.0f * renderScale_)
+                                        : static_cast<float>(height) * 0.5f;
             for (std::size_t i = 0; i < snapshot_->count; ++i)
             {
                 const auto& sample = snapshot_->samples[i];
@@ -503,9 +510,9 @@ void StereoView::renderLevel()
     const double gain = std::pow(
         10.0,
         static_cast<double>(gains[static_cast<std::size_t>(gain_.getSelectedItemIndex())]) / 20.0);
-    const float radius = static_cast<float>(density_.getWidth() - 4) * 0.5f;
+    const float radius = (static_cast<float>(density_.getWidth()) - 4.0f * renderScale_) * 0.5f;
     const float cx = static_cast<float>(density_.getWidth()) * 0.5f;
-    const float cy = static_cast<float>(density_.getHeight() - 2);
+    const float cy = static_cast<float>(density_.getHeight()) - 2.0f * renderScale_;
     auto& fill = levelFill_;
     auto& peak = levelPeak_;
     fill.clear();
@@ -550,26 +557,37 @@ void StereoView::renderLevel()
     }
     fill.closeSubPath();
     peak.closeSubPath();
-    cloudBounds_ = peak.getBounds().expanded(2).getSmallestIntegerContainer().getIntersection(
-        density_.getBounds());
+    cloudBounds_ = peak.getBounds()
+                       .expanded(2 * renderScale_)
+                       .getSmallestIntegerContainer()
+                       .getIntersection(density_.getBounds());
     damage_ = damage_.getUnion(cloudBounds_);
     juce::Graphics g(density_);
     g.setColour(colour_);
     g.fillPath(fill);
     g.setColour(colour_.withAlpha(0.7f));
     // Beveled joins keep sharp bin transitions inside the two-pixel damage margin.
-    g.strokePath(peak, juce::PathStrokeType(1.0f, juce::PathStrokeType::beveled));
+    g.strokePath(peak, juce::PathStrokeType(renderScale_, juce::PathStrokeType::beveled));
 }
 void StereoView::paint(juce::Graphics& g)
 {
     const auto start = now();
+    const auto scale = std::clamp(g.getInternalContext().getPhysicalPixelScaleFactor(), 1.0f, 3.0f);
+    if (!juce::approximatelyEqual(scale, renderScale_))
+    {
+        renderScale_ = scale;
+        clearHistory();
+        render();
+    }
     // The opaque plot image covers its entire rectangle. Do not clear those
     // pixels a second time, especially when a full-width profile changes.
     {
         juce::Graphics::ScopedSaveState saved(g);
         if (density_.isValid())
-            g.excludeClipRegion(density_.getBounds().translated(juce::roundToInt(plot().getX()),
-                                                                juce::roundToInt(plot().getY())));
+            g.excludeClipRegion((density_.getBounds().toFloat() / renderScale_)
+                                    .translated(static_cast<float>(juce::roundToInt(plot().getX())),
+                                                static_cast<float>(juce::roundToInt(plot().getY())))
+                                    .getLargestIntegerWithin());
         g.fillAll(palette::background);
     }
     g.setFont(13);
@@ -580,7 +598,11 @@ void StereoView::paint(juce::Graphics& g)
                mode_ == 2 ? 214 : 16, 56, getWidth() - (mode_ == 2 ? 230 : 32), 20,
                juce::Justification::centred);
     const auto area = plot();
-    g.drawImageAt(density_, juce::roundToInt(area.getX()), juce::roundToInt(area.getY()));
+    g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
+    g.drawImageTransformed(density_,
+                           juce::AffineTransform::scale(1.0f / renderScale_)
+                               .translated(static_cast<float>(juce::roundToInt(area.getX())),
+                                           static_cast<float>(juce::roundToInt(area.getY()))));
     g.setColour(palette::textDim);
     g.drawText("L", juce::Rectangle<float>(area.getX(), area.getBottom() + 3, 24, 20),
                juce::Justification::centred);
@@ -655,8 +677,7 @@ void StereoView::timerCallback()
     }
     if (changed)
     {
-        repaint(
-            damage_.translated(juce::roundToInt(plot().getX()), juce::roundToInt(plot().getY())));
+        repaint(logicalImageBounds(damage_));
         // Numeric measurements integrate 200 ms. Redraw them at 30 Hz instead
         // of copying the full-width readout strip for every polar image. Gate,
         // stream and clipping transitions remain immediately visible.

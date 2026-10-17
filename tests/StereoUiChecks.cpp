@@ -400,6 +400,45 @@ struct StereoUiChecks
                   << (juce::Time::getMillisecondCounterHiRes() - start) / 60
                   << " ms/render+paint\n";
         save(preview, folder, "stereo-level-full-angle.png");
+        // Match a Retina paint context and switching back to a 1x display.
+        preview.setSize(800, 480);
+        view.snapshot_->count = 2;
+        view.snapshot_->samples[0] = {0.5f, 0.25f};
+        view.snapshot_->samples[1] = {-0.3f, -0.6f};
+        view.persistence_.setSelectedItemIndex(0, juce::sendNotificationSync);
+        const auto correlationBeforeScale = view.snapshot_->correlation;
+        for (const int mode : {0, 1, 2})
+        {
+            view.selectMode(mode);
+            for (const float scale : {1.0f, 2.0f, 1.5f, 1.0f})
+            {
+                const auto screenshot =
+                    view.createComponentSnapshot(view.getLocalBounds(), true, scale);
+                check(std::abs(view.renderScale_ - scale) < 0.001f,
+                      "Stereo cache ignored physical display scale");
+                check(view.density_.getWidth() == juce::roundToInt(view.plot().getWidth() * scale),
+                      "Stereo cache does not match physical pixel resolution");
+                check(std::abs(view.snapshot_->correlation - correlationBeforeScale) < 1e-7f,
+                      "Display scale changed measurements");
+                check(view.logicalImageBounds(view.damage_).getWidth() <=
+                          juce::roundToInt(view.plot().getWidth()) + 2,
+                      "Physical damage was not converted to logical bounds");
+                if (mode != 2)
+                    check(std::accumulate(view.counts_.begin(), view.counts_.end(), 0u) == 8,
+                          "Retina rendering lost sample contributions");
+                if (scale == 2.0f)
+                {
+                    auto output =
+                        folder.getChildFile("stereo-retina-" + juce::String(mode) + ".png")
+                            .createOutputStream();
+                    check(output != nullptr, "Cannot write Retina screenshot");
+                    output->setPosition(0);
+                    output->truncate();
+                    check(juce::PNGImageFormat().writeImageToStream(screenshot, *output),
+                          "Cannot encode Retina screenshot");
+                }
+            }
+        }
         std::cout << "Stereo UI checks passed\n";
     }
 };
