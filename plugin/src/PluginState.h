@@ -35,6 +35,7 @@ struct PluginInstanceState
      */
     int analysisView = 0;
     juce::String spectrumSettings;
+    juce::String stereoSettings;
     int gainDb = 0;
     bool autoGain = false;
     std::size_t window = 2;

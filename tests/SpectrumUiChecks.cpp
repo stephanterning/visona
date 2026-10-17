@@ -11,6 +11,8 @@
 #include <numbers>
 #include <random>
 
+void runStereoUiChecks(const juce::File& folder);
+
 namespace visona
 {
 struct SpectrumRenderBenchmark
@@ -202,6 +204,7 @@ void save(juce::Component& c, const juce::File& folder, const juce::String& name
     auto image = c.createComponentSnapshot(c.getLocalBounds(), true, 2.0f);
     auto out = folder.getChildFile(name).createOutputStream();
     check(out != nullptr, "Cannot write screenshot");
+    check(out->setPosition(0) && out->truncate().wasOk(), "Cannot replace previous screenshot");
     check(juce::PNGImageFormat().writeImageToStream(image, *out), "Cannot encode screenshot");
 }
 } // namespace
@@ -233,6 +236,7 @@ int main(int argc, char** argv)
         }
         const juce::File folder(argc > 1 ? juce::String(argv[1]) : "/private/tmp/visona-ui-checks");
         check(folder.createDirectory().wasOk(), "Cannot create output directory");
+        runStereoUiChecks(folder);
         check(visona::SpectrumRenderBenchmark::bandDirtyRegionsMatchFull(),
               "Band partial repaint differs from a complete redraw");
         check(visona::SpectrumRenderBenchmark::verifyControls(),

@@ -1,0 +1,50 @@
+[
+  {
+    "name": "lsp-dsp-units",
+    "revision": "8dd2a6905ca7ccefd2c3624560235680cb8761e2",
+    "url": "https://codeload.github.com/lsp-plugins/lsp-dsp-units/tar.gz/8dd2a6905ca7ccefd2c3624560235680cb8761e2",
+    "sha256": "ac57a427db6de18010c483085ff05a7dd444191d24c0f3909eac0578f5f0690d",
+    "archive": "visona-lsp-units.tar.gz",
+    "destination": "lsp-dsp-units-8dd2a6905ca7ccefd2c3624560235680cb8761e2"
+  },
+  {
+    "name": "lsp-common-lib",
+    "revision": "1.0.49",
+    "url": "https://codeload.github.com/lsp-plugins/lsp-common-lib/tar.gz/refs/tags/1.0.49",
+    "sha256": "6c6a582ee0dcca12f62ed960bf7492ce60b42c6c6847ed14fac797b05b99b636",
+    "archive": "visona-lsp-common-lib.tar.gz",
+    "destination": "lsp-dsp-units-8dd2a6905ca7ccefd2c3624560235680cb8761e2/modules/lsp-common-lib"
+  },
+  {
+    "name": "lsp-dsp-lib",
+    "revision": "1.1.1",
+    "url": "https://codeload.github.com/lsp-plugins/lsp-dsp-lib/tar.gz/refs/tags/1.1.1",
+    "sha256": "5343d59e9625083dff3f19bfdb3e1615a77657d958b24ff77d782857d2469f57",
+    "archive": "visona-lsp-dsp-lib.tar.gz",
+    "destination": "lsp-dsp-units-8dd2a6905ca7ccefd2c3624560235680cb8761e2/modules/lsp-dsp-lib"
+  },
+  {
+    "name": "lsp-lltl-lib",
+    "revision": "1.0.33",
+    "url": "https://codeload.github.com/lsp-plugins/lsp-lltl-lib/tar.gz/refs/tags/1.0.33",
+    "sha256": "15e0508552c56b6b33b37539b596eab4cff1b9a2e23375e6eb34b172c89fe2b2",
+    "archive": "visona-lsp-lltl-lib.tar.gz",
+    "destination": "lsp-dsp-units-8dd2a6905ca7ccefd2c3624560235680cb8761e2/modules/lsp-lltl-lib"
+  },
+  {
+    "name": "lsp-runtime-lib",
+    "revision": "1.0.36",
+    "url": "https://codeload.github.com/lsp-plugins/lsp-runtime-lib/tar.gz/refs/tags/1.0.36",
+    "sha256": "60b198cbcae565cca73958135c85e590f88b93a2acdef09945a1794d8af1fda7",
+    "archive": "visona-lsp-runtime-lib.tar.gz",
+    "destination": "lsp-dsp-units-8dd2a6905ca7ccefd2c3624560235680cb8761e2/modules/lsp-runtime-lib"
+  },
+  {
+    "name": "signalizer",
+    "revision": "e2043da622caf6dcf3ff472b8ac2b24a5ee02436",
+    "url": "https://codeload.github.com/jthorborg/signalizer/tar.gz/e2043da622caf6dcf3ff472b8ac2b24a5ee02436",
+    "sha256": "b4a2e24ff8596e3be4569eeae73529b20fff4cbca4600c7a32cc117ea4d4e246",
+    "archive": "visona-signalizer.tar.gz",
+    "destination": "signalizer-e2043da622caf6dcf3ff472b8ac2b24a5ee02436"
+  }
+]

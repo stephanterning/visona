@@ -23,11 +23,19 @@ public:
     int analysisView() const
     {
         const auto view = properties_.getIntValue("analysisView", 0);
-        return view >= 0 && view <= 2 ? view : 0;
+        return view >= 0 && view <= 3 ? view : 0;
     }
     void setAnalysisView(int view)
     {
         properties_.setValue("analysisView", view);
+    }
+    juce::String stereoSettings() const
+    {
+        return properties_.getValue("stereoSettings");
+    }
+    void setStereoSettings(const juce::String& text)
+    {
+        properties_.setValue("stereoSettings", text);
     }
     juce::String spectrumSettings() const
     {

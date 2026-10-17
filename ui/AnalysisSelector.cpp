@@ -6,7 +6,7 @@ namespace visona
 {
 namespace
 {
-const juce::StringArray viewNames{"Scope", "Spectrum (FFT)", "Spectrum (Band)"};
+const juce::StringArray viewNames{"Scope", "Spectrum (FFT)", "Spectrum (Band)", "Stereo"};
 }
 struct AnalysisSelector::Tiles final : juce::Component
 {
@@ -36,7 +36,16 @@ struct AnalysisSelector::Tiles final : juce::Component
                     p.lineTo(icon.getX() + x * icon.getWidth(), icon.getY() + y * icon.getHeight());
             }
             g.setColour(juce::Colour(0xff79ddc6).withAlpha(down ? 0.6f : over ? 1.0f : 0.85f));
-            if (view == 2)
+            if (view == 3)
+            {
+                juce::Path stereo;
+                stereo.addEllipse(
+                    icon.withSizeKeepingCentre(icon.getWidth() * 0.28f, icon.getHeight()));
+                g.strokePath(stereo, juce::PathStrokeType(2.0f));
+                g.drawVerticalLine(juce::roundToInt(icon.getCentreX()), icon.getY(),
+                                   icon.getBottom());
+            }
+            else if (view == 2)
             {
                 for (int i = 0; i < 12; ++i)
                 {
@@ -119,7 +128,8 @@ struct AnalysisSelector::Tiles final : juce::Component
 AnalysisSelector::AnalysisSelector()
 {
     setView(0);
-    setTooltip("Analysis view (V). Alt+1: Scope; Alt+2: Spectrum (FFT); Alt+3: Spectrum (Band).");
+    setTooltip("Analysis view (V). Alt+1: Scope; Alt+2: Spectrum (FFT); Alt+3: Spectrum (Band); "
+               "Alt+4: Stereo.");
     onClick = [this] { showChoices(); };
 }
 AnalysisSelector::~AnalysisSelector() = default;

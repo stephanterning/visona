@@ -40,6 +40,7 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     , scope_(analysis_.snapshots(), layout_)
     , spectrum_(analysis_.spectrum())
     , bandSpectrum_(analysis_.spectrum().bands())
+    , stereo_(analysis_.stereo())
     , window_(state_.window)
     , peaks_(layout_.totalChannelCount(), 0.0f)
 {
@@ -52,6 +53,7 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     addAndMakeVisible(scope_);
     addChildComponent(spectrum_);
     addChildComponent(bandSpectrum_);
+    addChildComponent(stereo_);
     addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
     addChildComponent(diagnostics_);
@@ -71,10 +73,18 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     controlBar_.viewSelector().onSelect = [this](int view) { setAnalysisView(view); };
     controlBar_.onSpectrumSettings = [this]
     {
-        if (analysisView_ == 2)
+        if (analysisView_ == 3)
+            stereo_.resetView();
+        else if (analysisView_ == 2)
             bandSpectrum_.resetPeaks();
         else
             spectrum_.showSettings(!spectrum_.settingsVisible());
+    };
+    stereo_.restoreSettings(state_.stereoSettings);
+    stereo_.onSettingsChange = [this]
+    {
+        state_.stereoSettings = stereo_.saveSettings();
+        notifyStateChange();
     };
     spectrum_.restoreSettings(state_.spectrumSettings);
     spectrum_.onSettingsChange = [this]
@@ -125,6 +135,7 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     scope_.setWaveformColour(palette::waveformColours[state_.waveformColour].colour);
     spectrum_.setWaveformColour(palette::waveformColours[state_.waveformColour].colour);
     bandSpectrum_.setWaveformColour(palette::waveformColours[state_.waveformColour].colour);
+    stereo_.setWaveformColour(palette::waveformColours[state_.waveformColour].colour);
 
     controlBar_.setToggles(false, false, false);
     setWantsKeyboardFocus(true);
@@ -165,6 +176,7 @@ void ScopeEditor::resized()
     scope_.setBounds(area);
     spectrum_.setBounds(area);
     bandSpectrum_.setBounds(area);
+    stereo_.setBounds(area);
 
     const auto bannerBounds =
         scope_.getBounds().withSizeKeepingCentre(560, 76).translated(0, -scope_.getHeight() / 6);
@@ -184,9 +196,12 @@ void ScopeEditor::resized()
 bool ScopeEditor::keyPressed(const juce::KeyPress& key)
 {
     if (key.getModifiers().isAltDown() &&
-        (key.isKeyCode('1') || key.isKeyCode('2') || key.isKeyCode('3')))
+        (key.isKeyCode('1') || key.isKeyCode('2') || key.isKeyCode('3') || key.isKeyCode('4')))
     {
-        setAnalysisView(key.isKeyCode('3') ? 2 : key.isKeyCode('2') ? 1 : 0);
+        setAnalysisView(key.isKeyCode('4')   ? 3
+                        : key.isKeyCode('3') ? 2
+                        : key.isKeyCode('2') ? 1
+                                             : 0);
         return true;
     }
     if (!key.getModifiers().isAnyModifierKeyDown() &&
@@ -235,10 +250,11 @@ void ScopeEditor::timerCallback()
 
 void ScopeEditor::setAnalysisView(int view)
 {
-    analysisView_ = std::clamp(view, 0, 2);
+    analysisView_ = std::clamp(view, 0, 3);
     scope_.setVisible(analysisView_ == 0);
     spectrum_.setActive(analysisView_ == 1);
     bandSpectrum_.setActive(analysisView_ == 2);
+    stereo_.setActive(analysisView_ == 3);
     controlBar_.setAnalysisView(analysisView_);
     state_.analysisView = analysisView_;
     notifyStateChange();
@@ -330,6 +346,7 @@ void ScopeEditor::setWaveformColour(std::size_t index)
     scope_.setWaveformColour(palette::waveformColours[index].colour);
     spectrum_.setWaveformColour(palette::waveformColours[index].colour);
     bandSpectrum_.setWaveformColour(palette::waveformColours[index].colour);
+    stereo_.setWaveformColour(palette::waveformColours[index].colour);
     colourSwatches_.setColour(index);
     state_.waveformColour = index;
     state_.hasInstanceAppearance = true;
@@ -399,7 +416,8 @@ void ScopeEditor::updateStatus()
 
     if (snapshot.hasStream && snapshot.sampleRate > 0.0)
         values.sampleRate = formatSampleRate(snapshot.sampleRate);
-    values.window = analysisView_ == 2   ? "SPECTRUM (BAND)"
+    values.window = analysisView_ == 3   ? "STEREO"
+                    : analysisView_ == 2 ? "SPECTRUM (BAND)"
                     : analysisView_ == 1 ? "SPECTRUM (FFT)"
                                          : WindowControl::describe(window_);
     if (analysisView_ == 0)
@@ -448,7 +466,9 @@ void ScopeEditor::updateDiagnostics()
     values.rendering = scope_.stats();
     if (analysisView_ != 0)
     {
-        const auto stats = analysisView_ == 2 ? bandSpectrum_.stats() : spectrum_.stats();
+        const auto stats = analysisView_ == 3   ? stereo_.stats()
+                           : analysisView_ == 2 ? bandSpectrum_.stats()
+                                                : spectrum_.stats();
         values.rendering = {};
         values.rendering.framesPerSecond = stats.framesPerSecond;
         values.rendering.renderMsAverage = stats.renderMsAverage;

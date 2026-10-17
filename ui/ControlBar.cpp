@@ -56,7 +56,9 @@ void ControlBar::setAnalysisView(int view)
 {
     setSpectrum(view != 0);
     view_.setView(view);
-    spectrumSettings_.setButtonText(view == 2 ? "Reset peaks" : "Analysis settings");
+    spectrumSettings_.setButtonText(view == 3   ? "Reset view"
+                                    : view == 2 ? "Reset peaks"
+                                                : "Analysis settings");
 }
 void ControlBar::setSpectrum(bool enabled)
 {

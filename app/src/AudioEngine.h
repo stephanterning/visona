@@ -138,6 +138,11 @@ public:
     [[nodiscard]] juce::String midiInputName() const override;
     juce::String selectMidiInput(const juce::String& identifier) override;
 
+    StereoAnalyzer& stereo() noexcept
+    {
+        return analysis_.stereo();
+    }
+
     SpectrumAnalyzer& spectrum() noexcept
     {
         return analysis_.spectrum();

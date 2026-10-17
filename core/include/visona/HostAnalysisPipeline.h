@@ -5,6 +5,7 @@
 #include <visona/MidiClockTransport.h>
 #include <visona/SpectrumAnalyzer.h>
 #include <visona/SpscQueue.h>
+#include <visona/StereoAnalyzer.h>
 #include <visona/SweepAnalyzer.h>
 #include <visona/SweepSnapshot.h>
 #include <visona/TripleBuffer.h>
@@ -78,6 +79,11 @@ public:
 
     [[nodiscard]] float takePeak(std::size_t channel) noexcept;
 
+    StereoAnalyzer& stereo() noexcept
+    {
+        return stereo_;
+    }
+
     SpectrumAnalyzer& spectrum() noexcept
     {
         return spectrum_;
@@ -85,6 +91,7 @@ public:
 
 private:
     SpectrumAnalyzer spectrum_;
+    StereoAnalyzer stereo_;
     void applyOffset() noexcept;
     void syncPlayheads() noexcept;
     void analyze(const AudioRingBuffer::ReadRegion& region, std::size_t numFrames,
