@@ -13,6 +13,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - D-054–D-060 come from the approval of the MVP plan.
   - D-061 onward are made during implementation.
 - Open question IDs keep their original numbers. Resolved questions are not listed; their answers are recorded as decisions.
+- D-101 and D-107 were never assigned: D-107 was renumbered to D-108 before it merged. The signing decision was first recorded as a second D-111 and is now D-114.
 
 ---
 
@@ -156,9 +157,9 @@ A lightweight log of decisions and open questions. The architecture is described
   - Before the first Start: a free-running sweep with a fixed time window.
 
   These are the explicit defaults required by D-016.
-- **D-046 — MVP UI:** `Amended by D-100, D-108 and D-110`
+- **D-046 — MVP UI:** `Amended by D-100, D-108, D-110, D-115 and D-119`
   - Status at the top: BPM, MIDI state, sample rate, window and gain.
-  - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB (+18 dB since D-100).
+  - Interactive controls at the bottom: window ¼ ½ 1 2 4, and gain from 0 to +36 dB (+18 dB since D-100, +64 dB since D-115).
   - A settings panel for audio device, input channel pair and MIDI input, with persisted settings.
   - A resizable window with fullscreen.
   - L/R stacked, with L on top.
@@ -316,7 +317,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Reset: Esc once the settings panel is closed, a double-click or double-tap on the scope, or the × of the overview strip. Choosing a window, and a switch between free-running and musical time, such as the first Start, reset it too. There are no zoom keys.
   - A view may run past the end of the window and carry on at its start, as the head does, so the downbeat can be seen from both sides. Zooming out near an edge gets there. Zooming out also turns the view back towards the whole window, which it reaches exactly at 1×.
   - While zoomed, an overview strip above the scope shows the whole window, the part in view and the head. The status bar shows the zoom, such as `ZOOM 4.0× · 1.3–1.4`: the magnification, then where the view starts and ends within the window, as bar.beat, bar.beat.sixteenth when less than a beat is in view, or seconds while the sweep runs free. The positions count from the window's start, so they stay the same from one window to the next.
-  - The head line shows only while the head is in view. The grid adds thirty-seconds with a quarter of a bar in view and sixty-fourths with an eighth With a bar or less in view, beats are labelled bar.beat, and the left edge always names the beat the view starts in.
+  - The head line shows only while the head is in view. The grid adds thirty-seconds with a quarter of a bar in view and sixty-fourths with an eighth. With a bar or less in view, beats are labelled bar.beat, and the left edge always names the beat the view starts in.
   - The zoom works while stopped and in the free-running sweep, lasts through Stop, Continue and every Start after the first, and is not saved across restarts.
 - **D-086 — The roadmap's steps are called steps, not PRs: step 1 to step 8, and step 7b.** `Active`
   - A step is still one draft pull request, but GitHub numbers pull requests on its own, so "PR 7b" next to #12 was confusing. "PR" and "#" now always mean a GitHub pull request.
@@ -329,7 +330,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - The free-running sweep has no grid, so it shows nothing there.
 
   Amends D-085.
-- **D-088 — −12 dBFS and −18 dBFS reference lines appear from +4 dB and +10 dB of display gain.** `Active`
+- **D-088 — −12 dBFS and −18 dBFS reference lines appear from +4 dB and +10 dB of display gain.** `Superseded by D-115`
   - With more gain, 0 dBFS and then −6 dBFS leave the lane, and the quieter lines take over as references. They look like the others and are labelled the same way.
   - There are no lines below −18 dBFS; the maintainer does not expect to need that much gain.
 - **D-089 — A zoomed view can be moved, round past either end of the window.** `Active`
@@ -411,7 +412,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - Windows links the MSVC runtime statically, so no Visual C++ redistributable is needed. The Windows build does not copy the plugins into `Common Files`, which needs administrator rights.
   - Linux is built on Ubuntu 24.04, so the plugins need glibc 2.38 and GCC 13's libstdc++ or later. The binaries are unsigned; nothing on either platform has been tested in a DAW yet.
   - Extends D-044 for the plugins only; the standalone app stays on macOS and the Pi.
-- **D-100 — Auto gain: an optional setting that zooms the display gain in 3 dB steps, out at once and in at bar lines.** `Amended by D-108`
+- **D-100 — Auto gain: an optional setting that zooms the display gain in 3 dB steps, out at once and in at bar lines.** `Amended by D-108, D-115 and D-119`
   - The maintainer asked for it. It answers Q-014. It is off by default, and is set in the settings panel of the app and the Appearance panel of the plugin, per instance there, and saved.
   - Display gain now goes up to +18 dB, by hand as well as by auto gain. By hand it still moves in 1 dB steps.
   - Auto gain looks at the peak of each bar, the loudest sample over both channels:
@@ -462,7 +463,7 @@ A lightweight log of decisions and open questions. The architecture is described
 - **D-106 — `install-visona.sh` installs or upgrades Visona on the Pi over SSH.** `Active`
   - The maintainer installs Development builds on `visona-pi.local` and wants one command instead of curl, tar and `install-kiosk.sh` by hand.
   - With no URL the script asks the GitHub releases API for the newest release (including pre-releases) that has `Visona-linux-arm64-pi.tar.gz`, skipping the `dev-builds` tag, because `/releases/latest/` ignores pre-releases. With a URL it installs that tarball (for example a Development builds asset). It stops a running Visona, unpacks to `~/visona` (overwriting the binary and `scripts/pi/`), runs `install-kiosk.sh` from the unpacked tree so kiosk and labwc touch settings match the build, and keeps `~/.config/Visona/`. Options pass through `--enable-autologin` and allow `--install-dir`. A one-liner can bootstrap the script from `main` on GitHub with `curl | bash`.
-- **D-108 — Touch refinements: a one-row control bar with select menus and an AUTO button, a pinch that also pans, a tap outside the settings panel to close it, and tooltips for a held finger.** `Active`
+- **D-108 — Touch refinements: a one-row control bar with select menus and an AUTO button, a pinch that also pans, a tap outside the settings panel to close it, and tooltips for a held finger.** `Amended by D-113`
   - The maintainer asked for them after using the kiosk build of D-105 on a 1920×1080 Waveshare touchscreen: the control bar wrapped onto two rows, auto gain was hard to see and was set in the settings, a pinch could not move the zoomed view, the settings panel only closed with Done, and tooltips appeared at odd times and stayed after a touch.
   - *One row.* Each control carries a small caption above its value, inside it: WINDOW, BPM, GAIN and WAVE. WINDOW and WAVE are select menus showing the current choice, such as `1 BAR` or `PRECISE`. A click or tap opens the list above the control, at the control bar's size, with the current choice ticked; the keys 1–5 and W still work. The Diagnostics, Full screen and Settings buttons show only their icons whenever their labels do not fit, at any step (always since D-113), and the gaps between the groups are 20, 10 and 8 logical pixels in the wide, narrow and compact steps. The groups wrap onto a second row only when even that does not fit, which a desktop window reaches below about 710 logical pixels of width. The plugin, without the BPM control and the full-screen button, fits on one row at its 640-pixel minimum.
   - *Kiosk scale.* The kiosk control bar is drawn at twice the size when it fits on one row, and otherwise at the largest scale that does, down to 1×, since the maintainer prefers slightly smaller controls to a second row. The step is still chosen from the size the bar is laid out at. In Xvfb it stayed at 2× at 1920×1080 and 1280×720, and was about 1.8× at 1024×600 and 1.4× at 800×480.
@@ -482,7 +483,7 @@ A lightweight log of decisions and open questions. The architecture is described
   - The status bar shows `SC +12.3 ms` once locked and `SC ...` while waiting for the first impulse, as in the plugin. The diagnostics overlay has a Visona Sync row, in both the app and the plugin (it was "Sidechain sync" in the plugin), with the offset in frames, the impulse level and, while waiting, the input's level. Its MIDI offset row shows the offset in use, input latency plus the measurement, which can now be negative.
 
   Amends D-078: with Visona Sync routed, the measured offset is added to the input latency.
-- **D-110 — In the app, a pause button first in the control bar holds the view and stops the analysis. While MIDI Clock is stopped or lost it runs the sweep free instead, and the status bar is no longer a button.** `Active`
+- **D-110 — In the app, a pause button first in the control bar holds the view and stops the analysis. While MIDI Clock is stopped or lost it runs the sweep free instead, and the status bar is no longer a button.** `Amended by D-113 and D-116`
   - The maintainer asked for it to keep the screen still when its movement distracts, and to save CPU.
   - *Only the app.* The plugin has no pause button. A first version had one, but the maintainer found it of no use in practice.
   - *The button.* It sits first in the control bar, left of WINDOW, where play and pause sit in media players. Its icon and label say what a press does, not the state: ⏸ `Pause` while the view moves, ▶ `Resume`, lit, while it is paused, and ▶ `Run free` while MIDI Clock is stopped or lost and the view is already frozen. Like the other buttons it shows only its icon when the labels do not fit, and it keeps the width of its widest label, so nothing moves when it changes. (Since D-113 it shows only its icon, and the tooltip says what a press does.) Space or P presses it.
@@ -513,7 +514,8 @@ A lightweight log of decisions and open questions. The architecture is described
 
   Amends D-108 and D-110.
 
-- **D-111 — The Release workflow signs the macOS app and plugins with a Developer ID and notarizes them.** `Active`
+- **D-114 — The Release workflow signs the macOS app and plugins with a Developer ID and notarizes them.** `Active`
+  - Recorded as a second D-111 in 1.0.0-beta.1, and renumbered so that every ID is unique.
   - The maintainer wants users to install Visona without Gatekeeper warnings, `xattr` or ad-hoc signing by hand, and has an individual Apple Developer Program membership for it. Apple waives the fee for no open source projects, and no other certificate is accepted by Gatekeeper.
   - The certificate is a Developer ID Application certificate, kept as a base64 `.p12` in the `MACOS_CERTIFICATE_P12` secret with its password in `MACOS_CERTIFICATE_PASSWORD`. The workflow imports it into a temporary keychain and deletes that keychain at the end.
   - The app is signed with the hardened runtime and `app/Visona.entitlements`, whose `com.apple.security.device.audio-input` lets the hardened runtime open audio inputs. The plugins get the hardened runtime and no entitlements, since a plugin runs with its host's. `--deep` is not used; the bundles have no nested code, and `codesign --verify --deep` checks that.
@@ -521,6 +523,42 @@ A lightweight log of decisions and open questions. The architecture is described
   - Without the certificate secret a manual run signs ad hoc as before and warns, so forks and branches still build; a published release fails instead.
   - Local builds stay ad-hoc signed.
   - Setting up and renewing the certificate and secrets is described in `docs/signing.md`.
+- **D-115 — Display gain goes up to +64 dB, and the scope's amplitude references follow it in 3 dB steps down to pixel resolution.** `Active`
+  - Made with the shared display controls in [#49](https://github.com/stephanterning/visona/pull/49) (D-119).
+  - Display gain by hand spans 0 to +64 dB in 1 dB steps. Auto gain keeps its 3 dB steps, now up to +63 dB, and its −50 dBFS silence threshold.
+  - The scope's references are consecutive 3 dB levels with no lower dBFS limit. Their lines continue down to one pixel from the lane's centre, and their right-hand labels stop only where they would overlap (`amplitudeReferencesAt()` in `ScopeGrid.h`).
+
+  Supersedes D-088, and amends D-046 and D-100.
+- **D-116 — Analysis views: Scope, Spectrum (FFT), Spectrum (Band) and Stereo, shown one at a time and chosen with a selector in the control bar.** `Active`
+  - Introduced in [#48](https://github.com/stephanterning/visona/pull/48) and [#49](https://github.com/stephanterning/visona/pull/49) as first steps of milestones 9 and 10, ahead of the modular dashboard of milestone 8. One view fills the area between the status bar and the control bar; split-screen layouts are future work.
+  - The selector is first in the control bar. With a mouse it opens a list above itself; in kiosk mode, or after a touch, it opens large tiles over the window. V opens it, and Alt+1 to Alt+4 choose Scope, Spectrum (FFT), Spectrum (Band) and Stereo. The view, as ID 0 to 3, is saved in the app's settings and per plugin instance; projects saved before open in Scope.
+  - Only the selected spectrum or stereo analyzer runs, on the analysis thread; the audio callback is unchanged. The scope's analysis keeps running while it is hidden, so the transport, Visona Sync and auto gain carry on.
+  - Outside Scope, the control bar shows the pause button (app only), GAIN with AUTO, Afterglow (D-119) and the view's own button, Analysis settings in Spectrum (FFT) and Reset view in Stereo. WINDOW, BPM and WAVE are hidden, and the keys 1–5 and W do nothing. The status bar names the view where the window was and leaves out the gain; in the app it reads `LIVE` in place of the transport state while audio runs. Space or P pauses and resumes; Run free belongs to Scope only.
+
+  Amends D-046 and D-110.
+- **D-117 — Spectrum (FFT) uses KISS FFT with an 8,192-sample Hann window and a 1,024-sample hop, and shows a fixed pair of curves.** `Active`
+  - Answers Q-022. KISS FFT 131.1.0 (BSD-3-Clause) is vendored unmodified in `third_party/kissfft`, behind `SpectrumAnalyzer` (D-029). Neither JUCE DSP nor platform APIs enter the core.
+  - 8,192 samples was chosen on the Pi over 4,096 and 16,384: it separates 60 and 80 Hz, which 4,096 barely does, and needs about half the analysis CPU of 16,384, with an onset reaching 50 % in 85 ms at 48 kHz ([spectrum.md](spectrum.md#fft-window-comparison-on-the-pi)).
+  - Snapshots hold 768 logarithmically spaced points from 20 Hz to 20 kHz or Nyquist, whichever is lower. Peak is calibrated to a bin-centred sine; RMS reads 3.01 dB below it.
+  - The presentation was simplified after testing. Curve 1 is always a Fast (150 ms) Solid fill in the waveform colour; curve 2 is a white line that falls 12 dB in the Afterglow time (D-119). Detector (Peak or RMS) and Smoothing are shared by both. The settings panel keeps Channels, Range, Slope, Detector and Smoothing, and display gain takes the place of Top. Older saved settings migrate to this pair.
+  - It refreshes at 30 Hz, or 25 Hz on ARM64 Linux, and waits longer when rendering takes longer, to leave the Pi's message thread headroom.
+- **D-118 — Spectrum (Band) is a filter bank of 31 third-octave bands, not an FFT.** `Active`
+  - Introduced in [#48](https://github.com/stephanterning/visona/pull/48). Each band is two cascaded biquad bandpasses at a nominal third-octave centre from 20 Hz to 20 kHz; bands above Nyquist are left out. Power is averaged over both channels, so opposite-phase stereo does not cancel.
+  - Bars attack at once and release with a 150 ms time constant. Peak markers hold for the Afterglow time (D-119) and then fall at 12 dB/s. The visible span is 60 dB, placed by display gain.
+  - On the Pi it responds in about 17 ms in the mids and highs and about 220 ms at 20 Hz ([band-spectrum.md](band-spectrum.md)).
+- **D-119 — Gain, AUTO and Afterglow are shared by every analysis view, and auto gain follows the input in 100 ms windows instead of bars.** `Active`
+  - Made in [#49](https://github.com/stephanterning/visona/pull/49). GAIN and AUTO stay in the control bar in every view and apply the same number of decibels to the waveform, the spectrum curves and bars, whose scales still label signal levels, and the stereo radii. Gain stays presentation only (D-024).
+  - Auto gain is fed by `BarPeakMeter::processInput()`: the peak over both channels of each 100 ms window of input, independent of the transport. It works in `STOPPED`, `MIDI CLOCK LOST` and `FREE`, with the host stopped, and in every view, and switching views does not restart it. Otherwise D-100 holds: out at once to the highest 3 dB step that fits a peak, and up to the highest step that fits the loudest window of the last 10 s once the gain has held that long, ignoring windows at or below −50 dBFS. The per-bar peaks of D-100 are still measured but no longer drive it.
+  - Afterglow (Off, 0.5 s, 1 s by default, or 2 s) is a select menu in the control bar, hidden in Scope. It sets how long the FFT history line takes to fall 12 dB, how long Band peak markers hold, and how long stereo points and Polar Level radii take to fade to 1 %. Off hides the history line and the markers, and removes stereo history.
+  - The app saves gain, auto gain and afterglow in its settings, and the plugin per instance. Older per-view stereo gain and afterglow settings are read but no longer override the shared values.
+
+  Amends D-046 and D-100.
+- **D-120 — The Stereo view shows Polar Sample, Polar Level and Lissajous, with correlation and balance measured by LSP.** `Active`
+  - Introduced in [#49](https://github.com/stephanterning/visona/pull/49) as a first step of milestone 10.
+  - Correlation and equal-power balance come from the unmodified LSP `Correlometer` and `Panometer` (LGPL-3.0-or-later), which `cmake/LspStereo.cmake` fetches at pinned, checksummed versions (D-029). They measure a 200 ms rectangular window, started fresh for every published window, since the pinned Panometer's `clear()` leaves state behind.
+  - Polar Sample uses a projection adapted from Signalizer (GPL-3.0-or-later, in `core/include/visona/StereoProjection.h`). Lissajous is Visona's M/S projection. Polar Level is Visona's own aggregate over 73 directions, with two profiles, Directional level (the default) and Energy contribution; it does not claim to reproduce iZotope Ozone, and its visual design is still open (roadmap, milestone 10).
+  - A channel is measurable from −90 dBFS RMS until it falls below −96 dBFS RMS; without two measurable channels, correlation reads `--`. Snapshots hold every sample of the last 100 ms and are published at 120 Hz.
+  - The mode and the Polar Level profile are saved in the app and per plugin instance. Reset view goes back to Polar Sample and Directional level.
 
 ---
 
@@ -546,13 +584,7 @@ A lightweight log of decisions and open questions. The architecture is described
   After the MVP.
 - **Q-021 — Which library should Auto BPM use (tempo, beat and ideally downbeat detection), with an acceptable license?**
   Evaluated in milestone 7.
-- **Q-022 — Which FFT library: JUCE DSP or Signalsmith DSP?**
-  Evaluated in milestone 9.
 - **Q-023 — Which loudness library: libebur128 or an alternative, for LUFS, True Peak and LRA?**
   Evaluated in milestone 11.
 - **Q-026 — In which order do the parts moved out of the MVP come back, and how do they fit the post-v1 order?**
   The candidates are the Pi work and sync precision; hotplug and reconnect came back with D-102. Manual BPM came back into the MVP (D-090).
-
-### Display gain and scope scale update (2026-10-17)
-
-Manual display gain now spans 0 to +64 dB. Auto gain retains 3 dB steps and its existing silence threshold. Scope references use consecutive 3 dB levels, without the former −18 dBFS cutoff (superseding D-088). Labels stop only when they would overlap; reference lines continue to pixel resolution. This updates the gain ceiling recorded in D-100.

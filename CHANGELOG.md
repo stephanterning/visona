@@ -7,17 +7,27 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
-- Spectrum view in the standalone app and Visona plugin, with two Peak/RMS curves, independent response and octave smoothing, stereo/Left/Right/Mid/Side analysis, frequency colour gradients, filled/glowing styles, adjustable scale and slope, and a pointer/touch frequency readout.
-- A persistent analysis view selector, with a desktop list and touch tiles; V opens it and Alt+1/Alt+2 select Scope/Spectrum. Scope's 1–5 window shortcuts remain unchanged.
-- Saved spectrum settings and view selection, per app or plugin instance. Spectrum follows incoming audio without requiring MIDI Clock or host playback; standalone Pause holds it.
-- Offline spectrum UI checks and vendored BSD-3-Clause KISS FFT 131.1.0. Local builds can disable plugin installation with `VISONA_COPY_PLUGINS=OFF`.
+- Analysis views in the standalone app and the Visona plugin, shown one at a time: Scope, Spectrum (FFT), Spectrum (Band) and Stereo. The view selector, first in the control bar, opens a list with a mouse and large tiles in kiosk mode or after a touch; V opens it and Alt+1 to Alt+4 choose a view. The view and its settings are saved in the app and per plugin instance, and projects saved before open in Scope. The views follow the incoming audio without MIDI Clock or host playback, and the app's Pause holds them (D-116).
+- Spectrum (FFT): an 8,192-sample FFT with vendored KISS FFT 131.1.0 (BSD-3-Clause), a fast Solid curve in the waveform colour and a white history line, a shared Peak or RMS detector and octave smoothing, Stereo average, Left, Right, Mid and Side channels, adjustable range and slope, and a pointer and touch frequency readout (D-117).
+- Spectrum (Band): 31 third-octave bands from a streaming filter bank, with peak markers (D-118).
+- Stereo: Polar Sample, Polar Level with two profiles, and Lissajous over the last 100 ms, with correlation and balance from LSP's meters over 200 ms and per-channel signal validity. On Retina displays the plot is drawn at physical resolution (D-120).
+- Afterglow, a select menu in the control bar outside Scope: Off, 0.5 s, 1 s or 2 s, for the FFT history line, the Band peak markers and the stereo views' persistence (D-119).
+- `VISONA_BUILD_UI_CHECKS=ON` builds offline UI checks and screenshot renderers for the analysis views, and `VISONA_COPY_PLUGINS=OFF` keeps a local build from replacing the installed plugins.
+- `scripts/pi/build-and-deploy-to-pi-over-network.sh` builds the Pi app in Docker on an Apple Silicon Mac and deploys it over SSH. With `--profile`, or `VISONA_PERF_LOG=1`, the app logs its frame rate and CPU use for `scripts/pi/measure-performance.py`, with the diagnostics overlay closed.
+
+### Changed
+
+- Display gain goes up to +64 dB, and auto gain up to +63 dB. The scope's reference lines continue in 3 dB steps without the former −18 dBFS limit (D-115).
+- Gain and AUTO are shared by every analysis view. Auto gain follows the input's peaks in 100 ms windows instead of bars, so it also rises while the transport is stopped or lost (D-119).
+- Outside Scope, the app's status bar names the view and reads `LIVE` while audio runs (D-116).
+- The diagnostics overlay refreshes at 4 Hz in the app, so it costs less while measuring.
 
 
 ## [1.0.0-beta.1] - 2026-10-16
 
 ### Added
 
-- The macOS app and the VST3, AU and CLAP plugins in releases are signed with a Developer ID and notarized by Apple, so they install without Gatekeeper warnings or `xattr` and ad-hoc signing by hand (D-111).
+- The macOS app and the VST3, AU and CLAP plugins in releases are signed with a Developer ID and notarized by Apple, so they install without Gatekeeper warnings or `xattr` and ad-hoc signing by hand (D-114, first recorded as D-111).
 - `scripts/pi/install-visona.sh` on the Pi: download the latest release or a given tarball URL, unpack to `~/visona`, and run `install-kiosk.sh`.
 - AU and CLAP builds of Visona (AU effect with sidechain) and Visona Sync (AU instrument), for macOS arm64. CLAP is built with clap-juce-extensions, since JUCE 9.0.2 has no CLAP support (D-098).
 - Release workflow validates the AUs with `auval` and the CLAPs with `clap-validator`, and publishes `Visona-au-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip`, `Visona-clap-macos-arm64.zip` and `Visona-sync-clap-macos-arm64.zip`.

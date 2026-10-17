@@ -83,7 +83,7 @@ In Ableton Live, turn on **Use Audio Units** under **Settings → Plug-Ins**, th
 
 ## Transport
 
-The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW, as reported at the first frame of each audio block. There is no MIDI Clock input and no FREE mode in the plugin editor. The status bar shows **HOST RUN** while the DAW plays and **STOPPED** while it is stopped.
+The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW, as reported at the first frame of each audio block. There is no MIDI Clock input and no FREE mode in the plugin editor. The status bar shows **HOST RUN** while the DAW plays, **STOPPED** while it is stopped, and **HOST** before the DAW has reported a playhead.
 The standalone app still uses MIDI Clock and manual FREE tempo.
 
 ## Sidechain sync (Visona Sync)
@@ -115,12 +115,13 @@ Visona keeps the offset it measured. A new one takes over after two bars that ag
 
 The plugin editor is a slimmed-down version of the standalone UI:
 
-- Window, gain, auto gain (the **AUTO** button next to the gain), waveform mode and zoom work as in the app; auto gain is saved per instance
-- The tempo comes from the host and is shown in the status bar; the BPM control and the full screen button are hidden
-- **Settings** opens appearance controls (waveform colour) only — no audio device or MIDI device panels
-- Press **D** for the diagnostics overlay, which includes a Visona Sync row for the sidechain
+- Window, gain, auto gain (the **AUTO** button next to the gain), waveform mode and zoom work as in the app
+- The analysis views Spectrum (FFT), Spectrum (Band) and Stereo work as in the app: choose them with the view selector, **V**, or **Alt+1** to **Alt+4**. Their analysis runs only while the editor is open and the view is shown
+- The tempo comes from the host and is shown in the status bar; the pause button, the BPM control and the full screen button are hidden
+- **Settings** opens an Appearance panel with the waveform colour only — no audio device or MIDI device panels
+- Press **D** for the diagnostics overlay, which includes a Visona Sync row for the sidechain, and **Esc** to close the Appearance panel or reset the zoom
 
-Waveform mode and colour are saved **per plugin instance** in the DAW project. Global defaults live in `~/Library/Application Support/Visona/VisonaPluginDefaults.settings` and apply when an instance has no saved appearance.
+Each plugin instance saves its analysis view and the views' settings, window, gain, auto gain, afterglow, waveform mode and colour in the DAW project. Global defaults for the waveform mode and colour apply when an instance has no saved appearance; they live in `VisonaPluginDefaults.settings`, under `~/Library/Application Support/Visona/` on macOS, `~/.config/Visona/` on Linux and `%APPDATA%\Visona\` on Windows.
 
 ## Build locally
 

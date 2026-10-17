@@ -97,7 +97,7 @@ jobs:
           plutil -extract NSMicrophoneUsageDescription raw "$plist"
 
       # Without the certificate secrets a manual run falls back to ad-hoc signing, but a published
-      # release fails, so it is never shipped unsigned (D-111).
+      # release fails, so it is never shipped unsigned (D-114).
       - name: Import signing certificate
         env:
           CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}

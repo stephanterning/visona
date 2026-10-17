@@ -130,13 +130,13 @@ Settings are stored under `~/.config/Visona/`.
 | Audio device | `arecord -l` over SSH |
 | MIDI ports | `aconnect -l` over SSH |
 | Run Visona | Tap the desktop terminal icon, or add a desktop shortcut later |
-| Touch | If the 7" panel is USB touch, it should work as mouse events in the desktop |
+| Touch | A USB or DSI touch panel works as mouse events in the desktop; `install-kiosk.sh` turns on multitouch so a pinch zooms ([pi-kiosk.md](pi-kiosk.md#touchscreen)) |
 
-Diagnostics in Visona: press **D** (needs a keyboard once, or map touch to keyboard later).
+Diagnostics in Visona: press **D**, or tap the Diagnostics button in the control bar.
 
-## What is not ready yet
+## Not covered here
 
-- **Autostart / fullscreen on boot** — see [pi-kiosk.md](pi-kiosk.md).
+- **Autostart and fullscreen on boot** are set up with `install-visona.sh` or `install-kiosk.sh`; see [pi-kiosk.md](pi-kiosk.md).
 - **Headless-only** — Visona needs X11/XWayland; the 7" HDMI desktop session is the right test setup.
 
 ## Troubleshooting
