@@ -17,13 +17,33 @@
 
 #ifdef VISONA_TEST_TSAN
 #include <sanitizer/allocator_interface.h>
+#ifdef __APPLE__
+#include <cstdint>
+#include <pthread.h>
+#endif
 #endif
 
 namespace
 {
 
-// Constant-initialized, so updating it from inside an allocation never allocates.
+#if defined(VISONA_TEST_TSAN) && defined(__APPLE__)
+// Darwin lazily allocates C++ TLS storage. Accessing thread_local from a TSan
+// malloc hook can recursively call that hook before TLS initialization finishes.
+// A pthread key uses Darwin's preallocated per-thread slots instead.
+pthread_key_t allocationKey;
+std::size_t currentAllocations() noexcept
+{
+    return static_cast<std::size_t>(
+        reinterpret_cast<std::uintptr_t>(pthread_getspecific(allocationKey)));
+}
+#else
+// Constant-initialized; ordinary operator-new instrumentation can use C++ TLS.
 thread_local std::size_t allocationsOnThisThread = 0;
+std::size_t currentAllocations() noexcept
+{
+    return allocationsOnThisThread;
+}
+#endif
 
 } // namespace
 
@@ -31,13 +51,13 @@ namespace visona::test
 {
 
 AllocationCounter::AllocationCounter() noexcept
-    : start_(allocationsOnThisThread)
+    : start_(currentAllocations())
 {
 }
 
 std::size_t AllocationCounter::count() const noexcept
 {
-    return allocationsOnThisThread - start_;
+    return currentAllocations() - start_;
 }
 
 } // namespace visona::test
@@ -52,13 +72,25 @@ namespace
 
 void countAllocation(const volatile void*, std::size_t) noexcept
 {
+#ifdef __APPLE__
+    const auto count = static_cast<std::uintptr_t>(currentAllocations() + 1);
+    if (pthread_setspecific(allocationKey, reinterpret_cast<void*>(count)) != 0)
+        std::abort();
+#else
     ++allocationsOnThisThread;
+#endif
 }
 
 void ignoreDeallocation(const volatile void*) noexcept {}
 
-[[maybe_unused]] const int allocationHooksInstalled =
-    __sanitizer_install_malloc_and_free_hooks(&countAllocation, &ignoreDeallocation);
+[[maybe_unused]] const int allocationHooksInstalled = []
+{
+#ifdef __APPLE__
+    if (pthread_key_create(&allocationKey, nullptr) != 0)
+        std::abort();
+#endif
+    return __sanitizer_install_malloc_and_free_hooks(&countAllocation, &ignoreDeallocation);
+}();
 
 } // namespace
 

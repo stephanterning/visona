@@ -1,5 +1,8 @@
 #include "visona/ScopeGrid.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace visona
 {
 
@@ -26,12 +29,18 @@ double divisionMilliseconds(int division, double bpm) noexcept
     return 60000.0 / bpm * 4.0 / static_cast<double>(division);
 }
 
-std::span<const AmplitudeReference> amplitudeReferencesAt(int gainDb) noexcept
+AmplitudeReference AmplitudeReferences::Iterator::operator*() const noexcept
 {
-    std::size_t count = 0;
-    while (count < amplitudeReferences.size() && amplitudeReferences[count].minGainDb <= gainDb)
-        ++count;
-    return std::span(amplitudeReferences).first(count);
+    return {db, std::pow(10.0f, static_cast<float>(db) / 20.0f)};
+}
+
+AmplitudeReferences amplitudeReferencesAt(int gainDb, int laneHeight) noexcept
+{
+    const auto first = -((std::max(0, gainDb) + 2) / 3) * 3;
+    const auto extent = 20.0 * std::log10(std::max(1.0, static_cast<double>(laneHeight - 1) / 2.0));
+    const auto last =
+        -static_cast<int>(std::floor((static_cast<double>(gainDb) + extent) / 3.0)) * 3;
+    return {first, std::min(first, last) - 3};
 }
 
 } // namespace visona

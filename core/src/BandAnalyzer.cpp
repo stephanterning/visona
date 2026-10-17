@@ -84,6 +84,14 @@ void BandAnalyzer::process(std::span<const float> left, std::span<const float> r
         hold_.fill(0);
         resetRequest_ = request;
     }
+    const auto holdSamples = static_cast<std::uint32_t>(
+        rate_ * static_cast<double>(requestedHoldMs_.load(std::memory_order_relaxed)) / 1000.0);
+    if (holdSamples != holdSamples_)
+    {
+        holdSamples_ = holdSamples;
+        hold_.fill(0);
+        peak_ = envelope_;
+    }
     const auto count = std::min(left.size(), right.size());
     for (std::size_t i = 0; i < count; ++i)
     {

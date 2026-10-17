@@ -17,7 +17,7 @@ The maintainer may talk to agents in Swedish. Translate to English before anythi
 
 ## Build & test
 
-Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple Silicon (arm64) only, with macOS 14.0 as the deployment target. CMake downloads JUCE 9.0.2, Catch2 v3 and, for the CLAP plugins, clap-juce-extensions with `FetchContent`.
+Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple Silicon (arm64) only, with macOS 14.0 as the deployment target. CMake downloads JUCE 9.0.2, Catch2 v3, the pinned LSP stereo-meter sources and, for the CLAP plugins, clap-juce-extensions with `FetchContent`.
 
 - `core/`: plain C++20 library with no JUCE dependency. Warnings are errors.
 - `app/`: the JUCE app, "Visona": audio device, audio callback, settings and wiring. Built only when `VISONA_BUILD_APP` is ON (the default on macOS only); otherwise JUCE is not downloaded.
@@ -34,6 +34,8 @@ Before opening a pull request, check the website (`site/`) and the manual (`site
 - If the change adds a feature users may need explained, consider adding it to the manual and, if it is a notable feature, to the presentation page. If you decide not to, say why in the pull request description.
 
 The audio callback must not allocate, lock, wait or log. Debug builds of the app count allocations made in it (`app/src/RealtimeAllocationCheck.h`), and the diagnostics overlay (press D) shows the count, which must stay at 0.
+
+For Raspberry Pi performance checks, measure for 30 seconds by default. Treat 60 FPS as a target, not a strict minimum; occasional dips alone do not require further optimization.
 
 ### macOS prerequisites
 

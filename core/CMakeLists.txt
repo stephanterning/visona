@@ -1,3 +1,5 @@
+include("${PROJECT_SOURCE_DIR}/cmake/LspStereo.cmake")
+
 add_library(visona_fft STATIC ../third_party/kissfft/kiss_fft.c)
 set_target_properties(visona_fft PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(visona_fft SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/third_party/kissfft")
@@ -5,6 +7,11 @@ target_include_directories(visona_fft SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/third
 # Plain C++20 with no JUCE dependency, so it builds and tests anywhere.
 
 add_library(visona_core STATIC
+    src/PolarLevel.cpp
+    include/visona/PolarLevel.h
+    src/StereoAnalyzer.cpp
+    include/visona/StereoAnalyzer.h
+    include/visona/StereoProjection.h
     src/BandAnalyzer.cpp
     include/visona/BandAnalyzer.h
     src/SpectrumAnalyzer.cpp
@@ -68,7 +75,7 @@ add_library(visona::core ALIAS visona_core)
 target_include_directories(visona_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_features(visona_core PUBLIC cxx_std_20)
 target_compile_definitions(visona_core PRIVATE VISONA_VERSION_STRING="${PROJECT_VERSION}")
-target_link_libraries(visona_core PRIVATE visona::warnings visona_fft)
+target_link_libraries(visona_core PRIVATE visona::warnings visona_fft visona_lsp_stereo)
 
 if(VISONA_BUILD_PLUGIN)
     set_target_properties(visona_core PROPERTIES POSITION_INDEPENDENT_CODE ON)

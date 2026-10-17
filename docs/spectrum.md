@@ -13,19 +13,22 @@ selector independently of future split-screen layouts. Only one view is displaye
 - Channel modes are Stereo average, Left, Right, Mid `(L+R)/2`, and Side `(L-R)/2`.
   Stereo average combines the two channels' spectral powers; opposite-phase signals do
   not cancel. Mid and Side use amplitude sums/differences and can cancel.
-- Two independently visible curves offer Peak or RMS, Fast (150 ms), Medium (500 ms),
-  Slow (1.5 s), and Peak Hold. RMS cannot use Hold; it falls back to Slow.
-- Frequency smoothing is Raw, 1/24, 1/12, 1/6, 1/3, or 1 octave. This is separate from
-  the response time and does not increase FFT resolution.
-- Styles are Line, Fill and Solid. Line and Fill offer Spectrum, White, Blue or Orange.
-  Solid uses the shared Waveform colour for its translucent fill and thin outline.
-  Its per-curve colour selector is disabled and displays "Waveform colour".
-  Legacy style value 2 migrates to Solid (value 3); existing Solid settings remain valid.
-- Top, Range and Slope affect presentation only. Slope is 0–6 dB/octave, pivoting at
-  1 kHz. The default is +3 dB/octave, 0 dB top and 90 dB range.
-- Move the pointer, or touch and drag, to inspect frequency and both curve levels.
-  Readouts include the selected slope, explicitly labelled when nonzero.
-- Reset peaks clears the analysis history, including held peaks.
+- One shared Detector (Peak or RMS) and Smoothing control apply to both curves.
+- Curve 1 is always visible, Fast (150 ms), Solid, in the waveform colour.
+- Curve 2 is a white line with immediate attack and no hold. The shared Afterglow
+  duration is the time to fall 12 dB: 0.5 s gives 24 dB/s, 1 s gives 12 dB/s,
+  and 2 s gives 6 dB/s. Off hides it. For RMS the line uses each
+  FFT frame's calibrated RMS amplitude before its history envelope, rather than
+  a second power average. FFT window smoothing still applies.
+- Global Gain replaces Top and moves the vertical viewport; labels and cursor
+  values retain signal levels. Range and Slope remain independent. Slope is
+  0–6 dB/octave around 1 kHz, default 3; default range is 90 dB.
+- Per-curve visibility, response, style and colour selectors and Reset peaks
+  have been removed. Older saved per-curve settings migrate to this fixed pair,
+  retaining curve 1's detector and smoothing, channels, range and slope.
+- The shared footer displays Gain/Auto in every view and Afterglow except Scope.
+  Band uses Afterglow for marker hold time before the existing 12 dB/s release;
+  Off hides its markers. Gain moves bars and markers with correctly labelled axes.
 - Standalone Pause also pauses spectrum analysis. The spectrum otherwise follows incoming
   audio regardless of MIDI Stop or clock loss. It needs no musical clock.
 
@@ -224,3 +227,21 @@ checks passed with 8,192, including detector calibration and response-time check
 Spectrum (FFT) is retained as view ID 1. Spectrum (Band) uses stable view ID 2;
 Scope remains ID 0. Existing saved view selections are preserved. Both spectrum views
 now have black backgrounds. See `band-spectrum.md` for the streaming filter bank.
+
+
+## Global controls migration
+
+The global Afterglow index is persisted separately in app settings and plugin
+state (Off, 0.5 s, 1 s, 2 s; default 1 s). The standalone also remembers shared
+display gain; plugins retain their existing gain/Auto state. Legacy stereo gain
+and persistence no longer override these global controls. Existing spectrum
+analysis settings remain readable, but fixed presentation and shared detection
+are enforced by the view. Legacy core envelope modes remain for compatibility
+and regression tests; the simplified UI uses the global history envelope.
+
+Gain/Auto uses transport-independent 100 ms input peak windows, which the hidden Scope
+view continues consuming without rendering. The existing 10 s hold policy and
+3 dB steps remain; the detector runs even when musical transport is stopped. Switching analysis views does not reset
+Auto or change its input. No allocation or drawing was added to the audio callback.
+The 150 ms filled response and global FFT history release are separate behaviors.
+Historical performance and curve-setting notes above describe earlier controls.

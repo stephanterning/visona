@@ -58,9 +58,11 @@ void HostAnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) n
     sampleRate_ = ring_ != nullptr ? sampleRate : 0.0;
     nextSampleIndex_ = 0;
     spectrum_.reset(sampleRate_);
+    stereo_.reset(sampleRate_);
     analyzer_.start(0);
     analyzer_.setBandSplitting(false, 0.0);
     barPeaks_.restart();
+    inputPeaks_.restart();
     transport_.reset(sampleRate_);
     // The host does not process audio while it changes the stream, so the queue holds only
     // playheads of the old stream.
@@ -136,6 +138,8 @@ std::size_t HostAnalysisPipeline::poll() noexcept
             spectrum_.process(region->channel(0).first(numFrames),
                               region->channel(channels_.size() > 1 ? 1 : 0).first(numFrames),
                               first);
+            stereo_.process(region->channel(0).first(numFrames),
+                            region->channel(channels_.size() > 1 ? 1 : 0).first(numFrames), first);
             analyze(*region, numFrames, span);
             nextSampleIndex_ = first + numFrames;
             framesAnalyzed += numFrames;
@@ -218,6 +222,7 @@ void HostAnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, st
         raiseTo(peaks_[channel], peak);
     }
 
+    inputPeaks_.processInput(channels_, numFrames, region.sampleIndex(), sampleRate_);
     switch (span.kind)
     {
     case TransportSpan::Kind::musical:
@@ -273,6 +278,7 @@ void HostAnalysisPipeline::publish() noexcept
     snapshot.windowStartTick = analyzer_.windowStartTick();
     snapshot.bandDelayFrames = analyzer_.bandDelayFrames();
     snapshot.barPeaks = barPeaks_.recent();
+    snapshot.inputPeaks = inputPeaks_.recent();
     snapshot.midiEvents = 0;
     snapshot.ignoredSpp = 0;
     snapshots_.publish();

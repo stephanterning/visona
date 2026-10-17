@@ -23,11 +23,35 @@ public:
     int analysisView() const
     {
         const auto view = properties_.getIntValue("analysisView", 0);
-        return view >= 0 && view <= 2 ? view : 0;
+        return view >= 0 && view <= 3 ? view : 0;
     }
     void setAnalysisView(int view)
     {
         properties_.setValue("analysisView", view);
+    }
+    int displayGain() const
+    {
+        return juce::jlimit(0, 64, properties_.getIntValue("displayGain", 0));
+    }
+    void setDisplayGain(int db)
+    {
+        properties_.setValue("displayGain", db);
+    }
+    int afterglow() const
+    {
+        return juce::jlimit(0, 3, properties_.getIntValue("afterglow", 2));
+    }
+    void setAfterglow(int index)
+    {
+        properties_.setValue("afterglow", juce::jlimit(0, 3, index));
+    }
+    juce::String stereoSettings() const
+    {
+        return properties_.getValue("stereoSettings");
+    }
+    void setStereoSettings(const juce::String& text)
+    {
+        properties_.setValue("stereoSettings", text);
     }
     juce::String spectrumSettings() const
     {

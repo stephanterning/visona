@@ -1,0 +1,51 @@
+cmake_minimum_required(VERSION 3.22)
+set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "macOS architecture")
+set(CMAKE_OSX_DEPLOYMENT_TARGET 14.0 CACHE STRING "macOS deployment target")
+project(VisonaStereoExperiment LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(LSP_ROOT "" CACHE PATH "LSP source tree built by prepare.py")
+set(JUCE_SOURCE_DIR "" CACHE PATH "Optional existing JUCE 9.0.2 tree for the PNG renderer")
+option(SPIKE_SANITIZERS "Instrument the experiment (not the prebuilt upstream library)" OFF)
+set(lsp_archive "${LSP_ROOT}/.build/target/lsp-dsp-units/liblsp-dsp-units-1.0.38.a")
+if(NOT EXISTS "${lsp_archive}")
+    message(FATAL_ERROR "Run prepare.py and set LSP_ROOT to the printed directory")
+endif()
+
+add_library(lsp_stereo INTERFACE)
+target_include_directories(lsp_stereo SYSTEM INTERFACE
+    "${LSP_ROOT}/include"
+    "${LSP_ROOT}/modules/lsp-common-lib/include"
+    "${LSP_ROOT}/modules/lsp-dsp-lib/include")
+target_link_libraries(lsp_stereo INTERFACE "${lsp_archive}")
+if(APPLE)
+    target_link_libraries(lsp_stereo INTERFACE "-framework AudioToolbox" "-framework CoreFoundation" iconv)
+else()
+    message(FATAL_ERROR "This initial integration recipe is validated on macOS only")
+endif()
+
+add_executable(stereo_probe Probe.cpp ../../app/src/RealtimeAllocationCheck.cpp)
+# Keep the existing debug allocation counter's self-test observable in release probes too.
+set_source_files_properties(../../app/src/RealtimeAllocationCheck.cpp PROPERTIES COMPILE_OPTIONS "-O0")
+target_include_directories(stereo_probe PRIVATE ../../app/src ../../core/include)
+target_compile_definitions(stereo_probe PRIVATE VISONA_REALTIME_ALLOCATION_CHECK=1)
+target_compile_options(stereo_probe PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(stereo_probe PRIVATE lsp_stereo)
+if(SPIKE_SANITIZERS)
+    target_compile_options(stereo_probe PRIVATE -fsanitize=address,undefined
+        -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(stereo_probe PRIVATE -fsanitize=address,undefined)
+endif()
+enable_testing()
+add_test(NAME stereo_probe COMMAND stereo_probe)
+set_tests_properties(stereo_probe PROPERTIES TIMEOUT 60)
+
+if(JUCE_SOURCE_DIR)
+    add_subdirectory("${JUCE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/juce" EXCLUDE_FROM_ALL)
+    add_executable(stereo_render Render.cpp)
+    target_link_libraries(stereo_render PRIVATE lsp_stereo juce::juce_graphics)
+    target_compile_definitions(stereo_render PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+    target_compile_options(stereo_render PRIVATE -Wall -Wextra -Wpedantic)
+endif()

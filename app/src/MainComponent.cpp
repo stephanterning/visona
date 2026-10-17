@@ -56,6 +56,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     , scope_(engine.snapshots(), engine.layout())
     , spectrum_(engine.spectrum())
     , bandSpectrum_(engine.spectrum().bands())
+    , stereo_(engine.stereo())
     , settingsPanel_(engine)
     , window_(defaultSweepWindow)
     , peaks_(engine.layout().totalChannelCount(), 0.0f)
@@ -73,6 +74,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     addAndMakeVisible(scope_);
     addChildComponent(spectrum_);
     addChildComponent(bandSpectrum_);
+    addChildComponent(stereo_);
     addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
     addChildComponent(diagnostics_);
@@ -82,18 +84,30 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     controlBar_.viewSelector().onSelect = [this](int view) { setAnalysisView(view); };
     controlBar_.onSpectrumSettings = [this]
     {
-        if (analysisView_ == 2)
-            bandSpectrum_.resetPeaks();
+        if (analysisView_ == 3)
+            stereo_.resetView();
         else
             spectrum_.showSettings(!spectrum_.settingsVisible());
         updateBanner();
     };
     controlBar_.viewSelector().setTouchMode(kioskMode_);
+    stereo_.restoreSettings(settings_.stereoSettings());
+    stereo_.onSettingsChange = [this] { settings_.setStereoSettings(stereo_.saveSettings()); };
     spectrum_.restoreSettings(settings_.spectrumSettings());
     spectrum_.onSettingsChange = [this]
     { settings_.setSpectrumSettings(spectrum_.saveSettings()); };
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.tempo().onTempoChange = [this](double bpm) { setFreeTempo(bpm); };
+    controlBar_.afterglow().onChange = [this]
+    {
+        const auto index = controlBar_.afterglow().getSelectedItemIndex();
+        stereo_.setAfterglow(index);
+        spectrum_.setAfterglow(index);
+        bandSpectrum_.setAfterglow(index);
+        settings_.setAfterglow(index);
+    };
+    controlBar_.afterglow().setSelectedItemIndex(settings_.afterglow(), juce::dontSendNotification);
+    controlBar_.afterglow().onChange();
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
     controlBar_.onPauseButton = [this] { pressPauseButton(); };
@@ -134,6 +148,8 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     scope_.setWaveformColour(palette::waveformColours[colour].colour);
     spectrum_.setWaveformColour(palette::waveformColours[colour].colour);
     bandSpectrum_.setWaveformColour(palette::waveformColours[colour].colour);
+    stereo_.setWaveformColour(palette::waveformColours[colour].colour);
+    showGainDb(settings_.displayGain());
     setAutoGain(settings_.autoGain());
 
     // The kiosk window always covers its display.
@@ -196,6 +212,7 @@ void MainComponent::resized()
     scope_.setBounds(area);
     spectrum_.setBounds(area);
     bandSpectrum_.setBounds(area);
+    stereo_.setBounds(area);
 
     banner_.setBounds(
         juce::Rectangle<int>(std::min(bannerWidth, area.getWidth() - 2 * margin), bannerHeight)
@@ -250,9 +267,12 @@ float MainComponent::fitControlBar()
 bool MainComponent::keyPressed(const juce::KeyPress& key)
 {
     if (key.getModifiers().isAltDown() &&
-        (key.isKeyCode('1') || key.isKeyCode('2') || key.isKeyCode('3')))
+        (key.isKeyCode('1') || key.isKeyCode('2') || key.isKeyCode('3') || key.isKeyCode('4')))
     {
-        setAnalysisView(key.isKeyCode('3') ? 2 : key.isKeyCode('2') ? 1 : 0);
+        setAnalysisView(key.isKeyCode('4')   ? 3
+                        : key.isKeyCode('3') ? 2
+                        : key.isKeyCode('2') ? 1
+                                             : 0);
         return true;
     }
     if (!key.getModifiers().isAnyModifierKeyDown() &&
@@ -298,15 +318,13 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         setWindow(static_cast<std::size_t>(character - '1'));
         return true;
     }
-    if (analysisView_ == 0 &&
-        (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
+    if ((key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
          character == '+' || character == '='))
     {
         setGainDb(gainDb_ + 1);
         return true;
     }
-    if (analysisView_ == 0 &&
-        (key.isKeyCode(juce::KeyPress::downKey) ||
+    if ((key.isKeyCode(juce::KeyPress::downKey) ||
          key.isKeyCode(juce::KeyPress::numberPadSubtract) || character == '-'))
     {
         setGainDb(gainDb_ - 1);
@@ -345,10 +363,11 @@ void MainComponent::timerCallback()
 
 void MainComponent::setAnalysisView(int view)
 {
-    analysisView_ = std::clamp(view, 0, 2);
+    analysisView_ = std::clamp(view, 0, 3);
     scope_.setVisible(analysisView_ == 0);
     spectrum_.setActive(analysisView_ == 1);
     bandSpectrum_.setActive(analysisView_ == 2);
+    stereo_.setActive(analysisView_ == 3);
     controlBar_.setAnalysisView(analysisView_);
     settings_.setAnalysisView(analysisView_);
     updateBanner();
@@ -367,10 +386,12 @@ void MainComponent::setGainDb(int gainDb)
 void MainComponent::showGainDb(int gainDb)
 {
     gainDb = DisplayGain::clampDb(gainDb);
-    if (gainDb == gainDb_)
-        return;
     gainDb_ = gainDb;
+    settings_.setDisplayGain(gainDb_);
     scope_.setGainDb(gainDb_);
+    spectrum_.setDisplayGainDb(gainDb_);
+    bandSpectrum_.setDisplayGainDb(gainDb_);
+    stereo_.setDisplayGainDb(gainDb_);
     controlBar_.gain().setGainDb(gainDb_);
     updateStatus();
 }
@@ -387,7 +408,7 @@ void MainComponent::setAutoGain(bool isOn)
 
 void MainComponent::followAutoGain()
 {
-    if (autoGainOn_ && autoGain_.follow(scope_.snapshot().barPeaks))
+    if (autoGainOn_ && autoGain_.follow(scope_.snapshot().inputPeaks))
         showGainDb(autoGain_.gainDb());
 }
 
@@ -439,6 +460,7 @@ void MainComponent::setPaused(bool paused)
     scope_.setPaused(paused);
     spectrum_.setPaused(paused);
     bandSpectrum_.setPaused(paused);
+    stereo_.setPaused(paused);
     updateBanner();
     updateStatus();
 }
@@ -457,6 +479,7 @@ void MainComponent::setWaveformColour(std::size_t index)
     scope_.setWaveformColour(palette::waveformColours[index].colour);
     spectrum_.setWaveformColour(palette::waveformColours[index].colour);
     bandSpectrum_.setWaveformColour(palette::waveformColours[index].colour);
+    stereo_.setWaveformColour(palette::waveformColours[index].colour);
     settingsPanel_.setWaveformColour(index);
     settings_.setWaveformColour(index);
 }
@@ -603,7 +626,8 @@ void MainComponent::updateStatus()
     }
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
-    values.window = analysisView_ == 2   ? "SPECTRUM (BAND)"
+    values.window = analysisView_ == 3   ? "STEREO"
+                    : analysisView_ == 2 ? "SPECTRUM (BAND)"
                     : analysisView_ == 1 ? "SPECTRUM (FFT)"
                                          : WindowControl::describe(window_);
     if (analysisView_ == 0)
@@ -656,8 +680,9 @@ void MainComponent::updateDiagnostics()
         performanceAnalysis_ += analysisLoad * elapsed;
         if (performanceElapsed_ >= 2.0)
         {
-            const auto spectrumStats =
-                analysisView_ == 2 ? bandSpectrum_.stats() : spectrum_.stats();
+            const auto spectrumStats = analysisView_ == 3   ? stereo_.stats()
+                                       : analysisView_ == 2 ? bandSpectrum_.stats()
+                                                            : spectrum_.stats();
             const auto scopeStats = scope_.stats();
             const bool spectrum = analysisView_ != 0;
             std::fprintf(stderr,
@@ -665,9 +690,10 @@ void MainComponent::updateDiagnostics()
                          "\"render_ms\":%.2f,\"paint_ms\":%.2f,\"cpu_percent\":%.2f,"
                          "\"analysis_percent\":%.2f,\"diagnostics\":%s}\n",
                          static_cast<long long>(juce::Time::currentTimeMillis()),
-                         analysisView_ == 2 ? "spectrum-band"
-                         : spectrum         ? "spectrum-fft"
-                                            : "scope",
+                         analysisView_ == 3   ? "stereo"
+                         : analysisView_ == 2 ? "spectrum-band"
+                         : spectrum           ? "spectrum-fft"
+                                              : "scope",
                          spectrum ? spectrumStats.framesPerSecond : scopeStats.framesPerSecond,
                          spectrum ? spectrumStats.renderMsAverage : scopeStats.renderMsAverage,
                          spectrum ? spectrumStats.paintMsAverage : scopeStats.paintMsAverage,
@@ -723,7 +749,9 @@ void MainComponent::updateDiagnostics()
     values.rendering = scope_.stats();
     if (analysisView_ != 0)
     {
-        const auto stats = analysisView_ == 2 ? bandSpectrum_.stats() : spectrum_.stats();
+        const auto stats = analysisView_ == 3   ? stereo_.stats()
+                           : analysisView_ == 2 ? bandSpectrum_.stats()
+                                                : spectrum_.stats();
         values.rendering = {};
         values.rendering.framesPerSecond = stats.framesPerSecond;
         values.rendering.renderMsAverage = stats.renderMsAverage;

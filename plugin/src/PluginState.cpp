@@ -90,7 +90,9 @@ void PluginInstanceState::writeTo(juce::XmlElement& root) const
 {
     root.setAttribute("analysisView", analysisView);
     root.setAttribute("spectrumSettings", spectrumSettings);
+    root.setAttribute("stereoSettings", stereoSettings);
     root.setAttribute("gainDb", gainDb);
+    root.setAttribute("afterglow", afterglow);
     root.setAttribute("autoGain", autoGain);
     root.setAttribute("window", static_cast<int>(window));
     root.setAttribute("waveformMode", modeToString(waveformMode));
@@ -101,9 +103,11 @@ void PluginInstanceState::writeTo(juce::XmlElement& root) const
 void PluginInstanceState::readFrom(const juce::XmlElement& root, PluginGlobalDefaults& defaults)
 {
     analysisView = root.getIntAttribute("analysisView", 0);
-    if (analysisView < 0 || analysisView > 2)
+    if (analysisView < 0 || analysisView > 3)
         analysisView = 0;
     spectrumSettings = root.getStringAttribute("spectrumSettings");
+    stereoSettings = root.getStringAttribute("stereoSettings");
+    afterglow = juce::jlimit(0, 3, root.getIntAttribute("afterglow", 2));
     gainDb = DisplayGain::clampDb(root.getIntAttribute("gainDb", gainDb));
     autoGain = root.getBoolAttribute("autoGain", false);
     window = static_cast<std::size_t>(root.getIntAttribute("window", static_cast<int>(window)));

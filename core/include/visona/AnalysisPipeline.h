@@ -6,6 +6,7 @@
 #include <visona/MidiClockTransport.h>
 #include <visona/SidechainSyncDetector.h>
 #include <visona/SpectrumAnalyzer.h>
+#include <visona/StereoAnalyzer.h>
 #include <visona/SweepAnalyzer.h>
 #include <visona/SweepSnapshot.h>
 #include <visona/TripleBuffer.h>
@@ -128,6 +129,11 @@ public:
     /** Any thread. The highest absolute sample value of the sync input since the previous call. */
     [[nodiscard]] float takeSyncPeak() noexcept;
 
+    StereoAnalyzer& stereo() noexcept
+    {
+        return stereo_;
+    }
+
     SpectrumAnalyzer& spectrum() noexcept
     {
         return spectrum_;
@@ -135,6 +141,7 @@ public:
 
 private:
     SpectrumAnalyzer spectrum_;
+    StereoAnalyzer stereo_;
     void mapBlock(const BlockTiming& block) noexcept;
 
     /** Returns false if the events must wait for the stream's first block. */
@@ -155,7 +162,7 @@ private:
     void publish() noexcept;
 
     SweepAnalyzer analyzer_;
-    BarPeakMeter barPeaks_;
+    BarPeakMeter barPeaks_, inputPeaks_;
     TripleBuffer<SweepSnapshot> snapshots_;
     ClockTimeMapper mapper_;
     MidiClockTransport transport_;

@@ -344,3 +344,31 @@ TEST_CASE("Visona Sync on the sidechain puts audio after plugins with latency on
         CHECK(std::abs(distance) <= 1);
     }
 }
+
+TEST_CASE("Global gain input peaks continue while host transport is stopped", "[analysis][host]")
+{
+    AudioRingBuffer ring(2, 48000, 1024);
+    AudioInputWriter writer(ring);
+    writer.route(0, 0);
+    writer.route(1, 1);
+    HostAnalysisPipeline pipeline(2, binsPerBar);
+    pipeline.setStream(&ring, sampleRate);
+    std::array<float, 480> left{}, right{};
+    left.fill(0.25f);
+    right.fill(0.75f);
+    const std::array<const float*, 2> inputs{left.data(), right.data()};
+    auto stopped = playingAt(0);
+    stopped.isPlaying = false;
+    for (int i = 0; i < 30; ++i)
+    {
+        const auto first = writer.nextSampleIndex();
+        writer.write(inputs, 480, 0);
+        pipeline.pushPlayhead(first, stopped);
+        pipeline.poll();
+    }
+    REQUIRE(pipeline.snapshots().fetch());
+    const auto& snapshot = pipeline.snapshots().readBuffer();
+    REQUIRE(snapshot.inputPeaks.count >= 2);
+    REQUIRE(snapshot.inputPeaks.currentPeak == 0.75f);
+    REQUIRE(snapshot.barPeaks.count == 0);
+}

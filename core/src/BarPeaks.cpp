@@ -9,7 +9,32 @@ namespace visona
 void BarPeakMeter::restart() noexcept
 {
     inBar_ = false;
+    inputActive_ = false;
     recent_.currentPeak = 0.0f;
+}
+
+void BarPeakMeter::processInput(std::span<const float* const> channels, std::size_t numFrames,
+                                std::uint64_t sampleIndex, double sampleRate) noexcept
+{
+    if (!std::isfinite(sampleRate) || sampleRate <= 0)
+        return;
+    for (const auto* channel : channels)
+        if (channel != nullptr)
+            for (std::size_t i = 0; i < numFrames; ++i)
+                if (!std::isfinite(channel[i]))
+                {
+                    restart();
+                    return;
+                }
+    if (inputActive_ && sampleIndex != inputNextFrame_)
+        restart();
+    inputActive_ = true;
+    inputNextFrame_ = sampleIndex + numFrames;
+    TransportSpan input;
+    input.start = 0;
+    input.end = 0x1p42;
+    input.endTick = input.end / sampleRate;
+    process(channels, numFrames, sampleIndex, input, 0.1, sampleRate);
 }
 
 void BarPeakMeter::process(std::span<const float* const> channels, std::size_t numFrames,

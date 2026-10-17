@@ -28,7 +28,8 @@ struct SpectrumCurveSettings
 
 struct SpectrumSettings
 {
-    int channel = 0; // Stereo energy average, Left, Right, Mid, Side.
+    int afterglow = -1; // -1: legacy independent envelopes; 0..3: global persistence.
+    int channel = 0;    // Stereo energy average, Left, Right, Mid, Side.
     std::array<SpectrumCurveSettings, 2> curves{{{}, {true, false, 2, 2, 0, 1}}};
     int topDb = 0;
     int rangeDb = 90;

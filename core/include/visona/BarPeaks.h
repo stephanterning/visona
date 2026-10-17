@@ -60,6 +60,11 @@ public:
     /** Forgets the bar in progress without ending it, such as when the sweep starts over. */
     void restart() noexcept;
 
+    /** Transport-independent 100 ms input windows for global display auto gain.
+        Invalid blocks discard the partial window; silent windows have zero peak. */
+    void processInput(std::span<const float* const> channels, std::size_t numFrames,
+                      std::uint64_t sampleIndex, double sampleRate) noexcept;
+
     /**
         Adds `numFrames` frames from stream position `sampleIndex` on, at the positions a musical
         `span` gives them. `channels` holds one pointer per channel; a null pointer is silence.
@@ -77,7 +82,8 @@ private:
     void endBar(double sampleRate) noexcept;
 
     RecentBarPeaks recent_;
-    bool inBar_ = false;
+    bool inBar_ = false, inputActive_ = false;
+    std::uint64_t inputNextFrame_ = 0;
     std::int64_t bar_ = 0;
     float peak_ = 0.0f;
     std::uint64_t frames_ = 0;

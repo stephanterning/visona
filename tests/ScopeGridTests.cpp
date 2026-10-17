@@ -6,7 +6,6 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <cmath>
-#include <vector>
 
 using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinRel;
@@ -56,23 +55,25 @@ TEST_CASE("A division's length follows the tempo", "[grid]")
     CHECK(divisionMilliseconds(16, std::nan("")) == 0.0);
 }
 
-TEST_CASE("Quieter amplitude references appear with more display gain", "[grid]")
+TEST_CASE("Amplitude references continue in 3 dB steps to pixel resolution", "[grid]")
 {
-    const auto levels = [](int gainDb)
-    {
-        std::vector<int> result;
-        for (const auto& reference : amplitudeReferencesAt(gainDb))
-            result.push_back(reference.levelDb);
-        return result;
-    };
-    CHECK(levels(0) == std::vector{0, -6});
-    CHECK(levels(3) == std::vector{0, -6});
-    CHECK(levels(4) == std::vector{0, -6, -12});
-    CHECK(levels(9) == std::vector{0, -6, -12});
-    CHECK(levels(10) == std::vector{0, -6, -12, -18});
-    CHECK(levels(36) == std::vector{0, -6, -12, -18});
-
-    for (const auto& reference : amplitudeReferencesAt(36))
-        CHECK_THAT(static_cast<double>(reference.level),
-                   WithinAbs(std::pow(10.0, reference.levelDb / 20.0), 1.0e-6));
+    for (const int height : {64, 256, 1024})
+        for (int gain = 0; gain <= 64; ++gain)
+        {
+            int previous = 3 - ((gain + 2) / 3) * 3;
+            float lastDistance = 0.0f;
+            for (const auto reference : amplitudeReferencesAt(gain, height))
+            {
+                CHECK(reference.levelDb == previous - 3);
+                CHECK(reference.levelDb <= -gain);
+                CHECK_THAT(static_cast<double>(reference.level),
+                           WithinRel(std::pow(10.0, reference.levelDb / 20.0), 1.0e-5));
+                lastDistance = reference.level * std::pow(10.0f, static_cast<float>(gain) / 20.0f) *
+                               static_cast<float>(height - 1) / 2.0f;
+                CHECK(lastDistance >= 0.999f);
+                previous = reference.levelDb;
+            }
+            CHECK(lastDistance * std::pow(10.0f, -3.0f / 20.0f) < 1.0f);
+            CHECK(previous < -gain - 18);
+        }
 }

@@ -2,6 +2,8 @@
 # must compile the JUCE modules exactly once.
 
 set(visona_ui_sources
+    StereoView.cpp
+    StereoView.h
     BandSpectrumView.cpp
     BandSpectrumView.h
     SpectrumView.cpp
@@ -59,10 +61,10 @@ foreach(visona_ui_target IN ITEMS Visona VisonaPlugin)
     endif()
 endforeach()
 
-option(VISONA_BUILD_UI_CHECKS "Build the offline spectrum UI checks and screenshot renderer" OFF)
+option(VISONA_BUILD_UI_CHECKS "Build offline analysis UI checks and screenshot renderers" OFF)
 if(VISONA_BUILD_UI_CHECKS)
     juce_add_console_app(visona_ui_checks PRODUCT_NAME "Visona UI checks")
-    target_sources(visona_ui_checks PRIVATE ../tests/SpectrumUiChecks.cpp ${visona_ui_sources})
+    target_sources(visona_ui_checks PRIVATE ../tests/SpectrumUiChecks.cpp ../tests/StereoUiChecks.cpp ${visona_ui_sources})
     target_include_directories(visona_ui_checks PRIVATE "${PROJECT_SOURCE_DIR}")
     target_compile_definitions(visona_ui_checks PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(visona_ui_checks PRIVATE visona::core juce::juce_audio_utils

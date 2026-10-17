@@ -41,7 +41,7 @@ public:
     {
         setWantsKeyboardFocus(false);
         setMouseClickGrabsKeyboardFocus(false);
-        setTooltip("Auto gain zooms the view in 3 dB steps, up to +18 dB, so the loudest peak "
+        setTooltip("Auto gain zooms the view in 3 dB steps, up to +63 dB, so the loudest peak "
                    "fills the top 3 dB. It zooms out as soon as a peak goes past the edge. "
                    "Setting the gain by hand turns it off.");
     }
@@ -214,7 +214,7 @@ void GainControl::request(int gainDb)
 
 int GainControl::valueWidth() const
 {
-    return std::max(controlText::widestText(controlText::valueFont(fontHeight_), {"+18 dB"}),
+    return std::max(controlText::widestText(controlText::valueFont(fontHeight_), {"+64 dB"}),
                     controlText::widestText(controlText::captionFont(fontHeight_), {"GAIN"})) +
            16;
 }

@@ -61,6 +61,7 @@ struct SweepSnapshot
 
     /** The peaks of the latest bars that have ended, for auto gain (D-100). */
     RecentBarPeaks barPeaks;
+    RecentBarPeaks inputPeaks; // Transport-independent input windows for display gain.
 
     /** MIDI Clock messages received, and Song Position Pointers ignored while running. */
     std::uint64_t midiEvents = 0;

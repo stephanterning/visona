@@ -11,6 +11,8 @@
 #include <numbers>
 #include <random>
 
+void runStereoUiChecks(const juce::File& folder);
+
 namespace visona
 {
 struct SpectrumRenderBenchmark
@@ -33,7 +35,7 @@ struct SpectrumRenderBenchmark
             for (std::size_t field = 0; field < view.choices_.size(); ++field)
             {
                 auto& choice = view.choices_[field];
-                if (!choice.isEnabled())
+                if (!choice.isEnabled() || !choice.isVisible())
                     continue;
                 const auto count = choice.getNumItems();
                 for (int option = 0; option < count; ++option)
@@ -67,6 +69,19 @@ struct SpectrumRenderBenchmark
                 }
             }
         }
+        view.setDisplayGainDb(6);
+        if (view.settings_.topDb != -6 || std::abs(view.yAt(-6) - view.plot().getY()) > 0.01f)
+            return false;
+        for (int afterglow = 0; afterglow < 4; ++afterglow)
+        {
+            view.setAfterglow(afterglow);
+            if (view.settings_.curves[1].enabled != (afterglow != 0) ||
+                view.settings_.curves[0].style != 3 || view.settings_.curves[1].style != 0 ||
+                view.settings_.curves[1].colour != 1 ||
+                view.settings_.curves[0].rms != view.settings_.curves[1].rms ||
+                view.settings_.curves[0].smoothing != view.settings_.curves[1].smoothing)
+                return false;
+        }
         return true;
     }
     static bool bandDirtyRegionsMatchFull()
@@ -80,12 +95,16 @@ struct SpectrumRenderBenchmark
         view.snapshot_.peakDb.fill(-20);
         for (int step = 0; step < 8; ++step)
         {
+            view.setDisplayGainDb(step * 2);
+            view.setAfterglow(step % 4);
             auto before = view.createComponentSnapshot(view.getLocalBounds());
             const auto previous = view.snapshot_;
             for (std::size_t i = 0; i < spectrumBands; ++i)
             {
-                view.snapshot_.db[i] = static_cast<float>((static_cast<int>(i) * 13 + step * 19) % 100 - 80);
-                view.snapshot_.peakDb[i] = static_cast<float>((static_cast<int>(i) * 7 + step * 11) % 90 - 70);
+                view.snapshot_.db[i] =
+                    static_cast<float>((static_cast<int>(i) * 13 + step * 19) % 100 - 80);
+                view.snapshot_.peakDb[i] =
+                    static_cast<float>((static_cast<int>(i) * 7 + step * 11) % 90 - 70);
             }
             auto dirty = view.changedRegion(previous);
             {
@@ -98,7 +117,7 @@ struct SpectrumRenderBenchmark
             juce::Image::BitmapData b(full, juce::Image::BitmapData::readOnly);
             for (int y = 0; y < full.getHeight(); ++y)
                 if (std::memcmp(a.getLinePointer(y), b.getLinePointer(y),
-                        static_cast<std::size_t>(full.getWidth() * a.pixelStride)) != 0)
+                                static_cast<std::size_t>(full.getWidth() * a.pixelStride)) != 0)
                     return false;
         }
         return true;
@@ -202,6 +221,7 @@ void save(juce::Component& c, const juce::File& folder, const juce::String& name
     auto image = c.createComponentSnapshot(c.getLocalBounds(), true, 2.0f);
     auto out = folder.getChildFile(name).createOutputStream();
     check(out != nullptr, "Cannot write screenshot");
+    check(out->setPosition(0) && out->truncate().wasOk(), "Cannot replace previous screenshot");
     check(juce::PNGImageFormat().writeImageToStream(image, *out), "Cannot encode screenshot");
 }
 } // namespace
@@ -233,6 +253,7 @@ int main(int argc, char** argv)
         }
         const juce::File folder(argc > 1 ? juce::String(argv[1]) : "/private/tmp/visona-ui-checks");
         check(folder.createDirectory().wasOk(), "Cannot create output directory");
+        runStereoUiChecks(folder);
         check(visona::SpectrumRenderBenchmark::bandDirtyRegionsMatchFull(),
               "Band partial repaint differs from a complete redraw");
         check(visona::SpectrumRenderBenchmark::verifyControls(),

@@ -552,3 +552,7 @@ A lightweight log of decisions and open questions. The architecture is described
   Evaluated in milestone 11.
 - **Q-026 — In which order do the parts moved out of the MVP come back, and how do they fit the post-v1 order?**
   The candidates are the Pi work and sync precision; hotplug and reconnect came back with D-102. Manual BPM came back into the MVP (D-090).
+
+### Display gain and scope scale update (2026-10-17)
+
+Manual display gain now spans 0 to +64 dB. Auto gain retains 3 dB steps and its existing silence threshold. Scope references use consecutive 3 dB levels, without the former −18 dBFS cutoff (superseding D-088). Labels stop only when they would overlap; reference lines continue to pixel resolution. This updates the gain ceiling recorded in D-100.

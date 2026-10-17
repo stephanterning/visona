@@ -107,6 +107,11 @@ public:
         return busyNanoseconds_.load(std::memory_order_relaxed);
     }
 
+    StereoAnalyzer& stereo() noexcept
+    {
+        return pipeline_.stereo();
+    }
+
     SpectrumAnalyzer& spectrum() noexcept
     {
         return pipeline_.spectrum();

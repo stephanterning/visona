@@ -9,6 +9,7 @@
 #include "ui/SettingsPanel.h"
 #include "ui/SpectrumView.h"
 #include "ui/StatusBar.h"
+#include "ui/StereoView.h"
 #include "ui/Tooltips.h"
 #include "ui/ZoomOverview.h"
 
@@ -98,6 +99,7 @@ private:
     ScopeView scope_;
     SpectrumView spectrum_;
     BandSpectrumView bandSpectrum_;
+    StereoView stereo_;
     ControlBar controlBar_;
     Banner banner_;
     DiagnosticsOverlay diagnostics_;
