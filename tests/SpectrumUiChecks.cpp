@@ -12,6 +12,7 @@
 #include <random>
 
 void runStereoUiChecks(const juce::File& folder);
+void runAnalysisSelectorUiChecks();
 
 namespace visona
 {
@@ -254,6 +255,7 @@ int main(int argc, char** argv)
         const juce::File folder(argc > 1 ? juce::String(argv[1]) : "/private/tmp/visona-ui-checks");
         check(folder.createDirectory().wasOk(), "Cannot create output directory");
         runStereoUiChecks(folder);
+        runAnalysisSelectorUiChecks();
         check(visona::SpectrumRenderBenchmark::bandDirtyRegionsMatchFull(),
               "Band partial repaint differs from a complete redraw");
         check(visona::SpectrumRenderBenchmark::verifyControls(),

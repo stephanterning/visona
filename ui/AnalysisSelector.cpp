@@ -7,10 +7,44 @@ namespace visona
 namespace
 {
 const juce::StringArray viewNames{"Scope", "Spectrum (FFT)", "Spectrum (Band)", "Stereo"};
-}
+
+class SelectorButton : public juce::TextButton
+{
+public:
+    using juce::TextButton::TextButton;
+
+    void resetPress() noexcept
+    {
+        pressedSource_ = -1;
+    }
+
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        pressedSource_ = event.source.getIndex();
+        juce::TextButton::mouseDown(event);
+    }
+
+    void mouseUp(const juce::MouseEvent& event) override
+    {
+        if (pressedSource_ != event.source.getIndex())
+            return;
+        // Hover/exit events from another pointer can clear Button's visual down state
+        // during a touch. Match the press and release instead of relying on that state.
+        const bool picked = isShowing() && isEnabled() &&
+                            !isCurrentlyBlockedByAnotherModalComponent() &&
+                            getLocalBounds().toFloat().contains(event.position);
+        resetPress();
+        setState(picked ? buttonDown : buttonNormal);
+        juce::TextButton::mouseUp(event);
+    }
+
+private:
+    int pressedSource_ = -1;
+};
+} // namespace
 struct AnalysisSelector::Tiles final : juce::Component
 {
-    struct Tile final : juce::TextButton
+    struct Tile final : SelectorButton
     {
         int view = 0;
         void paintButton(juce::Graphics& g, bool over, bool down) override
@@ -61,7 +95,7 @@ struct AnalysisSelector::Tiles final : juce::Component
         }
     };
     std::vector<std::unique_ptr<Tile>> buttons;
-    juce::TextButton close{"Close"};
+    SelectorButton close{"Close"};
     std::function<void(int)> onPick;
     Tiles()
     {
@@ -170,8 +204,12 @@ void AnalysisSelector::showChoices()
         host->addAndMakeVisible(*tiles_);
         tiles_->setBounds(host->getLocalBounds());
         for (std::size_t i = 0; i < tiles_->buttons.size(); ++i)
+        {
+            tiles_->buttons[i]->resetPress();
             tiles_->buttons[i]->setToggleState(static_cast<int>(i) == selected_,
                                                juce::dontSendNotification);
+        }
+        tiles_->close.resetPress();
         tiles_->toFront(true);
         tiles_->setWantsKeyboardFocus(true);
         tiles_->grabKeyboardFocus();
