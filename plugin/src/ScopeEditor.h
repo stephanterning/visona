@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginState.h"
+#include "ui/BandSpectrumView.h"
 #include "ui/Banner.h"
 #include "ui/ColourSwatches.h"
 #include "ui/ControlBar.h"
@@ -71,6 +72,7 @@ private:
     ZoomOverview zoomOverview_;
     ScopeView scope_;
     SpectrumView spectrum_;
+    BandSpectrumView bandSpectrum_;
     ControlBar controlBar_;
     Banner banner_;
     DiagnosticsOverlay diagnostics_;

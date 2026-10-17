@@ -20,7 +20,9 @@ void SpectrumSettings::sanitize() noexcept
     {
         c.speed = std::clamp(c.speed, 0, 3);
         c.smoothing = std::clamp(c.smoothing, 0, 5);
-        c.style = std::clamp(c.style, 0, 2);
+        c.style = std::clamp(c.style, 0, 3);
+        if (c.style == 2)
+            c.style = 3;
         c.colour = std::clamp(c.colour, 0, 3);
         if (c.rms && c.speed == 3)
             c.speed = 2;
@@ -67,7 +69,8 @@ struct SpectrumAnalyzer::Impl
     std::size_t position = 0, filled = 0, sinceFft = 0;
     std::uint64_t nextFrame = 0, key = 0;
     unsigned resetRequest = 0;
-    bool active = false, first = true;
+    bool active = false;
+    std::array<bool, 2> first{true, true};
     Impl()
     {
         if (!plan)
@@ -84,7 +87,7 @@ struct SpectrumAnalyzer::Impl
     void clear() noexcept
     {
         position = filled = sinceFft = 0;
-        first = true;
+        first.fill(true);
         for (auto& e : envelope)
             e.fill(0.0f);
     }
@@ -163,6 +166,20 @@ struct SpectrumAnalyzer::Impl
         snapshot.valid = true;
         snapshot.frameEnd = nextFrame;
         snapshot.analysisKey = key;
+        // Both traces commonly use the same frequency smoothing. Sample the FFT
+        // once, then apply their independent peak/RMS envelopes to those powers.
+        std::array<std::array<float, spectrumPoints>, 2> sampled{};
+        for (std::size_t i = 0; i < spectrumPoints; ++i)
+        {
+            const auto frequency =
+                20.0 * std::pow(snapshot.maxFrequency / 20.0,
+                                static_cast<double>(i) / static_cast<double>(spectrumPoints - 1));
+            const auto bin = frequency * static_cast<double>(spectrumFftSize) / rate;
+            sampled[0][i] = valueAt(bin, settings.curves[0].smoothing);
+            sampled[1][i] = settings.curves[1].smoothing == settings.curves[0].smoothing
+                                ? sampled[0][i]
+                                : valueAt(bin, settings.curves[1].smoothing);
+        }
         constexpr std::array<double, 4> seconds{0.15, 0.5, 1.5, 1.5};
         for (std::size_t c = 0; c < 2; ++c)
         {
@@ -172,14 +189,10 @@ struct SpectrumAnalyzer::Impl
                          (rate * seconds[static_cast<std::size_t>(config.speed)])));
             for (std::size_t i = 0; i < spectrumPoints; ++i)
             {
-                const auto frequency = 20.0 * std::pow(snapshot.maxFrequency / 20.0,
-                                                       static_cast<double>(i) /
-                                                           static_cast<double>(spectrumPoints - 1));
-                const auto p = valueAt(frequency * static_cast<double>(spectrumFftSize) / rate,
-                                       config.smoothing);
+                const auto p = sampled[c][i];
                 auto& e = envelope[c][i];
                 if (config.rms)
-                    e = first ? p * 0.5f : decay * e + (1.0f - decay) * p * 0.5f;
+                    e = first[c] ? p * 0.5f : decay * e + (1.0f - decay) * p * 0.5f;
                 else
                 {
                     const auto amplitude = std::sqrt(std::max(p, 0.0f));
@@ -189,7 +202,7 @@ struct SpectrumAnalyzer::Impl
                 snapshot.db[c][i] = 20.0f * std::log10(std::max(amplitude, 1.0e-8f));
             }
         }
-        first = false;
+        first.fill(false);
     }
 };
 SpectrumAnalyzer::SpectrumAnalyzer()
@@ -213,6 +226,7 @@ void SpectrumAnalyzer::clearHold() noexcept
 }
 void SpectrumAnalyzer::reset(double sampleRate) noexcept
 {
+    bands_.reset(sampleRate);
     impl_->rate = std::isfinite(sampleRate) && sampleRate >= 80.0 ? sampleRate : 0.0;
     impl_->clear();
     impl_->active = false;
@@ -226,6 +240,7 @@ void SpectrumAnalyzer::reset(double sampleRate) noexcept
 void SpectrumAnalyzer::process(std::span<const float> left, std::span<const float> right,
                                std::uint64_t firstFrame) noexcept
 {
+    bands_.process(left, right, firstFrame);
     auto& s = *impl_;
     const auto enabled = enabled_.load(std::memory_order_relaxed);
     if (!enabled || s.rate <= 0.0)
@@ -235,8 +250,25 @@ void SpectrumAnalyzer::process(std::span<const float> left, std::span<const floa
     }
     const auto key = requested_.load(std::memory_order_relaxed);
     const auto resetRequest = resetRequests_.load(std::memory_order_relaxed);
-    if (!s.active || s.nextFrame != firstFrame || key != s.key || resetRequest != s.resetRequest)
+    if (!s.active || s.nextFrame != firstFrame)
         s.clear();
+    else if (key != s.key || resetRequest != s.resetRequest)
+    {
+        const auto previous = SpectrumSettings::fromAnalysisKey(s.key);
+        const auto next = SpectrumSettings::fromAnalysisKey(key);
+        for (std::size_t c = 0; c < 2; ++c)
+        {
+            // Response changes keep the current envelope (including entering Hold).
+            // Detector/bandwidth changes reset only that trace, never the other one.
+            if (resetRequest != s.resetRequest || previous.channel != next.channel ||
+                previous.curves[c].rms != next.curves[c].rms ||
+                previous.curves[c].smoothing != next.curves[c].smoothing)
+            {
+                s.envelope[c].fill(0.0f);
+                s.first[c] = true;
+            }
+        }
+    }
     s.active = true;
     s.key = key;
     s.resetRequest = resetRequest;

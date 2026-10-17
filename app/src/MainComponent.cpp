@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 namespace visona
 {
@@ -22,7 +23,8 @@ namespace visona
 namespace
 {
 
-constexpr int diagnosticsRefreshHz = 15;
+// Diagnostic readings change slowly; avoid repainting the overlay at audio-display rates.
+constexpr int diagnosticsRefreshHz = 4;
 constexpr int idleRefreshHz = 4;
 constexpr int margin = 12;
 constexpr int bannerWidth = 560;
@@ -53,6 +55,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     , kioskMode_(kioskMode)
     , scope_(engine.snapshots(), engine.layout())
     , spectrum_(engine.spectrum())
+    , bandSpectrum_(engine.spectrum().bands())
     , settingsPanel_(engine)
     , window_(defaultSweepWindow)
     , peaks_(engine.layout().totalChannelCount(), 0.0f)
@@ -69,6 +72,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     addChildComponent(zoomOverview_);
     addAndMakeVisible(scope_);
     addChildComponent(spectrum_);
+    addChildComponent(bandSpectrum_);
     addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
     addChildComponent(diagnostics_);
@@ -78,7 +82,10 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     controlBar_.viewSelector().onSelect = [this](int view) { setAnalysisView(view); };
     controlBar_.onSpectrumSettings = [this]
     {
-        spectrum_.showSettings(!spectrum_.settingsVisible());
+        if (analysisView_ == 2)
+            bandSpectrum_.resetPeaks();
+        else
+            spectrum_.showSettings(!spectrum_.settingsVisible());
         updateBanner();
     };
     controlBar_.viewSelector().setTouchMode(kioskMode_);
@@ -125,6 +132,8 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
         settings_.waveformColour(palette::waveformColours.size(), palette::defaultWaveformColour);
     settingsPanel_.setWaveformColour(colour);
     scope_.setWaveformColour(palette::waveformColours[colour].colour);
+    spectrum_.setWaveformColour(palette::waveformColours[colour].colour);
+    bandSpectrum_.setWaveformColour(palette::waveformColours[colour].colour);
     setAutoGain(settings_.autoGain());
 
     // The kiosk window always covers its display.
@@ -186,6 +195,7 @@ void MainComponent::resized()
     area.removeFromBottom(scaledHeight);
     scope_.setBounds(area);
     spectrum_.setBounds(area);
+    bandSpectrum_.setBounds(area);
 
     banner_.setBounds(
         juce::Rectangle<int>(std::min(bannerWidth, area.getWidth() - 2 * margin), bannerHeight)
@@ -239,9 +249,10 @@ float MainComponent::fitControlBar()
 
 bool MainComponent::keyPressed(const juce::KeyPress& key)
 {
-    if (key.getModifiers().isAltDown() && (key.isKeyCode('1') || key.isKeyCode('2')))
+    if (key.getModifiers().isAltDown() &&
+        (key.isKeyCode('1') || key.isKeyCode('2') || key.isKeyCode('3')))
     {
-        setAnalysisView(key.isKeyCode('2') ? 1 : 0);
+        setAnalysisView(key.isKeyCode('3') ? 2 : key.isKeyCode('2') ? 1 : 0);
         return true;
     }
     if (!key.getModifiers().isAnyModifierKeyDown() &&
@@ -334,10 +345,11 @@ void MainComponent::timerCallback()
 
 void MainComponent::setAnalysisView(int view)
 {
-    analysisView_ = view == 1 ? 1 : 0;
+    analysisView_ = std::clamp(view, 0, 2);
     scope_.setVisible(analysisView_ == 0);
     spectrum_.setActive(analysisView_ == 1);
-    controlBar_.setSpectrum(analysisView_ == 1);
+    bandSpectrum_.setActive(analysisView_ == 2);
+    controlBar_.setAnalysisView(analysisView_);
     settings_.setAnalysisView(analysisView_);
     updateBanner();
     updateZoom();
@@ -407,7 +419,7 @@ void MainComponent::runFree()
 
 void MainComponent::pressPauseButton()
 {
-    if (analysisView_ == 1)
+    if (analysisView_ != 0)
     {
         setPaused(!scope_.isPaused());
         return;
@@ -426,6 +438,7 @@ void MainComponent::setPaused(bool paused)
     engine_.setPaused(paused);
     scope_.setPaused(paused);
     spectrum_.setPaused(paused);
+    bandSpectrum_.setPaused(paused);
     updateBanner();
     updateStatus();
 }
@@ -442,6 +455,8 @@ void MainComponent::setWaveformColour(std::size_t index)
 {
     index = std::min(index, palette::waveformColours.size() - 1);
     scope_.setWaveformColour(palette::waveformColours[index].colour);
+    spectrum_.setWaveformColour(palette::waveformColours[index].colour);
+    bandSpectrum_.setWaveformColour(palette::waveformColours[index].colour);
     settingsPanel_.setWaveformColour(index);
     settings_.setWaveformColour(index);
 }
@@ -588,12 +603,14 @@ void MainComponent::updateStatus()
     }
     if (inputRunning_ && sampleRate_ > 0.0)
         values.sampleRate = formatSampleRate(sampleRate_);
-    values.window = analysisView_ == 1 ? "SPECTRUM" : WindowControl::describe(window_);
+    values.window = analysisView_ == 2   ? "SPECTRUM (BAND)"
+                    : analysisView_ == 1 ? "SPECTRUM (FFT)"
+                                         : WindowControl::describe(window_);
     if (analysisView_ == 0)
         values.gain = GainControl::format(gainDb_, autoGainOn_);
     if (analysisView_ == 0 && scope_.zoom().isZoomed())
         values.zoom = ZoomOverview::describe(scope_.zoom(), snapshot);
-    if (analysisView_ == 1 && inputRunning_ && !scope_.isPaused())
+    if (analysisView_ != 0 && inputRunning_ && !scope_.isPaused())
     {
         values.state = "LIVE";
         values.stateIsError = false;
@@ -630,6 +647,36 @@ void MainComponent::updateDiagnostics()
     if (cpuSeconds.has_value() && lastCpuSeconds_.has_value())
         processCpu = (*cpuSeconds - *lastCpuSeconds_) / elapsed;
     lastCpuSeconds_ = cpuSeconds;
+
+    // Opt-in, low-frequency telemetry on the message thread; never in the audio callback.
+    if (performanceLogging_)
+    {
+        performanceElapsed_ += elapsed;
+        performanceCpu_ += processCpu.value_or(0.0) * elapsed;
+        performanceAnalysis_ += analysisLoad * elapsed;
+        if (performanceElapsed_ >= 2.0)
+        {
+            const auto spectrumStats =
+                analysisView_ == 2 ? bandSpectrum_.stats() : spectrum_.stats();
+            const auto scopeStats = scope_.stats();
+            const bool spectrum = analysisView_ != 0;
+            std::fprintf(stderr,
+                         "VISONA_PERF {\"time_ms\":%lld,\"view\":\"%s\",\"fps\":%.2f,"
+                         "\"render_ms\":%.2f,\"paint_ms\":%.2f,\"cpu_percent\":%.2f,"
+                         "\"analysis_percent\":%.2f,\"diagnostics\":%s}\n",
+                         static_cast<long long>(juce::Time::currentTimeMillis()),
+                         analysisView_ == 2 ? "spectrum-band"
+                         : spectrum         ? "spectrum-fft"
+                                            : "scope",
+                         spectrum ? spectrumStats.framesPerSecond : scopeStats.framesPerSecond,
+                         spectrum ? spectrumStats.renderMsAverage : scopeStats.renderMsAverage,
+                         spectrum ? spectrumStats.paintMsAverage : scopeStats.paintMsAverage,
+                         100.0 * performanceCpu_ / performanceElapsed_,
+                         100.0 * performanceAnalysis_ / performanceElapsed_,
+                         diagnostics_.isVisible() ? "true" : "false");
+            performanceElapsed_ = performanceCpu_ = performanceAnalysis_ = 0.0;
+        }
+    }
 
     std::optional<std::uint64_t> callbackAllocations;
     if constexpr (RealtimeAllocationCheck::enabled)
@@ -674,6 +721,19 @@ void MainComponent::updateDiagnostics()
     values.allocationCheckWorks = allocationCheckWorks_;
     values.analysisLoad = analysisLoad;
     values.rendering = scope_.stats();
+    if (analysisView_ != 0)
+    {
+        const auto stats = analysisView_ == 2 ? bandSpectrum_.stats() : spectrum_.stats();
+        values.rendering = {};
+        values.rendering.framesPerSecond = stats.framesPerSecond;
+        values.rendering.renderMsAverage = stats.renderMsAverage;
+        values.rendering.renderMsMax = stats.renderMsMax;
+        values.rendering.paintMsAverage = stats.paintMsAverage;
+        values.rendering.paintMsMax = stats.paintMsMax;
+        values.rendering.imageWidth = stats.imageWidth;
+        values.rendering.imageHeight = stats.imageHeight;
+        values.rendering.scale = stats.scale;
+    }
     values.processCpu = processCpu;
 
     const auto& snapshot = scope_.snapshot();

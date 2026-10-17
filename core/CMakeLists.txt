@@ -5,6 +5,8 @@ target_include_directories(visona_fft SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/third
 # Plain C++20 with no JUCE dependency, so it builds and tests anywhere.
 
 add_library(visona_core STATIC
+    src/BandAnalyzer.cpp
+    include/visona/BandAnalyzer.h
     src/SpectrumAnalyzer.cpp
     include/visona/SpectrumAnalyzer.h
     include/visona/AnalysisPipeline.h

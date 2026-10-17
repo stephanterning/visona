@@ -52,6 +52,12 @@ ControlBar::ControlBar()
     setStep(ChromeStep::wide);
 }
 
+void ControlBar::setAnalysisView(int view)
+{
+    setSpectrum(view != 0);
+    view_.setView(view);
+    spectrumSettings_.setButtonText(view == 2 ? "Reset peaks" : "Analysis settings");
+}
 void ControlBar::setSpectrum(bool enabled)
 {
     spectrum_ = enabled;
@@ -200,7 +206,7 @@ std::array<int, ControlBar::numGroups> ControlBar::groupWidths() const
         if (button->isVisible())
             buttons +=
                 (buttons > 0 ? metrics.gap : 0) + button->preferredWidth(metrics.controlHeight);
-    return {130,
+    return {190,
             pauseVisible_ ? pause_.preferredWidth(metrics.controlHeight) : 0,
             spectrum_ ? 0 : window_.preferredWidth(metrics.controlHeight),
             tempoVisible_ && !spectrum_ ? tempo_.preferredWidth(metrics.controlHeight) : 0,

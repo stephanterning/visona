@@ -6,6 +6,7 @@ FetchContent_Declare(Catch2
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(visona_core_tests
+    BandAnalyzerTests.cpp
     SpectrumAnalyzerTests.cpp
     AllocationCounterTests.cpp
     AnalysisPipelineTests.cpp

@@ -176,6 +176,7 @@ TEST_CASE("Spectrum settings round trip only analysis values and sanitize invali
     REQUIRE(s.channel == 0);
     REQUIRE(s.curves[0].smoothing == 5);
     REQUIRE(s.curves[0].speed == 2);
+    REQUIRE(s.curves[1].style == 3);
 }
 TEST_CASE("Spectrum processing and reconfiguration allocate no storage", "[spectrum][realtime]")
 {
@@ -316,4 +317,165 @@ TEST_CASE("Spectrum publishes coherent snapshots during concurrent settings chan
     consumer.join();
     REQUIRE(valid.load());
     REQUIRE(received.load() > 0);
+}
+
+TEST_CASE("Shared smoothing preserves independent trace detection", "[spectrum]")
+{
+    const auto samples = sine(48000, 997.0, 0.7f);
+    for (const bool rms : {false, true})
+        for (int smoothing = 0; smoothing <= 5; ++smoothing)
+        {
+            SpectrumSettings shared;
+            shared.curves[0].smoothing = smoothing;
+            shared.curves[1].smoothing = smoothing;
+            shared.curves[1].rms = rms;
+            const auto reused = analyze(samples, samples, 48000, shared);
+            auto independent = shared;
+            independent.curves[0].smoothing = (smoothing + 1) % 6;
+            const auto separate = analyze(samples, samples, 48000, independent);
+            REQUIRE(reused.db[1] == separate.db[1]);
+        }
+}
+
+TEST_CASE("Editing one trace preserves the other trace's held peaks", "[spectrum]")
+{
+    for (std::size_t heldCurve : {0U, 1U})
+    {
+        SpectrumAnalyzer analyzer;
+        SpectrumSettings settings;
+        settings.curves[heldCurve].speed = 3;
+        analyzer.reset(48000);
+        analyzer.setEnabled(true);
+        analyzer.setSettings(settings);
+        auto tone = sine(48000, 997.0);
+        analyzer.process(tone, tone, 0);
+        analyzer.snapshots().fetch();
+        std::vector<float> silence(tone.size());
+        analyzer.process(silence, silence, tone.size());
+        analyzer.snapshots().fetch();
+        const auto held = analyzer.snapshots().readBuffer().db[heldCurve];
+        settings.curves[1 - heldCurve].rms = true;
+        settings.curves[1 - heldCurve].smoothing = 5;
+        analyzer.setSettings(settings);
+        analyzer.process(silence, silence, tone.size() * 2);
+        REQUIRE(analyzer.snapshots().fetch());
+        REQUIRE(analyzer.snapshots().readBuffer().db[heldCurve] == held);
+    }
+}
+
+TEST_CASE("Spectrum response times match their detector and both curves", "[spectrum]")
+{
+    constexpr std::array<double, 3> seconds{0.15, 0.5, 1.5};
+    for (double rate : {44100.0, 48000.0, 96000.0})
+        for (bool rms : {false, true})
+            for (int speed = 0; speed < 3; ++speed)
+            {
+                SpectrumAnalyzer analyzer;
+                SpectrumSettings settings;
+                for (auto& curve : settings.curves)
+                {
+                    curve.rms = rms;
+                    curve.speed = speed;
+                    curve.smoothing = 0;
+                }
+                analyzer.reset(rate);
+                analyzer.setEnabled(true);
+                analyzer.setSettings(settings);
+                auto tone = sine(rate, rate * 340 / spectrumFftSize);
+                analyzer.process(tone, tone, 0);
+                std::vector<float> silence(spectrumFftSize);
+                analyzer.process(silence, silence, tone.size());
+                analyzer.snapshots().fetch();
+                const auto before = analyzer.snapshots().readBuffer();
+                silence.resize(spectrumHopSize * 4);
+                analyzer.process(silence, silence, tone.size() + spectrumFftSize);
+                REQUIRE(analyzer.snapshots().fetch());
+                const auto after = analyzer.snapshots().readBuffer();
+                const auto elapsed = static_cast<double>(after.frameEnd - before.frameEnd) / rate;
+                const auto expected = (rms ? -10.0 : -20.0) * std::log10(std::exp(1.0)) * elapsed /
+                                      seconds[static_cast<std::size_t>(speed)];
+                for (std::size_t c : {0U, 1U})
+                    REQUIRE(maximum(after, c) - maximum(before, c) ==
+                            Catch::Approx(expected).margin(0.01));
+            }
+}
+
+TEST_CASE("RMS attack differs by speed while Peak attack is immediate", "[spectrum]")
+{
+    for (bool rms : {false, true})
+    {
+        SpectrumAnalyzer analyzer;
+        SpectrumSettings settings;
+        settings.curves[0].rms = settings.curves[1].rms = rms;
+        settings.curves[0].speed = 0;
+        settings.curves[1].speed = 2;
+        analyzer.reset(48000);
+        analyzer.setSettings(settings);
+        analyzer.setEnabled(true);
+        std::vector<float> silence(spectrumFftSize);
+        analyzer.process(silence, silence, 0);
+        const auto tone = sine(48000, 997.0, 0.7f, spectrumFftSize);
+        analyzer.process(tone, tone, silence.size());
+        REQUIRE(analyzer.snapshots().fetch());
+        const auto snapshot = analyzer.snapshots().readBuffer();
+        if (rms)
+            REQUIRE(maximum(snapshot, 0) > maximum(snapshot, 1) + 5.0f);
+        else
+            REQUIRE(maximum(snapshot, 0) == Catch::Approx(maximum(snapshot, 1)).margin(0.01));
+    }
+}
+
+TEST_CASE("Response changes preserve the current envelope without refilling the FFT", "[spectrum]")
+{
+    SpectrumAnalyzer analyzer;
+    SpectrumSettings settings;
+    analyzer.reset(48000);
+    analyzer.setEnabled(true);
+    analyzer.setSettings(settings);
+    auto tone = sine(48000, 997.0);
+    analyzer.process(tone, tone, 0);
+    std::vector<float> silence(spectrumFftSize);
+    analyzer.process(silence, silence, tone.size());
+    analyzer.snapshots().fetch();
+    const auto before = analyzer.snapshots().readBuffer();
+    settings.curves[0].speed = settings.curves[1].speed = 3;
+    analyzer.setSettings(settings);
+    silence.resize(spectrumHopSize);
+    analyzer.process(silence, silence, tone.size() + spectrumFftSize);
+    REQUIRE(analyzer.snapshots().fetch());
+    REQUIRE(analyzer.snapshots().readBuffer().db == before.db);
+}
+
+TEST_CASE("Every octave smoothing setting matches a known tone's spectral power", "[spectrum]")
+{
+    constexpr double rate = 48000.0;
+    constexpr double toneBin = 1000.0;
+    const double frequency = toneBin * rate / spectrumFftSize;
+    const auto samples = sine(rate, frequency, 0.5f);
+    const auto index = static_cast<std::size_t>(
+        std::round(std::log(frequency / 20.0) / std::log(20000.0 / 20.0) * (spectrumPoints - 1)));
+    const auto bin = 20.0 * std::pow(1000.0, static_cast<double>(index) / (spectrumPoints - 1)) *
+                     spectrumFftSize / rate;
+    constexpr std::array<double, 5> octaves{1.0 / 24, 1.0 / 12, 1.0 / 6, 1.0 / 3, 1.0};
+    for (std::size_t smoothing = 0; smoothing < octaves.size(); ++smoothing)
+    {
+        SpectrumSettings settings;
+        for (auto& curve : settings.curves)
+            curve.smoothing = static_cast<int>(smoothing + 1);
+        const auto snapshot = analyze(samples, samples, rate, settings);
+        const auto low = bin * std::exp2(-octaves[smoothing] / 2);
+        const auto high = bin * std::exp2(octaves[smoothing] / 2);
+        // A bin-centred Hann-windowed sine has power in exactly three FFT bins.
+        double sum = 0;
+        for (int offset : {-1, 0, 1})
+        {
+            const auto centre = toneBin + offset;
+            const auto overlap =
+                std::max(0.0, std::min(high, centre + 0.5) - std::max(low, centre - 0.5));
+            sum += overlap * (offset == 0 ? 0.25 : 0.0625);
+        }
+        const auto expectedDb = 10.0 * std::log10(sum / (high - low));
+        for (std::size_t curve : {0U, 1U})
+            REQUIRE(snapshot.db[curve][index] == Catch::Approx(expectedDb).margin(0.02));
+    }
 }

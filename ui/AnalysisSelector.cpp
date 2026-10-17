@@ -6,7 +6,7 @@ namespace visona
 {
 namespace
 {
-const juce::StringArray viewNames{"Scope", "Spectrum"};
+const juce::StringArray viewNames{"Scope", "Spectrum (FFT)", "Spectrum (Band)"};
 }
 struct AnalysisSelector::Tiles final : juce::Component
 {
@@ -36,7 +36,19 @@ struct AnalysisSelector::Tiles final : juce::Component
                     p.lineTo(icon.getX() + x * icon.getWidth(), icon.getY() + y * icon.getHeight());
             }
             g.setColour(juce::Colour(0xff79ddc6).withAlpha(down ? 0.6f : over ? 1.0f : 0.85f));
-            g.strokePath(p, juce::PathStrokeType(2.0f));
+            if (view == 2)
+            {
+                for (int i = 0; i < 12; ++i)
+                {
+                    const auto height =
+                        icon.getHeight() *
+                        (0.25f + 0.65f * std::abs(std::sin(static_cast<float>(i) * 0.37f)));
+                    g.fillRect(icon.getX() + static_cast<float>(i) * icon.getWidth() / 12,
+                               icon.getBottom() - height, icon.getWidth() / 12 - 3, height);
+                }
+            }
+            else
+                g.strokePath(p, juce::PathStrokeType(2.0f));
         }
     };
     std::vector<std::unique_ptr<Tile>> buttons;
@@ -107,7 +119,7 @@ struct AnalysisSelector::Tiles final : juce::Component
 AnalysisSelector::AnalysisSelector()
 {
     setView(0);
-    setTooltip("Analysis view (V). Alt+1: Scope; Alt+2: Spectrum.");
+    setTooltip("Analysis view (V). Alt+1: Scope; Alt+2: Spectrum (FFT); Alt+3: Spectrum (Band).");
     onClick = [this] { showChoices(); };
 }
 AnalysisSelector::~AnalysisSelector() = default;

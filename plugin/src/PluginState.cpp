@@ -100,7 +100,9 @@ void PluginInstanceState::writeTo(juce::XmlElement& root) const
 
 void PluginInstanceState::readFrom(const juce::XmlElement& root, PluginGlobalDefaults& defaults)
 {
-    analysisView = root.getIntAttribute("analysisView", 0) == 1 ? 1 : 0;
+    analysisView = root.getIntAttribute("analysisView", 0);
+    if (analysisView < 0 || analysisView > 2)
+        analysisView = 0;
     spectrumSettings = root.getStringAttribute("spectrumSettings");
     gainDb = DisplayGain::clampDb(root.getIntAttribute("gainDb", gainDb));
     autoGain = root.getBoolAttribute("autoGain", false);

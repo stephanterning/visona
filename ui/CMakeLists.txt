@@ -2,6 +2,8 @@
 # must compile the JUCE modules exactly once.
 
 set(visona_ui_sources
+    BandSpectrumView.cpp
+    BandSpectrumView.h
     SpectrumView.cpp
     SpectrumView.h
     AnalysisSelector.cpp

@@ -36,6 +36,7 @@ public:
         return view_;
     }
     void setSpectrum(bool enabled);
+    void setAnalysisView(int view);
     std::function<void()> onSpectrumSettings;
 
     [[nodiscard]] WindowControl& window() noexcept

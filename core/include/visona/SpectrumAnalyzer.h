@@ -1,5 +1,6 @@
 #pragma once
 
+#include <visona/BandAnalyzer.h>
 #include <visona/TripleBuffer.h>
 
 #include <array>
@@ -11,7 +12,8 @@
 namespace visona
 {
 constexpr std::size_t spectrumPoints = 768;
-constexpr std::size_t spectrumFftSize = 16384;
+// Pi-validated compromise: 170.7 ms window and 5.86 Hz bin spacing at 48 kHz.
+constexpr std::size_t spectrumFftSize = 8192;
 constexpr std::size_t spectrumHopSize = 1024;
 
 struct SpectrumCurveSettings
@@ -20,7 +22,7 @@ struct SpectrumCurveSettings
     bool rms = false;
     int speed = 0;     // Fast, Medium, Slow, Hold (peak only).
     int smoothing = 2; // Raw, 1/24, 1/12, 1/6, 1/3, 1 octave.
-    int style = 2;     // Line, Fill, Glow.
+    int style = 3;     // Line = 0, Fill = 1, Solid = 3; legacy 2 migrates to Solid.
     int colour = 0;    // Spectrum, White, Blue, Orange.
 };
 
@@ -58,6 +60,10 @@ public:
     ~SpectrumAnalyzer();
     SpectrumAnalyzer(const SpectrumAnalyzer&) = delete;
     SpectrumAnalyzer& operator=(const SpectrumAnalyzer&) = delete;
+    BandAnalyzer& bands() noexcept
+    {
+        return bands_;
+    }
     void setEnabled(bool enabled) noexcept;
     void setSettings(const SpectrumSettings& settings) noexcept;
     void clearHold() noexcept;
@@ -71,6 +77,7 @@ public:
     }
 
 private:
+    BandAnalyzer bands_;
     struct Impl;
     std::unique_ptr<Impl> impl_;
     TripleBuffer<SpectrumSnapshot> snapshots_;

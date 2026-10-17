@@ -22,7 +22,8 @@ public:
     Settings();
     int analysisView() const
     {
-        return properties_.getIntValue("analysisView", 0) == 1 ? 1 : 0;
+        const auto view = properties_.getIntValue("analysisView", 0);
+        return view >= 0 && view <= 2 ? view : 0;
     }
     void setAnalysisView(int view)
     {
