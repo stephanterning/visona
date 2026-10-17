@@ -24,4 +24,11 @@ struct PolarLevel
     No display gain, gating, temporal state or allocation. Invalid input rejects
     the complete window rather than silently biasing the denominator. */
 PolarLevel polarLevel(std::span<const StereoSample> samples) noexcept;
+/** Directional RMS using linear angular weights between adjacent centres.
+    Each bin divides weighted radius squared by max(weight sum, 1% of window
+    sample count). The support floor attenuates rare directions and includes
+    silent samples in its window size. Peak is the maximum radius with positive
+    angular weight. No endpoint wrapping, temporal state, gain or allocation.
+    Same radius and invalid-input rules as polarLevel(). */
+PolarLevel polarDirectionalLevel(std::span<const StereoSample> samples) noexcept;
 } // namespace visona

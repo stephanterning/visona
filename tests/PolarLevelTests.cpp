@@ -148,8 +148,16 @@ TEST_CASE("Polar Level has sample-rate-independent RMS and performs no allocatio
         }
         test::AllocationCounter allocations;
         const auto result = polarLevel(samples);
+        const auto directional = polarDirectionalLevel(samples);
         const auto allocated = allocations.count();
         REQUIRE(allocated == 0);
+        // Exact zero samples have no direction and contribute no angular support.
+        const auto nonzero = std::count_if(samples.begin(), samples.end(),
+                                           [](auto sample) { return sample.left != 0; });
+        REQUIRE(directional.rms[36] ==
+                Catch::Approx(result.rms[36] * std::sqrt(static_cast<double>(samples.size()) /
+                                                         static_cast<double>(nonzero)))
+                    .margin(1e-7));
         REQUIRE(result.rms[36] == Catch::Approx(std::sqrt(0.125)).margin(1e-7));
         REQUIRE(result.peak[36] == Catch::Approx(0.5).margin(1e-5));
     }
@@ -175,4 +183,55 @@ TEST_CASE("Polar Level quantizes angular boundaries without dropping energy",
             REQUIRE(std::accumulate(result.rms.begin(), result.rms.end(), 0.0) ==
                     Catch::Approx(radius));
         }
+}
+
+TEST_CASE("Directional level separates level from angular occupancy", "[stereo][polar-level]")
+{
+    std::vector<StereoSample> samples(1000, {0.5f, 0.5f});
+    std::fill_n(samples.begin(), 40, StereoSample{0.5f, 0.0f});
+    const auto directional = polarDirectionalLevel(samples);
+    const auto energy = polarLevel(samples);
+    REQUIRE(directional.valid);
+    REQUIRE(directional.rms[18] == Catch::Approx(0.5));
+    REQUIRE(energy.rms[18] == Catch::Approx(0.1));
+    REQUIRE(directional.rms[36] == Catch::Approx(0.5));
+    samples.assign(1000, {});
+    samples[0] = {1, 1};
+    REQUIRE(polarDirectionalLevel(samples).rms[36] == Catch::Approx(std::sqrt(0.1)));
+    REQUIRE(polarDirectionalLevel(samples).peak[36] == 1);
+    samples.push_back({std::numeric_limits<float>::quiet_NaN(), 0});
+    REQUIRE_FALSE(polarDirectionalLevel(samples).valid);
+    REQUIRE_FALSE(polarDirectionalLevel({}).valid);
+}
+
+TEST_CASE("Directional level interpolates angular support and preserves scaling",
+          "[stereo][polar-level]")
+{
+    // Independent geometry: direction halfway between centre bins 40 and 41.
+    const double angle = 11.25 * std::numbers::pi / 180;
+    const double mid = std::cos(angle), side = std::sin(angle);
+    const StereoSample sample{static_cast<float>((mid - side) / (mid + side)), 1};
+    std::vector<StereoSample> samples(1000);
+    samples[0] = sample;
+    const auto result = polarDirectionalLevel(samples);
+    REQUIRE(result.rms[40] == Catch::Approx(std::sqrt(0.05)).margin(1e-6));
+    REQUIRE(result.rms[41] == Catch::Approx(std::sqrt(0.05)).margin(1e-6));
+    for (auto& value : samples)
+    {
+        value.left *= -0.25f;
+        value.right *= -0.25f;
+    }
+    const auto scaled = polarDirectionalLevel(samples);
+    for (std::size_t i = 0; i < polarLevelBins; ++i)
+    {
+        REQUIRE(scaled.rms[i] == Catch::Approx(result.rms[i] * 0.25).margin(1e-8));
+        REQUIRE(scaled.rms[i] <= scaled.peak[i]);
+    }
+    const auto copy = samples;
+    samples.insert(samples.end(), copy.begin(), copy.end());
+    REQUIRE(polarDirectionalLevel(samples).rms == scaled.rms);
+    samples.assign(1000, {});
+    const auto silence = polarDirectionalLevel(samples);
+    REQUIRE(silence.valid);
+    REQUIRE(std::accumulate(silence.rms.begin(), silence.rms.end(), 0.0) == 0);
 }

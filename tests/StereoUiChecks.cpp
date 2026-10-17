@@ -157,6 +157,13 @@ struct StereoUiChecks
         check(view.frames_ == framesBeforePolling,
               "Polling without fresh audio inflated the frame count");
         save(preview, folder, "stereo-level-desktop.png");
+        view.levelProfile_.setSelectedItemIndex(1, juce::sendNotificationSync);
+        save(preview, folder, "stereo-level-energy-desktop.png");
+        const auto energySettings = view.saveSettings();
+        view.resetView();
+        view.restoreSettings(energySettings);
+        check(view.levelProfile_.getSelectedItemIndex() == 1, "Level profile did not round trip");
+        view.levelProfile_.setSelectedItemIndex(0, juce::sendNotificationSync);
         preview.setSize(800, 480);
         save(preview, folder, "stereo-level-touch.png");
         preview.setSize(1280, 720);

@@ -214,6 +214,23 @@ v1 beat-synced scope (Mac + Pi appliance)
 
 **The order follows real usage.** If the scope turns out to be extremely useful, improving the scope beats mechanically moving on to the next module.
 
+### Stereo follow-up: Polar Level visualization
+
+**Open, unscheduled (milestone 10).** Polar Level needs further design and
+validation to find a visualization that works well and communicates the
+information users want from it. The current implementation is a working
+experiment, not a settled visualization design. Numerical correctness alone
+is not sufficient acceptance: the meaning of direction, radial level, fill,
+outline and history must be understandable and useful with real music.
+
+Clarify the intended reading with the maintainer, then compare controlled
+signals and music against the current profiles and iZotope. Preserve correct
+measurements and signal validity while evaluating level mapping, angular
+aggregation and temporal behavior separately. An exact iZotope clone is not the
+goal. See [the comparison findings and agent handoff](stereo.md#polar-level-comparison-findings-and-agent-handoff-2026-10-17)
+for evidence, unresolved questions and suggested experiments. Pi performance
+checks should normally last 30 seconds; 60 FPS is a target, not a hard gate.
+
 ## 6. Later, unscheduled
 
 The architecture should allow these, but they are not planned yet:

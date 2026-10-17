@@ -45,8 +45,26 @@ StereoView::StereoView(StereoAnalyzer& analyzer)
             levelDirections_[i][edge] = {static_cast<float>(std::sin(angle)),
                                          static_cast<float>(std::cos(angle))};
         }
-    levelFill_.preallocateSpace(static_cast<int>(polarLevelBins * 6 + 8));
-    levelPeak_.preallocateSpace(static_cast<int>(polarLevelBins * 6 + 8));
+    for (std::size_t i = 0; i < smoothDirections_.size(); ++i)
+    {
+        const double angle =
+            -juce::MathConstants<double>::halfPi + static_cast<double>(i) * step / 4;
+        smoothDirections_[i] = {static_cast<float>(std::sin(angle)),
+                                static_cast<float>(std::cos(angle))};
+    }
+    addChildComponent(levelProfile_);
+    levelProfile_.addItem("Directional level", 1);
+    levelProfile_.addItem("Energy contribution", 2);
+    levelProfile_.setSelectedItemIndex(0, juce::dontSendNotification);
+    levelProfile_.setTooltip("Directional RMS with sparse-direction attenuation, or the original "
+                             "whole-window energy contribution. Fill: RMS; outline: peak.");
+    levelProfile_.onChange = [this]
+    {
+        clearHistory();
+        changed();
+    };
+    levelFill_.preallocateSpace(static_cast<int>(smoothDirections_.size() * 3 + 8));
+    levelPeak_.preallocateSpace(static_cast<int>(smoothDirections_.size() * 3 + 8));
     addAndMakeVisible(polar_);
     addAndMakeVisible(lissajous_);
     addAndMakeVisible(level_);
@@ -71,7 +89,7 @@ StereoView::StereoView(StereoAnalyzer& analyzer)
     polar_.onClick = [this] { selectMode(0); };
     lissajous_.onClick = [this] { selectMode(1); };
     level_.onClick = [this] { selectMode(2); };
-    level_.setTooltip("Angular RMS contribution (fill) and peak (outline) over 100 ms, with "
+    level_.setTooltip("Angular RMS (fill) and peak (outline) over 100 ms, with "
                       "adjustable display release.");
     polar_.setTooltip("Folded sample view. Mono is vertical; opposite polarity reaches the sides.");
     lissajous_.setTooltip("Signed M/S view. Mono is vertical; opposite polarity is horizontal.");
@@ -149,6 +167,7 @@ void StereoView::selectMode(int mode)
     lissajous_.setToggleState(mode_ == 1, juce::dontSendNotification);
     level_.setToggleState(mode_ == 2, juce::dontSendNotification);
     persistence_.setEnabled(mode_ != 1);
+    levelProfile_.setVisible(mode_ == 2);
     changed();
 }
 void StereoView::clearHistory()
@@ -168,25 +187,31 @@ void StereoView::resetView()
 {
     gain_.setSelectedItemIndex(2, juce::dontSendNotification);
     persistence_.setSelectedItemIndex(2, juce::dontSendNotification);
+    levelProfile_.setSelectedItemIndex(0, juce::dontSendNotification);
     selectMode(0);
 }
 juce::String StereoView::saveSettings() const
 {
     return juce::String(mode_) + "," + juce::String(gain_.getSelectedItemIndex()) + "," +
-           juce::String(persistence_.getSelectedItemIndex());
+           juce::String(persistence_.getSelectedItemIndex()) + "," +
+           juce::String(levelProfile_.getSelectedItemIndex());
 }
 void StereoView::restoreSettings(const juce::String& text)
 {
     const auto fields = juce::StringArray::fromTokens(text, ",", "");
-    if ((fields.size() != 2 && fields.size() != 3) || fields[0].containsOnly("012") == false ||
+    if ((fields.size() < 2 || fields.size() > 4) || fields[0].containsOnly("012") == false ||
         fields[0].length() != 1 || fields[1].isEmpty() || !fields[1].containsOnly("0123456789"))
         return;
     const int gain = fields[1].getIntValue();
     if (gain < 0 || gain >= static_cast<int>(gains.size()))
         return;
-    if (fields.size() == 3 && (fields[2].length() != 1 || !fields[2].containsOnly("0123")))
+    if (fields.size() >= 3 && (fields[2].length() != 1 || !fields[2].containsOnly("0123")))
         return;
-    persistence_.setSelectedItemIndex(fields.size() == 3 ? fields[2].getIntValue() : 2,
+    if (fields.size() == 4 && (fields[3].length() != 1 || !fields[3].containsOnly("01")))
+        return;
+    levelProfile_.setSelectedItemIndex(fields.size() == 4 ? fields[3].getIntValue() : 0,
+                                       juce::dontSendNotification);
+    persistence_.setSelectedItemIndex(fields.size() >= 3 ? fields[2].getIntValue() : 2,
                                       juce::dontSendNotification);
     gain_.setSelectedItemIndex(gain, juce::dontSendNotification);
     selectMode(fields[0].getIntValue());
@@ -201,6 +226,7 @@ juce::Rectangle<float> StereoView::plot() const
 }
 void StereoView::resized()
 {
+    levelProfile_.setBounds(16, 54, 190, 26);
     auto row = getLocalBounds().reduced(16).removeFromTop(36);
     polar_.setBounds(row.removeFromLeft(128));
     row.removeFromLeft(6);
@@ -460,9 +486,12 @@ void StereoView::renderLevel()
                             source.getPixelPointer(restore.getX(), y), bytes);
     }
     clipped_ = false;
-    const auto measured = snapshot_->signalValid() && !stale_
-                              ? polarLevel({snapshot_->samples.data(), snapshot_->count})
-                              : PolarLevel{};
+    const auto measured =
+        snapshot_->signalValid() && !stale_
+            ? (levelProfile_.getSelectedItemIndex() == 0
+                   ? polarDirectionalLevel({snapshot_->samples.data(), snapshot_->count})
+                   : polarLevel({snapshot_->samples.data(), snapshot_->count}))
+            : PolarLevel{};
     bool visible = false;
     for (std::size_t i = 0; i < polarLevelBins; ++i)
     {
@@ -485,18 +514,40 @@ void StereoView::renderLevel()
     peak.clear();
     fill.startNewSubPath(cx, cy);
     peak.startNewSubPath(cx, cy);
-    for (std::size_t i = 0; i < polarLevelBins; ++i)
+    if (levelProfile_.getSelectedItemIndex() == 0)
     {
-        const double rms = levels.rms[i] * gain, maximum = levels.peak[i] * gain;
-        clipped_ = clipped_ || maximum > 1.0;
-        for (const auto direction : levelDirections_[i])
+        // Smoothstep is bounded by adjacent measured radii: no spline overshoot.
+        for (std::size_t j = 0; j < smoothDirections_.size(); ++j)
         {
-            const float x = direction.x * radius;
-            const float y = direction.y * radius;
-            fill.lineTo(cx + x * static_cast<float>(std::min(1.0, rms)),
-                        cy - y * static_cast<float>(std::min(1.0, rms)));
-            peak.lineTo(cx + x * static_cast<float>(std::min(1.0, maximum)),
-                        cy - y * static_cast<float>(std::min(1.0, maximum)));
+            const auto i = j / 4;
+            const auto next = std::min(i + 1, polarLevelBins - 1);
+            const double t = static_cast<double>(j % 4) / 4.0;
+            const double u = t * t * (3.0 - 2.0 * t);
+            const double rms = std::lerp(levels.rms[i], levels.rms[next], u) * gain;
+            const double maximum = std::lerp(levels.peak[i], levels.peak[next], u) * gain;
+            clipped_ = clipped_ || maximum > 1.0;
+            const auto direction = smoothDirections_[j];
+            fill.lineTo(cx + direction.x * radius * static_cast<float>(std::min(1.0, rms)),
+                        cy - direction.y * radius * static_cast<float>(std::min(1.0, rms)));
+            peak.lineTo(cx + direction.x * radius * static_cast<float>(std::min(1.0, maximum)),
+                        cy - direction.y * radius * static_cast<float>(std::min(1.0, maximum)));
+        }
+    }
+    else
+    {
+        for (std::size_t i = 0; i < polarLevelBins; ++i)
+        {
+            const double rms = levels.rms[i] * gain, maximum = levels.peak[i] * gain;
+            clipped_ = clipped_ || maximum > 1.0;
+            for (const auto direction : levelDirections_[i])
+            {
+                const float x = direction.x * radius;
+                const float y = direction.y * radius;
+                fill.lineTo(cx + x * static_cast<float>(std::min(1.0, rms)),
+                            cy - y * static_cast<float>(std::min(1.0, rms)));
+                peak.lineTo(cx + x * static_cast<float>(std::min(1.0, maximum)),
+                            cy - y * static_cast<float>(std::min(1.0, maximum)));
+            }
         }
     }
     fill.closeSubPath();
@@ -525,10 +576,11 @@ void StereoView::paint(juce::Graphics& g)
     }
     g.setFont(13);
     g.setColour(palette::textDim);
-    g.drawText(mode_ == 2   ? "100 ms RMS / peak with display release  |  2.5 degree bins"
+    g.drawText(mode_ == 2   ? "100 ms RMS / peak  |  2.5 degree centres"
                : mode_ == 0 ? "200 ms measurement  |  100 ms samples + display afterglow"
                             : "200 ms measurement  |  100 ms samples",
-               16, 56, getWidth() - 32, 20, juce::Justification::centred);
+               mode_ == 2 ? 214 : 16, 56, getWidth() - (mode_ == 2 ? 230 : 32), 20,
+               juce::Justification::centred);
     const auto area = plot();
     g.drawImageAt(density_, juce::roundToInt(area.getX()), juce::roundToInt(area.getY()));
     g.setColour(palette::textDim);

@@ -45,7 +45,7 @@ private:
     std::unique_ptr<StereoSnapshot> snapshot_ = std::make_unique<StereoSnapshot>();
     juce::TextButton polar_{"Polar Sample"}, lissajous_{"Lissajous"}, level_{"Polar Level"};
     juce::Label gainLabel_;
-    ChoiceBox gain_, persistence_;
+    ChoiceBox gain_, persistence_, levelProfile_;
     juce::Label persistenceLabel_;
     struct TrailPixel
     {
@@ -72,6 +72,7 @@ private:
     juce::Colour colour_;
     juce::Image density_, background_;
     std::array<std::array<juce::Point<float>, 2>, polarLevelBins> levelDirections_{};
+    std::array<juce::Point<float>, (polarLevelBins - 1) * 4 + 1> smoothDirections_{};
     juce::Path levelFill_, levelPeak_;
     juce::Rectangle<int> cloudBounds_, damage_;
     std::vector<unsigned> counts_, touched_;

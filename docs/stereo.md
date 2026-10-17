@@ -67,6 +67,32 @@ The analysis retains a fixed-duration density window. Display-only afterglow ext
 
 ## Polar Level definition
 
+The default **Directional level** profile uses linear weights between the 73
+angular centres. With radius `r = max(abs(L), abs(R))`, weight `w`, and window
+size `N` including silence, its fill is
+`sqrt(sum(w*r*r) / max(sum(w), 0.01*N))` per direction. The 1% support floor is
+an explicit sparse-direction regularizer, not a claim about iZotope's formula.
+The outline is the largest radius with positive weight in that direction.
+Endpoints do not wrap. Peak support can change abruptly when a sample crosses
+a centre; the RMS weights vary continuously.
+
+The renderer joins centre radii with bounded smoothstep interpolation, using
+four segments per interval. This preserves centre values and never overshoots
+adjacent values. Shared gain and temporal release remain display-only. Switching
+profiles clears history. Settings append a profile ID (0 directional, 1 energy)
+and accept older two- and three-field settings with the new default.
+
+For example, a radius of 0.5 occupying 4% of the window in one direction gives
+0.5 directional RMS versus 0.1 energy contribution. A single radius-1 sample
+in 1,000 samples gives sqrt(0.1) directional fill and a peak of 1. This deliberately
+attenuates rare directions instead of normalizing every isolated sample to full
+height. These cases are covered by numerical tests.
+
+The **Energy contribution** comparison profile retains the original definition
+below, including its stepped drawing. Historical Pi results later in this document
+apply to that original implementation, not to the new directional rendering.
+
+
 Polar Level uses all samples in the published 100 ms history. Its direction is
 identical to Polar Sample's upper-semicircle fold, evaluated in double precision
 before quantization. There are 73 bin centres from -90 to +90 degrees, spaced by
@@ -406,3 +432,81 @@ Logs: `build/afterglow-sample-final-120s.log` and
 `28bb9237d65c6f882f7ea52eb5fc2da87d925fead93f9bd28d99c5f9a606e761`.
 
 Future Pi performance checks use 30-second runs by default. The maintainer clarified after these measurements that 60 FPS is an optimization target, not a strict minimum. The longer historical measurements above are retained as recorded.
+
+
+## Polar Level comparison findings and agent handoff (2026-10-17)
+
+**Status: unresolved visualization design; further work is deferred to the
+[roadmap](roadmap.md#stereo-follow-up-polar-level-visualization).** The maintainer
+wants a useful, readable representation of stereo information, not merely a
+numerically consistent plot or a cosmetic copy of iZotope.
+
+### Evidence and observations
+
+The maintainer supplied a simultaneous comparison using the same signal:
+`/Users/stephan/Desktop/Screen Recording 2026-10-17 at 19.29.35.mov`
+(about 40.5 seconds). This is a local reference, not a repository asset; ask for
+it again if unavailable. Earlier separate recordings were made at 18.58.02 and
+19.16.44 on the same date. The simultaneous recording is the stronger comparison.
+
+Sampled frames throughout the simultaneous recording show:
+
+- iZotope's fill frequently reaches near the outer arc, with narrow side rays.
+- Visona's Directional level fill remains much closer to the origin while its
+  peak outline extends considerably farther. Around 10 seconds the fill reaches
+  roughly 40% of the plot radius, versus nearly the full radius in iZotope.
+  This is a visual estimate, not a calibrated amplitude measurement.
+- Visona has a more continuous, rounded shape; iZotope retains more distinct
+  rays. Visona is set to Directional level, 0 dB display gain and 2 s afterglow.
+- This recording does not by itself establish either tool's radial transfer
+  function, time constants or exact numerical equivalence of measurement taps.
+
+### What was tried and what remains uncertain
+
+The original Energy contribution profile divides each direction's energy by
+all samples in the window. That explains why spreading energy over directions
+reduces its individual filled lobes. The newer Directional level profile uses
+weighted per-direction RMS with a 1% support floor, linear angular assignment
+and bounded smoothstep drawing; its exact definition is documented above.
+Both profiles remain selectable for A/B comparison with shared gain/afterglow.
+
+The new profile changes the presentation but does **not** resolve the difference
+seen against iZotope. The earlier explanation that whole-window normalization
+was the main cause was incomplete. RMS versus peak behavior, radial scaling,
+sparse-direction attenuation and history semantics remain separate questions.
+Do not treat an auto-gain, peak-based fill or logarithmic scale in iZotope as an
+established fact: none has been demonstrated by these recordings.
+
+[iZotope's documentation](https://downloads.izotope.com/docs/ozone8/imager/index.html)
+describes amplitude rays representing sample averages, with history shrinking
+toward the origin. It does not specify the complete aggregation, normalization
+or transfer function. In particular, do not assume its fill and outline are
+Visona's RMS and peak pair. Visona's aggregation is our implementation; LSP
+correlation/balance integration does not validate that visual design for us.
+
+### Suggested next investigation
+
+1. Agree on the intended information: directional level, energy distribution,
+   stereo spread, transient behavior, or a deliberate combination. Define what
+   the fill, outline, angle and radius should mean before changing the drawing.
+2. Feed both tools the same controlled signals at their actual measurement taps:
+   mono sine at several known amplitudes, a panned sine, opposite polarity,
+   quadrature, and short tone bursts separated by silence. Record gain, routing,
+   processing, sample rate and visual settings. Use a pan sweep to inspect angle
+   mapping and crossings; use level steps and bursts to separate attack/release
+   from radial scaling. Follow with the same music loop.
+3. Evaluate radial mapping, angular support/smoothing and history independently.
+   Increasing gain or afterglow alone cannot establish the cause of the observed
+   differences. Any normalization or sparse-direction rule must be explicit and
+   tested, with measurement values kept separate from display processing.
+4. Keep controlled-signal tests, silence/weak-signal validity, invalid-input
+   handling and real-time safety. Validate readability with the maintainer.
+   Re-measure on Pi after changes: 30 seconds by default, aiming for 60 FPS
+   without sacrificing correctness.
+
+At this handoff the new directional profile was built and launched as macOS
+standalone; 261 core tests and the UI checks passed. These checks establish the
+implemented definitions and regressions covered, not equivalence to iZotope or
+final visual acceptance. Historical Pi measurements above predate this profile;
+its Pi performance has not been established. This documentation request does not
+include further DSP changes, deployment, or a new performance run.
