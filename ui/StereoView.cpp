@@ -80,7 +80,7 @@ StereoView::StereoView(StereoAnalyzer& analyzer)
     persistence_.addItem("2 s", 4);
     persistence_.setSelectedItemIndex(2, juce::dontSendNotification);
     persistence_.setTooltip("Display-only decay time to 1%. Sample brightness fades; Level radii "
-                            "shrink. Lissajous is unchanged.");
+                            "shrink. Applies to all stereo views.");
     persistence_.onChange = [this]
     {
         clearHistory();
@@ -166,7 +166,6 @@ void StereoView::selectMode(int mode)
     polar_.setToggleState(mode_ == 0, juce::dontSendNotification);
     lissajous_.setToggleState(mode_ == 1, juce::dontSendNotification);
     level_.setToggleState(mode_ == 2, juce::dontSendNotification);
-    persistence_.setEnabled(mode_ != 1);
     levelProfile_.setVisible(mode_ == 2);
     changed();
 }
@@ -275,8 +274,7 @@ StereoPoint StereoView::cachedPolar(const StereoSample& sample, std::uint64_t fr
 void StereoView::render()
 {
     const auto start = now();
-    const double tail =
-        mode_ == 1 ? 0 : tails[static_cast<std::size_t>(persistence_.getSelectedItemIndex())];
+    const double tail = tails[static_cast<std::size_t>(persistence_.getSelectedItemIndex())];
     decay_ = tail > 0
                  ? std::exp(-std::log(100.0) * std::max(0.0, start - lastRender_) / (1000 * tail))
                  : 0;
@@ -578,7 +576,7 @@ void StereoView::paint(juce::Graphics& g)
     g.setColour(palette::textDim);
     g.drawText(mode_ == 2   ? "100 ms RMS / peak  |  2.5 degree centres"
                : mode_ == 0 ? "200 ms measurement  |  100 ms samples + display afterglow"
-                            : "200 ms measurement  |  100 ms samples",
+                            : "200 ms measurement  |  100 ms samples + display afterglow",
                mode_ == 2 ? 214 : 16, 56, getWidth() - (mode_ == 2 ? 230 : 32), 20,
                juce::Justification::centred);
     const auto area = plot();

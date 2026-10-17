@@ -510,3 +510,17 @@ implemented definitions and regressions covered, not equivalence to iZotope or
 final visual acceptance. Historical Pi measurements above predate this profile;
 its Pi performance has not been established. This documentation request does not
 include further DSP changes, deployment, or a new performance run.
+
+
+### Lissajous afterglow
+
+Lissajous now uses the same display-only brightness envelope and Afterglow
+selector as Polar Sample: Off, 0.5 s, 1 s or 2 s to reach 1% brightness.
+The signed M/S projection, sample contributions and measurements are unchanged.
+The existing sparse pixel history handles both views; overlapping windows use
+maximum brightness rather than repeated accumulation. Invalid or missing streams
+clear history, silence allows fading, and Off removes history immediately.
+UI checks cover elapsed-time decay, frame-rate independence, attack, Off and
+pixel-by-pixel comparison with a dense reference for both sample views.
+The earlier statement that Lissajous was unchanged describes the original
+Polar Sample/Level afterglow implementation, before this extension.

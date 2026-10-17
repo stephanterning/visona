@@ -242,16 +242,16 @@ struct StereoUiChecks
         view.snapshot_->count = 1;
         view.snapshot_->samples[0] = {0.5f, 0.5f};
         view.persistence_.setSelectedItemIndex(2, juce::sendNotificationSync);
-        for (const int mode : {0, 2})
+        for (const int mode : {0, 1, 2})
         {
             view.selectMode(mode);
             view.render();
             const auto rawCorrelation = view.snapshot_->correlation;
-            const auto initial = mode == 0 ? firstBrightness(view) : view.released_.peak[36];
+            const auto initial = mode != 2 ? firstBrightness(view) : view.released_.peak[36];
             view.snapshot_->validity = StereoValidity::silent;
             view.lastRender_ = juce::Time::getMillisecondCounterHiRes() - 500;
             view.render();
-            const auto remaining = mode == 0 ? firstBrightness(view) : view.released_.peak[36];
+            const auto remaining = mode != 2 ? firstBrightness(view) : view.released_.peak[36];
             check(std::abs(remaining / initial - 0.1) < 0.01,
                   "Display decay does not follow elapsed time");
             check(std::abs(view.snapshot_->correlation - rawCorrelation) < 1e-7f &&
@@ -259,7 +259,7 @@ struct StereoUiChecks
                   "Display history changed signal validity or correlation");
             view.snapshot_->validity = StereoValidity::valid;
             view.render();
-            const auto attacked = mode == 0 ? firstBrightness(view) : view.released_.peak[36];
+            const auto attacked = mode != 2 ? firstBrightness(view) : view.released_.peak[36];
             check(std::abs(attacked - initial) < 1e-6, "Display attack was delayed");
             view.snapshot_->validity = StereoValidity::silent;
             for (int step = 0; step < 2; ++step)
@@ -267,53 +267,65 @@ struct StereoUiChecks
                 view.lastRender_ = juce::Time::getMillisecondCounterHiRes() - 250;
                 view.render();
             }
-            const auto split = mode == 0 ? firstBrightness(view) : view.released_.peak[36];
+            const auto split = mode != 2 ? firstBrightness(view) : view.released_.peak[36];
             check(std::abs(split / initial - remaining / initial) < 0.01,
                   "Display decay depends on the number of frames");
             view.snapshot_->validity = StereoValidity::valid;
         }
+        // Lissajous exposes the same control and drops history immediately with Off.
+        view.selectMode(1);
+        check(view.persistence_.isEnabled(), "Lissajous disabled the Afterglow control");
+        view.persistence_.setSelectedItemIndex(0, juce::sendNotificationSync);
+        view.snapshot_->validity = StereoValidity::silent;
+        view.render();
+        check(view.cloudBounds_.isEmpty(), "Lissajous Off retained display history");
+        view.persistence_.setSelectedItemIndex(2, juce::sendNotificationSync);
         // Independent dense reference checks sparse tile expiry and slot reuse.
-        view.selectMode(0);
-        view.snapshot_->sampleRate = 48000;
-        std::vector<float> reference(view.counts_.size(), 0);
-        view.clearHistory();
-        for (int frame = 0; frame < 30; ++frame)
+        for (const int mode : {0, 1})
         {
-            view.snapshot_->validity =
-                frame % 3 == 0 ? StereoValidity::silent : StereoValidity::valid;
-            view.snapshot_->samples[0] =
-                frame % 2 == 0 ? StereoSample{0.5f, 0.25f} : StereoSample{0.1f, 0.6f};
-            view.lastRender_ = juce::Time::getMillisecondCounterHiRes() - 200;
-            view.render();
-            std::vector<float> actual(reference.size(), 0);
-            for (const auto& tile : view.historyTiles_)
-                for (const auto& point : tile.pixels)
-                    if (point.index != std::numeric_limits<unsigned>::max())
-                        actual[point.index] = point.brightness;
-            juce::Image::BitmapData pixels(view.density_, juce::Image::BitmapData::readOnly);
-            juce::Image::BitmapData backdrop(view.background_, juce::Image::BitmapData::readOnly);
-            for (std::size_t i = 0; i < reference.size(); ++i)
+            view.selectMode(mode);
+            view.snapshot_->sampleRate = 48000;
+            std::vector<float> reference(view.counts_.size(), 0);
+            view.clearHistory();
+            for (int frame = 0; frame < 30; ++frame)
             {
-                reference[i] =
-                    std::max(1.0f - std::exp(-0.4f * static_cast<float>(view.counts_[i])),
-                             reference[i] * static_cast<float>(view.decay_));
-                if (reference[i] < 1.0f / 255.0f)
-                    reference[i] = 0;
-                check(std::abs(actual[i] - reference[i]) < 1e-6f,
-                      "Sparse afterglow differs from dense envelope reference");
-                const int x = static_cast<int>(i % static_cast<std::size_t>(pixels.width));
-                const int y = static_cast<int>(i / static_cast<std::size_t>(pixels.width));
-                auto expected =
-                    *reinterpret_cast<const juce::PixelRGB*>(backdrop.getPixelPointer(x, y));
-                if (reference[i] > 0)
-                    expected.blend(view.colour_
-                                       .withAlpha(static_cast<juce::uint8>(
-                                           juce::roundToInt(reference[i] * 255)))
-                                       .getPixelARGB());
-                check(expected.getNativeARGB() ==
-                          reinterpret_cast<const juce::PixelRGB*>(pixels.getPixelPointer(x, y))
-                              ->getNativeARGB(),
-                      "Cached afterglow pixels differ from direct reference rendering");
+                view.snapshot_->validity =
+                    frame % 3 == 0 ? StereoValidity::silent : StereoValidity::valid;
+                view.snapshot_->samples[0] =
+                    frame % 2 == 0 ? StereoSample{0.5f, 0.25f} : StereoSample{0.1f, 0.6f};
+                view.lastRender_ = juce::Time::getMillisecondCounterHiRes() - 200;
+                view.render();
+                std::vector<float> actual(reference.size(), 0);
+                for (const auto& tile : view.historyTiles_)
+                    for (const auto& point : tile.pixels)
+                        if (point.index != std::numeric_limits<unsigned>::max())
+                            actual[point.index] = point.brightness;
+                juce::Image::BitmapData pixels(view.density_, juce::Image::BitmapData::readOnly);
+                juce::Image::BitmapData backdrop(view.background_,
+                                                 juce::Image::BitmapData::readOnly);
+                for (std::size_t i = 0; i < reference.size(); ++i)
+                {
+                    reference[i] =
+                        std::max(1.0f - std::exp(-0.4f * static_cast<float>(view.counts_[i])),
+                                 reference[i] * static_cast<float>(view.decay_));
+                    if (reference[i] < 1.0f / 255.0f)
+                        reference[i] = 0;
+                    check(std::abs(actual[i] - reference[i]) < 1e-6f,
+                          "Sparse afterglow differs from dense envelope reference");
+                    const int x = static_cast<int>(i % static_cast<std::size_t>(pixels.width));
+                    const int y = static_cast<int>(i / static_cast<std::size_t>(pixels.width));
+                    auto expected =
+                        *reinterpret_cast<const juce::PixelRGB*>(backdrop.getPixelPointer(x, y));
+                    if (reference[i] > 0)
+                        expected.blend(view.colour_
+                                           .withAlpha(static_cast<juce::uint8>(
+                                               juce::roundToInt(reference[i] * 255)))
+                                           .getPixelARGB());
+                    check(expected.getNativeARGB() ==
+                              reinterpret_cast<const juce::PixelRGB*>(pixels.getPixelPointer(x, y))
+                                  ->getNativeARGB(),
+                          "Cached afterglow pixels differ from direct reference rendering");
+                }
             }
         }
         view.setActive(false);
