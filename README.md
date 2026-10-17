@@ -67,7 +67,7 @@ Visona builds on [JUCE](https://juce.com) (AGPL-3.0) and [clap-juce-extensions](
 
 ## Developers
 
-Build and test instructions are in [AGENTS.md](AGENTS.md). Architecture, roadmap and decisions live under [docs/](docs/).
+Build and test instructions are in [AGENTS.md](AGENTS.md). Architecture, roadmap and decisions live under [docs/](docs/), and the [technical review](docs/technical-review.md) describes the condition of the code and a plan for improving it.
 
 ### Development builds
 

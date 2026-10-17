@@ -8,6 +8,7 @@ The plan from MVP 1.0 to the long-term platform. The architecture is described i
 - **On `main`, not yet released:** the analysis views Spectrum (FFT), Spectrum (Band) and Stereo, one at a time, with shared Gain, AUTO and Afterglow controls (D-115–D-120). These are the first steps of milestones 9 and 10, ahead of the dashboard of milestone 8. See [spectrum.md](spectrum.md), [band-spectrum.md](band-spectrum.md) and [stereo.md](stereo.md).
 - Steps 1–7b and step 5 (waveform modes) are merged. Step 8 (formal logging and written measurements) is deferred polish.
 - CI: Linux core tests on every pull request; the macOS app, the plugins and the Pi app are built on release or manual workflow trigger only (D-095, D-104).
+- The condition of the code, with what to fix and rework next, is reviewed in [technical-review.md](technical-review.md).
 
 ## 1. MVP 1.0
 
@@ -198,6 +199,8 @@ Release the analysis views that are on main
   → Auto BPM (milestone 7)
   → Modular dashboard and further modules (milestones 8–11)
 ```
+
+The [technical review](technical-review.md) recommends fixing the plugin and Visona Sync bugs it found and adding JUCE builds to pull-request CI first, then consolidating the analysis views before they are released, and building the dashboard on the analysis-view interface that consolidation introduces. That is a proposal, not yet a decision.
 
 **Still open from the MVP defer list:**
 

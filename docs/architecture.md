@@ -1,6 +1,6 @@
 # Visona architecture
 
-This document describes what Visona is, the principles it is built on, and its architecture: the MVP 1.0 design and what has been added to it since. Milestones and steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
+This document describes what Visona is, the principles it is built on, and its architecture: the MVP 1.0 design and what has been added to it since. Milestones and steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md). Where the code falls short of this design, and what to do about it, is reviewed in [technical-review.md](technical-review.md).
 
 ## 1. Vision
 
@@ -319,7 +319,7 @@ visona/
 ├── assets/icon/  the app icon's master SVGs and rendered PNG
 ├── scripts/      pi/: kiosk, install, deploy and measurement scripts; macos/: local install
 ├── site/         visona.org and the user manual
-├── docs/         architecture, roadmap, decisions, plugin, Pi and analysis guides
+├── docs/         architecture, roadmap, decisions, technical review, plugin, Pi and analysis guides
 ├── .github/      workflows (ci, release, pi-quick, site) and the publish action
 ├── AGENTS.md
 ├── CHANGELOG.md
