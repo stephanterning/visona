@@ -26,7 +26,7 @@ After this guide you can install or build Visona and optionally enable kiosk aut
 2. Insert the microSD card.
 3. In Imager, choose:
    - **Device:** Raspberry Pi 4
-   - **OS:** **Raspberry Pi OS (64-bit)** — the desktop version (Bookworm or later), not Lite, so you get a GUI on the 7" screen.
+   - **OS:** **Raspberry Pi OS (64-bit)** — the desktop version, not Lite, so you get a GUI on the 7" screen. The release tarball needs a release based on Debian 13 (Trixie) or later; on Bookworm, build from source ([pi-build.md](pi-build.md)).
    - **Storage:** your SD card
 4. Open **OS customization** (gear icon or “Edit settings”):
    - **General:** set hostname (e.g. `visona-pi`), username and password

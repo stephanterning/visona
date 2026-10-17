@@ -122,7 +122,7 @@
         <p>The first time, macOS asks for permission to use the microphone. Visona needs it to read any audio input, including your audio interface.</p>
 
         <h3 id="install-pi">Standalone on Raspberry Pi</h3>
-        <p>Visona runs on Raspberry Pi OS 64-bit with the desktop. Over SSH, this installs the newest release to <code>~/visona</code> and starts Visona full screen at login:</p>
+        <p>Visona runs on Raspberry Pi OS 64-bit with the desktop, in a release based on Debian 13 (Trixie) or later. Over SSH, this installs the newest release to <code>~/visona</code> and starts Visona full screen at login:</p>
         <pre><code>curl -fsSL https://raw.githubusercontent.com/stephanterning/visona/main/scripts/pi/install-visona.sh | bash</code></pre>
         <p>Run the same command again to upgrade; your settings are kept. The <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-setup.md">Pi setup guide</a> covers flashing the card and setting up the audio interface, and the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-kiosk.md">kiosk guide</a> covers autostart, displays and touchscreens.</p>
         <p>For local development on an Apple Silicon Mac, <code>scripts/pi/build-and-deploy-to-pi-over-network.sh user@raspberrypi.local</code> builds the Pi app with Docker, transfers it over SSH and restarts Visona in an existing kiosk installation. See the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-build.md#build-on-an-apple-silicon-mac-and-deploy-over-ssh">local build and deployment guide</a>.</p>

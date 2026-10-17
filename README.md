@@ -15,7 +15,7 @@ Pre-built binaries are published on **[GitHub Releases](https://github.com/steph
 | **macOS plugin, Visona Sync** | Apple Silicon, macOS 14 or later | `Visona-sync-vst3-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip` or `Visona-sync-clap-macos-arm64.zip` ([sidechain sync](docs/plugins.md#sidechain-sync-visona-sync)) |
 | **Windows plugins** | Windows 10 or 11, x64 | `Visona-vst3-windows-x64.zip`, `Visona-clap-windows-x64.zip` and the `Visona-sync-…` zips ([install](docs/plugins.md#windows)) |
 | **Linux plugins** | x86_64, Ubuntu 24.04, Debian 13, Fedora 39 or newer | `Visona-vst3-linux-x86_64.tar.gz`, `Visona-clap-linux-x86_64.tar.gz` and the `Visona-sync-…` tarballs ([install](docs/plugins.md#linux)) |
-| **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64 | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
+| **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64, based on Debian 13 (Trixie) or later | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
 
 From 1.0.0 beta 1 on, the macOS app and plugins are signed with a Developer ID and notarized by Apple, so they open without Gatekeeper warnings.
 

@@ -121,7 +121,7 @@ The plugin editor is a slimmed-down version of the standalone UI:
 - **Settings** opens an Appearance panel with the waveform colour only — no audio device or MIDI device panels
 - Press **D** for the diagnostics overlay, which includes a Visona Sync row for the sidechain, and **Esc** to close the Appearance panel or reset the zoom
 
-Each plugin instance saves its analysis view and the views' settings, window, gain, auto gain, afterglow, waveform mode and colour in the DAW project. Global defaults for the waveform mode and colour apply when an instance has no saved appearance; they live in `VisonaPluginDefaults.settings`, under `~/Library/Application Support/Visona/` on macOS, `~/.config/Visona/` on Linux and `%APPDATA%\Visona\` on Windows.
+Each plugin instance saves its analysis view and the views' settings, window, gain, auto gain, afterglow, waveform mode and colour in the DAW project. An instance without a saved appearance reads a default waveform mode and colour from `VisonaPluginDefaults.settings`, under `~/Library/Application Support/Visona/` on macOS, `~/.config/Visona/` on Linux and `%APPDATA%\Visona\` on Windows. Nothing in the plugin writes that file yet, so in practice new instances start in PRECISE with the teal colour.
 
 ## Build locally
 
