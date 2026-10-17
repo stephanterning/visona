@@ -16,6 +16,8 @@ public:
     explicit StereoView(StereoAnalyzer& analyzer);
     ~StereoView() override;
     void setActive(bool active);
+    void setDisplayGainDb(int db);
+    void setAfterglow(int index);
     void setPaused(bool paused);
     void setWaveformColour(juce::Colour colour);
     void resetView();
@@ -68,7 +70,8 @@ private:
     std::vector<StereoPoint> projections_ = std::vector<StereoPoint>(stereoHistoryCapacity);
     PolarLevel released_;
     double lastRender_ = 0, decay_ = 0;
-    int mode_ = 0;
+    int mode_ = 0, displayGainDb_ = 0;
+    bool globalControls_ = false;
     bool paused_ = false, stale_ = true, clipped_ = false;
     juce::Colour colour_;
     juce::Image density_, background_;

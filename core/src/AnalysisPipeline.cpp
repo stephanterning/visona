@@ -63,6 +63,7 @@ void AnalysisPipeline::setStream(AudioRingBuffer* ring, double sampleRate) noexc
     analyzer_.start(0);
     analyzer_.setBandSplitting(false, 0.0);
     barPeaks_.restart();
+    inputPeaks_.restart();
     mapper_.reset(sampleRate_);
     transport_.reset(sampleRate_);
     mappedAnyBlock_ = false;
@@ -286,6 +287,7 @@ void AnalysisPipeline::analyze(const AudioRingBuffer::ReadRegion& region, std::s
         return;
     }
 
+    inputPeaks_.processInput(channels_, numFrames, region.sampleIndex(), sampleRate_);
     switch (span.kind)
     {
     case TransportSpan::Kind::freeRunning:
@@ -397,6 +399,7 @@ void AnalysisPipeline::publish() noexcept
     snapshot.windowStartTick = analyzer_.windowStartTick();
     snapshot.bandDelayFrames = analyzer_.bandDelayFrames();
     snapshot.barPeaks = barPeaks_.recent();
+    snapshot.inputPeaks = inputPeaks_.recent();
     snapshot.midiEvents = midiEvents_;
     snapshot.ignoredSpp = transport_.ignoredSppCount();
     snapshot.syncState = sync_.state();

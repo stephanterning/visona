@@ -12,6 +12,7 @@ namespace visona
 {
 void SpectrumSettings::sanitize() noexcept
 {
+    afterglow = std::clamp(afterglow, -1, 3);
     channel = std::clamp(channel, 0, 4);
     topDb = std::clamp(topDb, -60, 12);
     rangeDb = std::clamp(rangeDb, 30, 120);
@@ -41,12 +42,14 @@ std::uint64_t SpectrumSettings::analysisKey() const noexcept
                           (static_cast<std::uint64_t>(c.smoothing) << 3U);
         key |= bits << (8U + i * 8U);
     }
+    key |= static_cast<std::uint64_t>(s.afterglow + 1) << 24U;
     return key;
 }
 SpectrumSettings SpectrumSettings::fromAnalysisKey(std::uint64_t key) noexcept
 {
     SpectrumSettings s;
     s.channel = static_cast<int>(key & 7U);
+    s.afterglow = static_cast<int>((key >> 24U) & 7U) - 1;
     for (std::size_t i = 0; i < s.curves.size(); ++i)
     {
         const auto bits = key >> (8U + i * 8U);
@@ -191,6 +194,22 @@ struct SpectrumAnalyzer::Impl
             {
                 const auto p = sampled[c][i];
                 auto& e = envelope[c][i];
+                if (c == 1 && settings.afterglow >= 0)
+                {
+                    constexpr std::array<double, 4> tails{0, 0.5, 1, 2};
+                    const auto releaseSeconds = tails[static_cast<std::size_t>(settings.afterglow)];
+                    const auto release =
+                        releaseSeconds > 0
+                            ? static_cast<float>(
+                                  std::pow(10.0, -12.0 * static_cast<double>(spectrumHopSize) /
+                                                     (20.0 * rate * releaseSeconds)))
+                            : 0.0f;
+                    const auto current = std::sqrt(std::max(p, 0.0f) * (config.rms ? 0.5f : 1.0f));
+                    // Immediate attack; Afterglow is the time to fall 12 dB, without a hold.
+                    e = std::max(current, e * release);
+                    snapshot.db[c][i] = 20.0f * std::log10(std::max(e, 1.0e-8f));
+                    continue;
+                }
                 if (config.rms)
                     e = first[c] ? p * 0.5f : decay * e + (1.0f - decay) * p * 0.5f;
                 else
@@ -260,7 +279,8 @@ void SpectrumAnalyzer::process(std::span<const float> left, std::span<const floa
         {
             // Response changes keep the current envelope (including entering Hold).
             // Detector/bandwidth changes reset only that trace, never the other one.
-            if (resetRequest != s.resetRequest || previous.channel != next.channel ||
+            if ((c == 1 && previous.afterglow != next.afterglow) ||
+                resetRequest != s.resetRequest || previous.channel != next.channel ||
                 previous.curves[c].rms != next.curves[c].rms ||
                 previous.curves[c].smoothing != next.curves[c].smoothing)
             {

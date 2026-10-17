@@ -78,7 +78,7 @@ void blendFillRow(juce::PixelRGB* pixels, const juce::uint32* colours, const flo
 juce::Colour colourAt(double position, int colour)
 {
     if (colour == 1)
-        return juce::Colour(0xffd9dfe6);
+        return juce::Colours::white;
     if (colour == 2)
         return juce::Colour(0xff70bfff);
     if (colour == 3)
@@ -103,12 +103,11 @@ SpectrumView::SpectrumView(SpectrumAnalyzer& analyzer)
     addChildComponent(settingsPanel_);
     settingsPanel_.addAndMakeVisible(title_);
     settingsPanel_.addAndMakeVisible(close_);
-    settingsPanel_.addAndMakeVisible(clear_);
+
     settingsPanel_.addAndMakeVisible(viewport_);
     title_.setText("Spectrum settings", juce::dontSendNotification);
     title_.setFont(juce::Font(juce::FontOptions(20.0f, juce::Font::bold)));
     close_.onClick = [this] { showSettings(false); };
-    clear_.onClick = [this] { analyzer_.clearHold(); };
     viewport_.setViewedComponent(&settingsContent_, false);
     viewport_.setScrollOnDragMode(juce::Viewport::ScrollOnDragMode::nonHover);
     const std::array<juce::String, 16> names{"Channels", "Top",       "Range",    "Slope",
@@ -140,6 +139,12 @@ SpectrumView::SpectrumView(SpectrumAnalyzer& analyzer)
             {"Raw", "1/24 octave", "1/12 octave", "1/6 octave", "1/3 octave", "1 octave"}, 1);
         choices_[base + 4].addItemList({"Line", "Fill", "Solid"}, 1);
         choices_[base + 5].addItemList({"Spectrum", "White", "Blue", "Orange"}, 1);
+    }
+    for (std::size_t i = 0; i < choices_.size(); ++i)
+    {
+        const bool visible = i == 0 || i == 2 || i == 3 || i == 5 || i == 7;
+        labels_[i].setVisible(visible);
+        choices_[i].setVisible(visible);
     }
     restoreSettings({});
 }
@@ -174,6 +179,19 @@ void SpectrumView::Panel::paint(juce::Graphics& g)
     g.fillAll(palette::chrome);
     g.setColour(palette::outline);
     g.drawRect(getLocalBounds(), 1);
+}
+void SpectrumView::setDisplayGainDb(int db)
+{
+    gainDb_ = db;
+    settings_.topDb = -db;
+    backgroundDirty_ = true;
+    render();
+    repaint();
+}
+void SpectrumView::setAfterglow(int index)
+{
+    afterglow_ = std::clamp(index, 0, 3);
+    restoreSettings(saveSettings());
 }
 void SpectrumView::setWaveformColour(juce::Colour colour)
 {
@@ -225,6 +243,16 @@ void SpectrumView::restoreSettings(const juce::String& text)
         }
     }
     settings_.sanitize();
+    settings_.topDb = -gainDb_;
+    settings_.afterglow = afterglow_;
+    settings_.curves[0].enabled = true;
+    settings_.curves[0].speed = 0;
+    settings_.curves[0].style = 3;
+    settings_.curves[0].colour = 0;
+    settings_.curves[1] = settings_.curves[0];
+    settings_.curves[1].enabled = afterglow_ != 0;
+    settings_.curves[1].style = 0;
+    settings_.curves[1].colour = 1;
     backgroundDirty_ = true;
     choices_[0].setSelectedItemIndex(settings_.channel, juce::dontSendNotification);
     const std::array<int, 8> tops{12, 6, 0, -12, -24, -36, -48, -60};
@@ -266,30 +294,16 @@ void SpectrumView::restoreSettings(const juce::String& text)
 }
 void SpectrumView::applySettings()
 {
-    const std::array<int, 8> tops{12, 6, 0, -12, -24, -36, -48, -60};
     settings_.channel = choices_[0].getSelectedItemIndex();
-    settings_.topDb =
-        tops[static_cast<std::size_t>(std::max(0, choices_[1].getSelectedItemIndex()))];
     settings_.rangeDb = (choices_[2].getSelectedItemIndex() + 1) * 30;
     settings_.slope = choices_[3].getSelectedItemIndex();
-    for (std::size_t c = 0; c < 2; ++c)
-    {
-        auto& s = settings_.curves[c];
-        const auto b = 4 + c * 6;
-        s.enabled = choices_[b].getSelectedItemIndex() == 0;
-        s.rms = choices_[b + 1].getSelectedItemIndex() == 1;
-        s.speed = choices_[b + 2].getSelectedItemIndex();
-        s.smoothing = choices_[b + 3].getSelectedItemIndex();
-        if (s.style != 3)
-            s.colour = choices_[b + 5].getSelectedItemIndex();
-        const auto style = choices_[b + 4].getSelectedItemIndex();
-        s.style = style == 2 ? 3 : style;
-    }
-    settings_.sanitize();
+    settings_.curves[0].rms = choices_[5].getSelectedItemIndex() == 1;
+    settings_.curves[0].smoothing = choices_[7].getSelectedItemIndex();
     restoreSettings(saveSettings());
     if (onSettingsChange)
         onSettingsChange();
 }
+
 juce::Rectangle<float> SpectrumView::plot() const
 {
     return getLocalBounds()
@@ -367,9 +381,17 @@ void SpectrumView::renderBackground(juce::Graphics& g)
     juce::String legend;
     for (std::size_t c = 0; c < 2; ++c)
         if (settings_.curves[c].enabled)
-            legend += (legend.isEmpty() ? "" : "    /    ") + juce::String("C") +
-                      juce::String(static_cast<int>(c + 1)) + " " + choices_[5 + c * 6].getText() +
-                      " · " + choices_[6 + c * 6].getText() + " · " + choices_[7 + c * 6].getText();
+            legend +=
+                (legend.isEmpty() ? "" : "    /    ") + juce::String("C") +
+                juce::String(static_cast<int>(c + 1)) + " " + choices_[5 + c * 6].getText() +
+                " · " +
+                (c == 0
+                     ? juce::String("Fast (150 ms)")
+                     : juce::String("Afterglow (") +
+                           std::array<const char*, 4>{"Off", "0.5 s", "1 s",
+                                                      "2 s"}[static_cast<std::size_t>(afterglow_)] +
+                           ")") +
+                " · " + choices_[7 + c * 6].getText();
     g.drawText(legend, 52, 30, std::max(0, getWidth() - 70), 18, juce::Justification::centredLeft);
     if (!snapshot_.valid)
     {
@@ -619,17 +641,19 @@ void SpectrumView::resized()
     auto header = area.removeFromTop(44);
     close_.setBounds(header.removeFromRight(72));
     header.removeFromRight(8);
-    clear_.setBounds(header.removeFromRight(112));
+
     title_.setBounds(header);
     area.removeFromTop(10);
     viewport_.setBounds(area);
     const auto width = std::max(100, area.getWidth() - 16);
     const bool wide = width >= 680;
-    settingsContent_.setSize(width, wide ? 8 * 58 : 16 * 58);
-    for (std::size_t i = 0; i < choices_.size(); ++i)
+    constexpr std::array<std::size_t, 5> visible{0, 2, 3, 5, 7};
+    settingsContent_.setSize(width, wide ? 3 * 58 : 5 * 58);
+    for (std::size_t n = 0; n < visible.size(); ++n)
     {
-        const auto column = wide ? static_cast<int>(i % 2) : 0;
-        const auto row = wide ? static_cast<int>(i / 2) : static_cast<int>(i);
+        const auto i = visible[n];
+        const auto column = wide ? static_cast<int>(n % 2) : 0;
+        const auto row = wide ? static_cast<int>(n / 2) : static_cast<int>(n);
         const auto cellWidth = wide ? width / 2 : width;
         auto cell = juce::Rectangle<int>(column * cellWidth, row * 58, cellWidth - 12, 50);
         labels_[i].setBounds(cell.removeFromLeft(std::min(104, cellWidth / 3)));

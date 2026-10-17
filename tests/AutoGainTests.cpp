@@ -49,7 +49,7 @@ TEST_CASE("Auto gain picks the highest 3 dB step that keeps a peak in the lane",
     CHECK(AutoGain::gainFor(0.5f) == 6);  // -6.0 dBFS lands at -0.0 dB
     CHECK(AutoGain::gainFor(0.2f) == 12); // -14.0 dBFS lands at -2.0 dB
     CHECK(AutoGain::gainFor(0.1f) == 18); // -20 dBFS lands at -2 dB
-    CHECK(AutoGain::gainFor(0.0f) == DisplayGain::maxDb);
+    CHECK(AutoGain::gainFor(0.0f) == 63);
 
     for (const auto peak : {0.9f, 0.6f, 0.45f, 0.3f, 0.2f, 0.15f})
     {
@@ -132,13 +132,13 @@ TEST_CASE("Bars at or below -50 dBFS do not count for auto gain", "[autogain]")
     CHECK(autoGain.gainDb() == 6);
 
     CHECK(addBars(autoGain, 1, 0.0056f)); // -45 dBFS
-    CHECK(autoGain.gainDb() == 18);
+    CHECK(autoGain.gainDb() == 45);
 }
 
 TEST_CASE("Auto gain starts from any gain and keeps it in range", "[autogain]")
 {
     AutoGain autoGain;
-    autoGain.reset(40);
+    autoGain.reset(100);
     CHECK(autoGain.gainDb() == DisplayGain::maxDb);
     autoGain.reset(10);
     CHECK(autoGain.gainDb() == 10);
@@ -225,4 +225,34 @@ TEST_CASE("BarPeakMeter drops the bar in progress when the sweep starts over", "
     meter.process(quietChannel, 5, 0, tickPerFrame(), 4.0, 2.0);
     REQUIRE(meter.recent().count == 1);
     CHECK(meter.recent().bar(1).peak == 0.1f);
+}
+
+TEST_CASE("Global auto gain follows input time without musical transport", "[autogain]")
+{
+    BarPeakMeter input;
+    AutoGain gain;
+    gain.reset(18);
+    std::vector<float> left(480, 0.9f), right(480, 0.1f);
+    std::array<const float*, 2> channels{left.data(), right.data()};
+    std::uint64_t frame = 0;
+    const auto feed = [&]()
+    {
+        input.processInput(channels, left.size(), frame, 48000);
+        frame += left.size();
+        gain.follow(input.recent());
+    };
+    feed();
+    CHECK(gain.gainDb() == 0);
+    std::fill(left.begin(), left.end(), 0.1f);
+    for (int i = 0; i < 1100; ++i)
+        feed();
+    CHECK(gain.gainDb() == 18);
+    std::fill(right.begin(), right.end(), 0.9f);
+    feed();
+    CHECK(gain.gainDb() == 0);
+    std::fill(left.begin(), left.end(), 0.0f);
+    std::fill(right.begin(), right.end(), 0.0f);
+    for (int i = 0; i < 1100; ++i)
+        feed();
+    CHECK(gain.gainDb() == 0);
 }

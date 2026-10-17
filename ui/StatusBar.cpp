@@ -73,7 +73,7 @@ void StatusBar::paint(juce::Graphics& g)
          values_.sidechainSyncIsError ? palette::error : palette::level},
         {values_.sampleRate, "192 kHz", false, palette::level},
         {values_.window, "4 BARS", false, palette::level},
-        {values_.gain, "AUTO +18 dB", false, palette::level},
+        {values_.gain, "AUTO +64 dB", false, palette::level},
         {values_.zoom, "", true, palette::text},
     }};
 

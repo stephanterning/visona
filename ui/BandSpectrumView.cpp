@@ -22,6 +22,22 @@ BandSpectrumView::~BandSpectrumView()
 {
     analyzer_.setEnabled(false);
 }
+void BandSpectrumView::setDisplayGainDb(int db)
+{
+    gainDb_ = db;
+    background_ = {};
+    render();
+    repaint();
+}
+void BandSpectrumView::setAfterglow(int index)
+{
+    afterglow_ = std::clamp(index, 0, 3);
+    constexpr std::array<double, 4> times{0, 0.5, 1, 2};
+    analyzer_.setHoldSeconds(times[static_cast<std::size_t>(afterglow_)]);
+    background_ = {};
+    render();
+    repaint();
+}
 void BandSpectrumView::setActive(bool active)
 {
     setVisible(active);
@@ -70,7 +86,7 @@ void BandSpectrumView::render()
         g.drawText("SPECTRUM (BAND)", 18, 8, 200, 24, juce::Justification::centredLeft);
         g.setColour(palette::textDim);
         g.setFont(12);
-        g.drawText("1/3 octave | Stereo energy | Peak / 150 ms release | Markers: 1 s hold", 48, 31,
+        g.drawText("1/3 octave | Stereo energy | Peak / 150 ms release | Global afterglow", 48, 31,
                    getWidth() - 64, 18, juce::Justification::centredLeft);
         for (int db = 0; db >= -60; db -= 10)
         {
@@ -78,7 +94,7 @@ void BandSpectrumView::render()
             g.setColour(juce::Colour(0xff222222));
             g.drawHorizontalLine(juce::roundToInt(y), area.getX(), area.getRight());
             g.setColour(palette::textDim);
-            g.drawText(juce::String(db), 0, juce::roundToInt(y) - 8, 40, 16,
+            g.drawText(juce::String(db - gainDb_), 0, juce::roundToInt(y) - 8, 40, 16,
                        juce::Justification::centredRight);
         }
         const float width = area.getWidth() / spectrumBands;
@@ -107,13 +123,15 @@ void BandSpectrumView::drawBands(juce::Graphics& g)
     {
         if (BandAnalyzer::frequency(i) * std::pow(10.0, 0.05) >= snapshot_.sampleRate * 0.5)
             continue;
-        const auto level = std::clamp((snapshot_.db[i] + 60) / 60, 0.0f, 1.0f);
-        const auto peak = std::clamp((snapshot_.peakDb[i] + 60) / 60, 0.0f, 1.0f);
+        const auto level =
+            std::clamp((snapshot_.db[i] + static_cast<float>(gainDb_) + 60) / 60, 0.0f, 1.0f);
+        const auto peak =
+            std::clamp((snapshot_.peakDb[i] + static_cast<float>(gainDb_) + 60) / 60, 0.0f, 1.0f);
         const float x = area.getX() + static_cast<float>(i) * width + 2;
         g.setColour(colour_.withMultipliedBrightness(0.75f));
         g.fillRect(x, area.getBottom() - level * area.getHeight(), width - 4,
                    level * area.getHeight());
-        if (peak > 0)
+        if (afterglow_ != 0 && peak > 0)
         {
             g.setColour(palette::text);
             g.fillRect(x, std::max(area.getY(), area.getBottom() - peak * area.getHeight() - 1),
@@ -156,8 +174,12 @@ juce::RectangleList<int> BandSpectrumView::changedRegion(const BandSnapshot& pre
         return dirty;
     }
     const float width = area.getWidth() / spectrumBands;
-    const auto yAt = [area](float db)
-    { return area.getBottom() - std::clamp((db + 60) / 60, 0.0f, 1.0f) * area.getHeight(); };
+    const auto yAt = [area, this](float db)
+    {
+        return area.getBottom() -
+               std::clamp((db + static_cast<float>(gainDb_) + 60) / 60, 0.0f, 1.0f) *
+                   area.getHeight();
+    };
     for (std::size_t i = 0; i < spectrumBands; ++i)
     {
         const auto x = area.getX() + static_cast<float>(i) * width;

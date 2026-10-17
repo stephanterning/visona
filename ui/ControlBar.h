@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnalysisSelector.h"
+#include "ChoiceBox.h"
 #include "ChromeButton.h"
 #include "ChromeLayout.h"
 #include "GainControl.h"
@@ -38,6 +39,10 @@ public:
     void setSpectrum(bool enabled);
     void setAnalysisView(int view);
     std::function<void()> onSpectrumSettings;
+    ChoiceBox& afterglow() noexcept
+    {
+        return afterglow_;
+    }
 
     [[nodiscard]] WindowControl& window() noexcept
     {
@@ -103,7 +108,7 @@ public:
     void resized() override;
 
 private:
-    static constexpr std::size_t numGroups = 8;
+    static constexpr std::size_t numGroups = 9;
 
     /** The groups in order, pause, window, tempo, gain, waveform and buttons, each placed in a
         row. */
@@ -125,6 +130,7 @@ private:
     WindowControl window_;
     TempoControl tempo_;
     GainControl gain_;
+    ChoiceBox afterglow_;
     WaveformControl waveform_;
     ChromeButton diagnostics_{"Diagnostics", ChromeButton::Icon::diagnostics};
     ChromeButton fullScreen_{"Full screen", ChromeButton::Icon::fullScreen};

@@ -28,6 +28,10 @@ public:
     {
         enabled_.store(enabled);
     }
+    void setHoldSeconds(double seconds) noexcept
+    {
+        requestedHoldMs_.store(static_cast<unsigned>(seconds * 1000.0));
+    }
     void clearPeaks() noexcept
     {
         resetRequests_.fetch_add(1);
@@ -59,6 +63,7 @@ private:
     bool active_ = false;
     std::atomic<bool> enabled_{false};
     std::atomic<unsigned> resetRequests_{0};
+    std::atomic<unsigned> requestedHoldMs_{1000};
     TripleBuffer<BandSnapshot> snapshots_;
 };
 } // namespace visona

@@ -479,3 +479,54 @@ TEST_CASE("Every octave smoothing setting matches a known tone's spectral power"
             REQUIRE(snapshot.db[curve][index] == Catch::Approx(expectedDb).margin(0.02));
     }
 }
+
+TEST_CASE("Global FFT afterglow falls twelve dB per selected duration without holding",
+          "[spectrum]")
+{
+    constexpr double rate = 48000;
+    for (const int afterglow : {1, 2, 3})
+        for (const bool rms : {false, true})
+        {
+            SpectrumAnalyzer analyzer;
+            SpectrumSettings settings;
+            settings.afterglow = afterglow;
+            for (auto& curve : settings.curves)
+            {
+                curve.rms = rms;
+                curve.smoothing = 0;
+            }
+            REQUIRE(SpectrumSettings::fromAnalysisKey(settings.analysisKey()).afterglow ==
+                    afterglow);
+            analyzer.reset(rate);
+            analyzer.setEnabled(true);
+            analyzer.setSettings(settings);
+            const auto tone = sine(rate, 1000, 0.5f);
+            analyzer.process(tone, tone, 0);
+            REQUIRE(analyzer.snapshots().fetch());
+            const auto initial = analyzer.snapshots().readBuffer();
+            const auto peak = static_cast<std::size_t>(
+                std::max_element(initial.db[1].begin(), initial.db[1].end()) -
+                initial.db[1].begin());
+            std::vector<float> silence(spectrumFftSize, 0);
+            std::uint64_t frame = tone.size();
+            analyzer.process(silence, silence, frame);
+            frame += silence.size();
+            REQUIRE(analyzer.snapshots().fetch());
+            const auto before = analyzer.snapshots().readBuffer();
+            constexpr std::array<double, 4> seconds{0, 0.5, 1, 2};
+            REQUIRE(before.db[1][peak] < initial.db[1][peak]);
+            const auto hops = static_cast<std::size_t>(
+                seconds[static_cast<std::size_t>(afterglow)] * rate / spectrumHopSize);
+            silence.assign(hops * spectrumHopSize, 0);
+            test::AllocationCounter allocations;
+            analyzer.process(silence, silence, frame);
+            const auto allocated = allocations.count();
+            REQUIRE(allocated == 0);
+            REQUIRE(analyzer.snapshots().fetch());
+            const auto after = analyzer.snapshots().readBuffer();
+            const auto elapsed = static_cast<double>(after.frameEnd - before.frameEnd) / rate;
+            REQUIRE(after.db[1][peak] - before.db[1][peak] ==
+                    Catch::Approx(-12 * elapsed / seconds[static_cast<std::size_t>(afterglow)])
+                        .margin(0.02));
+        }
+}

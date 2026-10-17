@@ -439,6 +439,31 @@ struct StereoUiChecks
                 }
             }
         }
+        view.selectMode(1);
+        view.setDisplayGainDb(0);
+        view.setAfterglow(3);
+        view.snapshot_->count = 1;
+        view.snapshot_->samples[0] = {0.25f, 0.25f};
+        view.snapshot_->validity = StereoValidity::valid;
+        view.render();
+        view.snapshot_->validity = StereoValidity::silent;
+        view.setDisplayGainDb(6);
+        check(firstBrightness(view) > 0, "Global gain discarded stereo afterglow");
+        const auto centreY = view.density_.getHeight() / 2;
+        check(view.cloudBounds_.getBottom() < centreY, "Gain moved mono history across the origin");
+        view.resetView();
+        check(view.displayGainDb_ == 6 && view.persistence_.getSelectedItemIndex() == 3,
+              "Reset view changed global controls");
+        view.setAfterglow(0);
+        view.render();
+        check(view.cloudBounds_.isEmpty(), "Global Afterglow Off retained history");
+        for (int mode = 0; mode < 4; ++mode)
+        {
+            preview.controls.setAnalysisView(mode);
+            check(preview.controls.gain().isVisible(), "Global gain hidden in an analysis view");
+            check(preview.controls.afterglow().isVisible() == (mode != 0),
+                  "Afterglow visibility does not follow analysis view");
+        }
         std::cout << "Stereo UI checks passed\n";
     }
 };

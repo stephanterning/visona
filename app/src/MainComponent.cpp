@@ -86,8 +86,6 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     {
         if (analysisView_ == 3)
             stereo_.resetView();
-        else if (analysisView_ == 2)
-            bandSpectrum_.resetPeaks();
         else
             spectrum_.showSettings(!spectrum_.settingsVisible());
         updateBanner();
@@ -100,6 +98,16 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     { settings_.setSpectrumSettings(spectrum_.saveSettings()); };
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.tempo().onTempoChange = [this](double bpm) { setFreeTempo(bpm); };
+    controlBar_.afterglow().onChange = [this]
+    {
+        const auto index = controlBar_.afterglow().getSelectedItemIndex();
+        stereo_.setAfterglow(index);
+        spectrum_.setAfterglow(index);
+        bandSpectrum_.setAfterglow(index);
+        settings_.setAfterglow(index);
+    };
+    controlBar_.afterglow().setSelectedItemIndex(settings_.afterglow(), juce::dontSendNotification);
+    controlBar_.afterglow().onChange();
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
     controlBar_.onPauseButton = [this] { pressPauseButton(); };
@@ -141,6 +149,7 @@ MainComponent::MainComponent(AudioEngine& engine, Settings& settings, bool kiosk
     spectrum_.setWaveformColour(palette::waveformColours[colour].colour);
     bandSpectrum_.setWaveformColour(palette::waveformColours[colour].colour);
     stereo_.setWaveformColour(palette::waveformColours[colour].colour);
+    showGainDb(settings_.displayGain());
     setAutoGain(settings_.autoGain());
 
     // The kiosk window always covers its display.
@@ -309,15 +318,13 @@ bool MainComponent::keyPressed(const juce::KeyPress& key)
         setWindow(static_cast<std::size_t>(character - '1'));
         return true;
     }
-    if (analysisView_ == 0 &&
-        (key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
+    if ((key.isKeyCode(juce::KeyPress::upKey) || key.isKeyCode(juce::KeyPress::numberPadAdd) ||
          character == '+' || character == '='))
     {
         setGainDb(gainDb_ + 1);
         return true;
     }
-    if (analysisView_ == 0 &&
-        (key.isKeyCode(juce::KeyPress::downKey) ||
+    if ((key.isKeyCode(juce::KeyPress::downKey) ||
          key.isKeyCode(juce::KeyPress::numberPadSubtract) || character == '-'))
     {
         setGainDb(gainDb_ - 1);
@@ -379,10 +386,12 @@ void MainComponent::setGainDb(int gainDb)
 void MainComponent::showGainDb(int gainDb)
 {
     gainDb = DisplayGain::clampDb(gainDb);
-    if (gainDb == gainDb_)
-        return;
     gainDb_ = gainDb;
+    settings_.setDisplayGain(gainDb_);
     scope_.setGainDb(gainDb_);
+    spectrum_.setDisplayGainDb(gainDb_);
+    bandSpectrum_.setDisplayGainDb(gainDb_);
+    stereo_.setDisplayGainDb(gainDb_);
     controlBar_.gain().setGainDb(gainDb_);
     updateStatus();
 }
@@ -399,7 +408,7 @@ void MainComponent::setAutoGain(bool isOn)
 
 void MainComponent::followAutoGain()
 {
-    if (autoGainOn_ && autoGain_.follow(scope_.snapshot().barPeaks))
+    if (autoGainOn_ && autoGain_.follow(scope_.snapshot().inputPeaks))
         showGainDb(autoGain_.gainDb());
 }
 

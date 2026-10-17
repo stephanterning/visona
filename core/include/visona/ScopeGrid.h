@@ -1,9 +1,5 @@
 #pragma once
 
-#include <array>
-#include <cstddef>
-#include <span>
-
 namespace visona
 {
 
@@ -20,24 +16,43 @@ namespace visona
     if the tempo is not known. */
 [[nodiscard]] double divisionMilliseconds(int division, double bpm) noexcept;
 
-/** A faint amplitude reference line: where a level lands after display gain, and the display gain
-    from which it is shown (D-088). */
+/** A faint amplitude reference line in input signal units. */
 struct AmplitudeReference
 {
     int levelDb = 0;
     float level = 1.0f;
-    int minGainDb = 0;
 };
 
-/** 0 dBFS and −6 dBFS always, −12 dBFS from +4 dB of display gain and −18 dBFS from +10 dB. */
-inline constexpr std::array<AmplitudeReference, 4> amplitudeReferences{{
-    {0, 1.0f, 0},
-    {-6, 0.501187f, 0},
-    {-12, 0.251189f, 4},
-    {-18, 0.125893f, 10},
-}};
+/** Allocation-free sequence of visible 3 dB references, loudest first. */
+struct AmplitudeReferences
+{
+    struct Iterator
+    {
+        int db;
+        AmplitudeReference operator*() const noexcept;
+        Iterator& operator++() noexcept
+        {
+            db -= 3;
+            return *this;
+        }
+        bool operator!=(const Iterator& other) const noexcept
+        {
+            return db != other.db;
+        }
+    };
+    int firstDb, endDb;
+    Iterator begin() const noexcept
+    {
+        return {firstDb};
+    }
+    Iterator end() const noexcept
+    {
+        return {endDb};
+    }
+};
 
-/** The references shown at `gainDb` of display gain, loudest first. */
-[[nodiscard]] std::span<const AmplitudeReference> amplitudeReferencesAt(int gainDb) noexcept;
+/** Continue in 3 dB steps down to one pixel from the lane centre. There is no
+    fixed minimum dB level; the lower end follows gain and pixel resolution. */
+[[nodiscard]] AmplitudeReferences amplitudeReferencesAt(int gainDb, int laneHeight = 512) noexcept;
 
 } // namespace visona

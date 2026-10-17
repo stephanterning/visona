@@ -68,10 +68,10 @@ StereoView::StereoView(StereoAnalyzer& analyzer)
     addAndMakeVisible(polar_);
     addAndMakeVisible(lissajous_);
     addAndMakeVisible(level_);
-    addAndMakeVisible(gainLabel_);
-    addAndMakeVisible(gain_);
-    addAndMakeVisible(persistence_);
-    addAndMakeVisible(persistenceLabel_);
+    addChildComponent(gainLabel_);
+    addChildComponent(gain_);
+    addChildComponent(persistence_);
+    addChildComponent(persistenceLabel_);
     persistenceLabel_.setText("Afterglow", juce::dontSendNotification);
     persistenceLabel_.setJustificationType(juce::Justification::centredRight);
     persistence_.addItem("Off", 1);
@@ -102,7 +102,7 @@ StereoView::StereoView(StereoAnalyzer& analyzer)
         "Common gain for both display channels. Measurements and signal threshold are unchanged.");
     gain_.onChange = [this]
     {
-        clearHistory();
+        setDisplayGainDb(gains[static_cast<std::size_t>(gain_.getSelectedItemIndex())]);
         changed();
     };
     polar_.setToggleState(true, juce::dontSendNotification);
@@ -110,6 +110,72 @@ StereoView::StereoView(StereoAnalyzer& analyzer)
 StereoView::~StereoView()
 {
     analyzer_.setEnabled(false);
+}
+void StereoView::setAfterglow(int index)
+{
+    globalControls_ = true;
+    persistence_.setSelectedItemIndex(std::clamp(index, 0, 3), juce::sendNotificationSync);
+}
+void StereoView::setDisplayGainDb(int db)
+{
+    if (db == displayGainDb_)
+        return;
+    const auto ratio = std::pow(10.0f, static_cast<float>(db - displayGainDb_) / 20.0f);
+    displayGainDb_ = db;
+    // Reproject retained display pixels when gain changes. Measurement data and
+    // Level radii remain in signal units; only their drawing scale changes.
+    if (mode_ != 2 && density_.isValid())
+    {
+        std::vector<TrailPixel> retained;
+        for (const auto& tile : historyTiles_)
+            for (const auto& point : tile.pixels)
+                if (point.index != std::numeric_limits<unsigned>::max())
+                    retained.push_back(point);
+        for (auto& tile : historyTiles_)
+        {
+            tile.pixels.clear();
+            tile.free.clear();
+        }
+        std::fill(historySlots_.begin(), historySlots_.end(), std::numeric_limits<unsigned>::max());
+        std::fill(counts_.begin(), counts_.end(), 0);
+        touched_.clear();
+        density_ = background_.createCopy();
+        juce::Image::BitmapData data(density_, juce::Image::BitmapData::readOnly);
+        const auto width = density_.getWidth(), height = density_.getHeight();
+        const float cx = static_cast<float>(width) * 0.5f;
+        const float cy = mode_ == 1 ? static_cast<float>(height) * 0.5f
+                                    : static_cast<float>(height) - 2 * renderScale_;
+        for (auto point : retained)
+        {
+            point.x = juce::roundToInt(cx + (static_cast<float>(point.x) - cx) * ratio);
+            point.y = juce::roundToInt(cy + (static_cast<float>(point.y) - cy) * ratio);
+            if (point.x < 0 || point.x >= width || point.y < 0 || point.y >= height)
+                continue;
+            const auto px = static_cast<float>(point.x) - cx;
+            const auto py = cy - static_cast<float>(point.y);
+            const auto radius = (static_cast<float>(width) - 4 * renderScale_) * 0.5f;
+            if ((mode_ == 1 ? std::abs(px) + std::abs(py) : std::hypot(px, py)) > radius + 2)
+                continue;
+            point.index = static_cast<unsigned>(point.y * width + point.x);
+            auto& tile = historyTiles_[static_cast<std::size_t>(
+                (point.y / 32) * ((width + 31) / 32) + point.x / 32)];
+            auto& slot = historySlots_[point.index];
+            if (slot != std::numeric_limits<unsigned>::max())
+            {
+                tile.pixels[slot].brightness =
+                    std::max(tile.pixels[slot].brightness, point.brightness);
+                continue;
+            }
+            point.offset = point.y * data.lineStride + point.x * data.pixelStride;
+            point.background =
+                *reinterpret_cast<const juce::PixelRGB*>(data.getPixelPointer(point.x, point.y));
+            point.lastAlpha = -1;
+            slot = static_cast<unsigned>(tile.pixels.size());
+            tile.pixels.push_back(point);
+        }
+    }
+    render();
+    repaint();
 }
 void StereoView::setActive(bool active)
 {
@@ -184,8 +250,12 @@ void StereoView::changed()
 }
 void StereoView::resetView()
 {
-    gain_.setSelectedItemIndex(2, juce::dontSendNotification);
-    persistence_.setSelectedItemIndex(2, juce::dontSendNotification);
+    if (!globalControls_)
+    {
+        gain_.setSelectedItemIndex(2, juce::dontSendNotification);
+        displayGainDb_ = 0;
+        persistence_.setSelectedItemIndex(2, juce::dontSendNotification);
+    }
     levelProfile_.setSelectedItemIndex(0, juce::dontSendNotification);
     selectMode(0);
 }
@@ -213,6 +283,8 @@ void StereoView::restoreSettings(const juce::String& text)
     persistence_.setSelectedItemIndex(fields.size() >= 3 ? fields[2].getIntValue() : 2,
                                       juce::dontSendNotification);
     gain_.setSelectedItemIndex(gain, juce::dontSendNotification);
+    if (!globalControls_)
+        displayGainDb_ = gains[static_cast<std::size_t>(gain)];
     selectMode(fields[0].getIntValue());
 }
 juce::Rectangle<float> StereoView::plot() const
@@ -362,10 +434,7 @@ void StereoView::render()
         int minX = width, minY = height, maxX = -1, maxY = -1;
         if (snapshot_->signalValid() && !stale_)
         {
-            const float gain = std::pow(
-                10.0f,
-                static_cast<float>(gains[static_cast<std::size_t>(gain_.getSelectedItemIndex())]) /
-                    20.0f);
+            const float gain = std::pow(10.0f, static_cast<float>(displayGainDb_) / 20.0f);
             const float radius = (static_cast<float>(width) - 4.0f * renderScale_) * 0.5f;
             const float cx = static_cast<float>(width) * 0.5f;
             const float cy = mode_ != 1 ? (static_cast<float>(height) - 2.0f * renderScale_)
@@ -507,9 +576,7 @@ void StereoView::renderLevel()
     if (!visible)
         return;
     const auto& levels = released_;
-    const double gain = std::pow(
-        10.0,
-        static_cast<double>(gains[static_cast<std::size_t>(gain_.getSelectedItemIndex())]) / 20.0);
+    const double gain = std::pow(10.0, static_cast<double>(displayGainDb_) / 20.0);
     const float radius = (static_cast<float>(density_.getWidth()) - 4.0f * renderScale_) * 0.5f;
     const float cx = static_cast<float>(density_.getWidth()) * 0.5f;
     const float cy = static_cast<float>(density_.getHeight()) - 2.0f * renderScale_;

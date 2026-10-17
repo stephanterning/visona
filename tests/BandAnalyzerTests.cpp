@@ -170,3 +170,26 @@ TEST_CASE("Band octave edges have the expected half-power response", "[bands]")
             REQUIRE(read(analyzer).db[band] == Catch::Approx(-9.0309).margin(0.8));
         }
 }
+
+TEST_CASE("Global Band afterglow changes peak hold duration", "[bands]")
+{
+    for (const double hold : {0.5, 1.0, 2.0})
+    {
+        BandAnalyzer analyzer;
+        analyzer.setHoldSeconds(hold);
+        analyzer.reset(48000);
+        analyzer.setEnabled(true);
+        const auto tone = bandTone(48000, 1000, 4800);
+        analyzer.process(tone, tone, 0);
+        const auto initial = read(analyzer);
+        std::vector<float> silence(static_cast<std::size_t>(48000 * (hold - 0.1)), 0);
+        analyzer.process(silence, silence, tone.size());
+        const auto held = read(analyzer);
+        REQUIRE(held.peakDb[17] == Catch::Approx(initial.peakDb[17]).margin(0.05));
+        const auto frame = tone.size() + silence.size();
+        silence.assign(24000, 0);
+        analyzer.process(silence, silence, frame);
+        const auto released = read(analyzer);
+        REQUIRE(released.peakDb[17] < held.peakDb[17] - 3);
+    }
+}

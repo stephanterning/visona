@@ -26,7 +26,7 @@ time; split-screen layouts remain future work. See [spectrum.md](spectrum.md).
 - Sweep display with windows of ¼, ½, 1, 2 and 4 bars (D-020, D-034)
 - Horizontal zoom in on part of the window, down to 1/32 of it, without changing the window (D-082, D-085)
 - Full-band waveform in three modes, STD, PRECISE and DJ, with DJ's frequency coloring as an aid and a chosen colour for the others (D-050, D-056, D-091–D-093)
-- Display gain from 0 to +18 dB, by hand or with optional auto gain (D-024, D-046, D-100)
+- Display gain from 0 to +64 dB, by hand or with optional auto gain (D-024, D-046, D-100)
 - Status bar, control bar, a settings panel with persistence, resizing and fullscreen (D-046)
 - Transport policies per D-045, D-059 and D-090
 - CI on every PR: core and tests on Linux (D-043, D-095). macOS and Pi app builds on release or manual trigger.
@@ -47,7 +47,7 @@ time; split-screen layouts remain future work. See [spectrum.md](spectrum.md).
 2. Before the first Start, incoming stereo shows in a free-running sweep at the saved free tempo.
 3. On Play in Ableton Live, the sweep restarts at bar 1 and the bars stand still on screen.
 4. Kicks on the beat land on the grid lines at 120, 126 and 174 BPM.
-5. The window (¼–4 bars), gain (0–18 dB) and zoom can be changed live.
+5. The window (¼–4 bars), gain (0–64 dB) and zoom can be changed live.
 6. Stop freezes the view and shows `STOPPED`. Moving the playhead to bar 17 and pressing Continue lands correctly (SPP). `Run free` on the pause button runs the sweep free at the last tempo (D-110).
 7. Pulling the MIDI cable shows `MIDI CLOCK LOST` within about 0.5 s.
 8. A long studio session runs without dropouts or ring overruns.

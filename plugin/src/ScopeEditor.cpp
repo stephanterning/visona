@@ -75,8 +75,6 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     {
         if (analysisView_ == 3)
             stereo_.resetView();
-        else if (analysisView_ == 2)
-            bandSpectrum_.resetPeaks();
         else
             spectrum_.showSettings(!spectrum_.settingsVisible());
     };
@@ -93,6 +91,17 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
         notifyStateChange();
     };
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
+    controlBar_.afterglow().onChange = [this]
+    {
+        const auto index = controlBar_.afterglow().getSelectedItemIndex();
+        stereo_.setAfterglow(index);
+        spectrum_.setAfterglow(index);
+        bandSpectrum_.setAfterglow(index);
+        state_.afterglow = index;
+        notifyStateChange();
+    };
+    controlBar_.afterglow().setSelectedItemIndex(state_.afterglow, juce::dontSendNotification);
+    controlBar_.afterglow().onChange();
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
     controlBar_.waveform().onModeChange = [this](WaveformMode mode) { setWaveformMode(mode); };
@@ -284,6 +293,9 @@ int ScopeEditor::shownGainDb()
 void ScopeEditor::showGainDb(int gainDb)
 {
     scope_.setGainDb(gainDb);
+    spectrum_.setDisplayGainDb(gainDb);
+    bandSpectrum_.setDisplayGainDb(gainDb);
+    stereo_.setDisplayGainDb(gainDb);
     controlBar_.gain().setGainDb(gainDb);
 }
 
@@ -311,7 +323,7 @@ void ScopeEditor::setAutoGain(bool isOn)
 
 void ScopeEditor::followAutoGain()
 {
-    if (state_.autoGain && processor_.autoGain().follow(scope_.snapshot().barPeaks))
+    if (state_.autoGain && processor_.autoGain().follow(scope_.snapshot().inputPeaks))
     {
         showGainDb(processor_.autoGain().gainDb());
         updateStatus();

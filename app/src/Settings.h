@@ -29,6 +29,22 @@ public:
     {
         properties_.setValue("analysisView", view);
     }
+    int displayGain() const
+    {
+        return juce::jlimit(0, 64, properties_.getIntValue("displayGain", 0));
+    }
+    void setDisplayGain(int db)
+    {
+        properties_.setValue("displayGain", db);
+    }
+    int afterglow() const
+    {
+        return juce::jlimit(0, 3, properties_.getIntValue("afterglow", 2));
+    }
+    void setAfterglow(int index)
+    {
+        properties_.setValue("afterglow", juce::jlimit(0, 3, index));
+    }
     juce::String stereoSettings() const
     {
         return properties_.getValue("stereoSettings");

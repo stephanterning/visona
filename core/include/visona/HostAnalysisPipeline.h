@@ -101,7 +101,7 @@ private:
     void publish() noexcept;
 
     SweepAnalyzer analyzer_;
-    BarPeakMeter barPeaks_;
+    BarPeakMeter barPeaks_, inputPeaks_;
     TripleBuffer<SweepSnapshot> snapshots_;
     HostTransport transport_;
     SpscQueue<TimedPlayhead> playheads_;

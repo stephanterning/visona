@@ -549,3 +549,19 @@ physical cache dimensions, unchanged measurements and sample contributions.
 High-density caches use more memory and can cost more to render. This change
 does not constitute a new Pi FPS measurement; the 1x rendering path retains its
 previous dimensions.
+
+
+### Shared display controls
+
+Gain/Auto and Afterglow now live in the common bottom control bar. The stereo
+header contains only its view/profile choices. Global Gain applies equally to
+all projections, and Auto follows the shared transport-independent input-peak feed regardless
+of the visible view. Reset view retains the shared controls. Gain changes
+reproject retained sample-history pixels around the plot origin; Polar Level
+history already uses signal-unit radii. Samples/history outside the plot can be
+discarded. Quantized historical pixels can merge when shrinking the display;
+current samples are always projected again from their original values.
+
+The global values are stored independently of the legacy stereo settings string.
+Old per-view gain/afterglow values no longer override the shared settings during
+startup. Earlier sections describing controls above the stereo plot are historical.

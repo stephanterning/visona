@@ -17,6 +17,8 @@ public:
     ~SpectrumView() override;
     std::function<void()> onSettingsChange;
     void setActive(bool active);
+    void setDisplayGainDb(int db);
+    void setAfterglow(int index);
     struct Stats
     {
         double framesPerSecond = 0, renderMsAverage = 0, renderMsMax = 0;
@@ -62,6 +64,7 @@ private:
     void moveCursor(juce::Point<float> position);
     SpectrumAnalyzer& analyzer_;
     SpectrumSettings settings_;
+    int gainDb_ = 0, afterglow_ = 2;
     juce::Colour waveformColour_;
     SpectrumSnapshot snapshot_;
     bool active_ = false, paused_ = false, cursor_ = false;
@@ -83,7 +86,7 @@ private:
         void paint(juce::Graphics& g) override;
     } settingsPanel_;
     juce::Label title_;
-    juce::TextButton close_{"Done"}, clear_{"Reset peaks"};
+    juce::TextButton close_{"Done"};
     juce::Viewport viewport_;
     juce::Component settingsContent_;
     // Channel, top, range, slope; six controls per curve.

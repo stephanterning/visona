@@ -173,7 +173,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 - **Lanes.** Stacked, with L on top (D-057). Each lane is a generic *channel view*, which in the MVP is one channel; Mid, Side or a single lane can become a setting later.
 - **Vertical mapping.** *y = center − value × dbToGain(gainDb) × laneHalfHeight* (D-024).
   - At the lane edge the waveform is clipped with a *neutral* marker, so display overshoot is not mistaken for audio clipping.
-- **Amplitude references.** A center line, plus faint lines where 0 dBFS and −6 dBFS land after display gain, and −12 dBFS and −18 dBFS from +4 dB and +10 dB of gain (D-088).
+- **Amplitude references.** A center line, plus faint lines every 3 dB after display gain down to pixel resolution. Right-hand labels follow consecutive 3 dB steps while space allows, with no fixed lower dB limit.
 - **Write head and passes** (D-068).
   - The head is a thin line in an accent colour outside the waveform colours; there is no green preset.
   - A small erase gap follows the head.
@@ -223,7 +223,7 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The pause button comes first, in the app only (D-110). Its icon and tooltip say what a press does: ⏸ pause while the view moves, ▶ resume, lit, while it is paused, and ▶ run free while MIDI Clock is stopped or lost.
   - WINDOW is a select menu, `¼ BAR` to `4 BARS`, whose list opens above it (D-108).
   - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
-  - GAIN is `[−] +12 dB [+]`, from 0 to +18 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB (D-100).
+  - GAIN is `[−] +12 dB [+]`, from 0 to +64 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB (D-100).
   - AUTO, right of GAIN, turns auto gain on and off. While it is on, the button is lit, the value is green and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, in at bar lines once the peaks have stayed low for 10 s. A change by hand turns auto gain off (D-100, D-108).
   - WAVE is a select menu of `STD`, `PRECISE` and `DJ`, the drawing modes (D-091, D-108).
   - Secondary buttons: Diagnostics and Full screen, next to ⚙. All the buttons in the control bar show only their icons, with the label as the tooltip (D-113).

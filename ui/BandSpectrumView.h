@@ -10,6 +10,8 @@ public:
     explicit BandSpectrumView(BandAnalyzer& analyzer);
     ~BandSpectrumView() override;
     void setActive(bool active);
+    void setDisplayGainDb(int db);
+    void setAfterglow(int index);
     void setPaused(bool paused)
     {
         paused_ = paused;
@@ -19,10 +21,6 @@ public:
         colour_ = colour;
         render();
         repaint();
-    }
-    void resetPeaks()
-    {
-        analyzer_.clearPeaks();
     }
     SpectrumView::Stats stats() const
     {
@@ -44,6 +42,7 @@ private:
     juce::Colour colour_;
     bool paused_ = false;
     float scale_ = 1;
+    int gainDb_ = 0, afterglow_ = 2;
     SpectrumView::Stats stats_;
     double start_ = 0, renderTotal_ = 0, renderMax_ = 0, paintTotal_ = 0, paintMax_ = 0;
     int frames_ = 0, paints_ = 0;

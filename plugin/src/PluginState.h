@@ -37,6 +37,7 @@ struct PluginInstanceState
     juce::String spectrumSettings;
     juce::String stereoSettings;
     int gainDb = 0;
+    int afterglow = 2;
     bool autoGain = false;
     std::size_t window = 2;
     WaveformMode waveformMode = WaveformMode::precise;

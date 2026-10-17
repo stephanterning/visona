@@ -45,6 +45,12 @@ ControlBar::ControlBar()
     addAndMakeVisible(window_);
     addAndMakeVisible(tempo_);
     addAndMakeVisible(gain_);
+    addChildComponent(afterglow_);
+    afterglow_.addItemList(
+        {"Afterglow: Off", "Afterglow: 0.5 s", "Afterglow: 1 s", "Afterglow: 2 s"}, 1);
+    afterglow_.setSelectedItemIndex(2, juce::dontSendNotification);
+    afterglow_.setTitle("Afterglow");
+    afterglow_.setTooltip("FFT line release, Band peak hold, or stereo persistence.");
     addAndMakeVisible(waveform_);
     addAndMakeVisible(diagnostics_);
     addAndMakeVisible(fullScreen_);
@@ -56,9 +62,9 @@ void ControlBar::setAnalysisView(int view)
 {
     setSpectrum(view != 0);
     view_.setView(view);
-    spectrumSettings_.setButtonText(view == 3   ? "Reset view"
-                                    : view == 2 ? "Reset peaks"
-                                                : "Analysis settings");
+    spectrumSettings_.setVisible(view == 1 || view == 3);
+    resized();
+    spectrumSettings_.setButtonText(view == 3 ? "Reset view" : "Analysis settings");
 }
 void ControlBar::setSpectrum(bool enabled)
 {
@@ -66,7 +72,8 @@ void ControlBar::setSpectrum(bool enabled)
     view_.setView(enabled ? 1 : 0);
     window_.setVisible(!enabled);
     tempo_.setVisible(!enabled && tempoVisible_);
-    gain_.setVisible(!enabled);
+    gain_.setVisible(true);
+    afterglow_.setVisible(enabled);
     waveform_.setVisible(!enabled);
     spectrumSettings_.setVisible(enabled);
     resized();
@@ -180,7 +187,7 @@ void ControlBar::resized()
     for (std::size_t row = 0; row < rows.size(); ++row)
         rows[row] = rowBounds(static_cast<int>(row));
     const std::array<juce::Component*, numGroups - 1> controls{
-        &view_, &pause_, &window_, &tempo_, &gain_, &waveform_, &spectrumSettings_};
+        &view_, &pause_, &window_, &tempo_, &gain_, &afterglow_, &waveform_, &spectrumSettings_};
     for (std::size_t group = 0; group < controls.size(); ++group)
     {
         if (widths[group] == 0)
@@ -212,9 +219,10 @@ std::array<int, ControlBar::numGroups> ControlBar::groupWidths() const
             pauseVisible_ ? pause_.preferredWidth(metrics.controlHeight) : 0,
             spectrum_ ? 0 : window_.preferredWidth(metrics.controlHeight),
             tempoVisible_ && !spectrum_ ? tempo_.preferredWidth(metrics.controlHeight) : 0,
-            spectrum_ ? 0 : gain_.preferredWidth(metrics.controlHeight),
+            gain_.preferredWidth(metrics.controlHeight),
+            spectrum_ ? 170 : 0,
             spectrum_ ? 0 : waveform_.preferredWidth(metrics.controlHeight),
-            spectrum_ ? 156 : 0,
+            spectrumSettings_.isVisible() ? 156 : 0,
             buttons};
 }
 

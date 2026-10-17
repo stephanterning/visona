@@ -30,8 +30,8 @@ namespace visona
 
     - The write head is a thin accent line followed by a small erase gap. The previous pass ahead
       of it is drawn like the new one (D-068).
-    - Faint lines mark the centre and where 0 dBFS and -6 dBFS land after display gain, and
-      -12 dBFS and -18 dBFS from +4 and +10 dB of gain (D-088). Display overshoot is cut at the
+    - Faint lines mark the centre and consecutive 3 dB levels after display gain.
+      References continue down to the available pixel resolution. Display overshoot is cut at the
       lane edge with a neutral marker.
     - The sweep is always in bars, following MIDI Clock or running free at the free tempo
       (D-090). A neutral grey grid marks bars, beats and a finer note value that depends on how

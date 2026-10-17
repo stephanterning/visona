@@ -505,7 +505,7 @@ void ScopeView::drawTileColumns(juce::Image::BitmapData& pixels, int tileStart, 
                 break;
             }
         }
-        for (const auto& reference : amplitudeReferencesAt(gainDb_))
+        for (const auto& reference : amplitudeReferencesAt(gainDb_, lane.height))
         {
             if (!mapping.isInside(reference.level))
                 continue;
@@ -1182,7 +1182,8 @@ void ScopeView::drawLabels(juce::Graphics& g) const
         }
 
         const LaneMapping mapping(0, lanes_[index].height, gain);
-        for (const auto& reference : amplitudeReferencesAt(gainDb_))
+        float previousLabelBottom = top;
+        for (const auto& reference : amplitudeReferencesAt(gainDb_, lanes_[index].height))
         {
             if (!mapping.isInside(reference.level))
                 continue;
@@ -1190,6 +1191,11 @@ void ScopeView::drawLabels(juce::Graphics& g) const
             const auto y = top + static_cast<float>(mapping.rowOf(reference.level)) / scale_;
             const auto labelTop =
                 std::max(top, std::min(y + 1.0f, top + height - static_cast<float>(labelHeight)));
+            // Stop only when the next consecutive 3 dB label cannot fit on screen.
+            // Reference lines continue to the centre's pixel resolution.
+            if (labelTop < previousLabelBottom)
+                break;
+            previousLabelBottom = labelTop + static_cast<float>(labelHeight);
             const juce::Rectangle<float> area(static_cast<float>(getWidth()) - 60.0f - labelMargin,
                                               labelTop, 60.0f, static_cast<float>(labelHeight));
             if (!g.clipRegionIntersects(area.getSmallestIntegerContainer()))
