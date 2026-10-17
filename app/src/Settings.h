@@ -20,6 +20,23 @@ class Settings
 {
 public:
     Settings();
+    int analysisView() const
+    {
+        const auto view = properties_.getIntValue("analysisView", 0);
+        return view >= 0 && view <= 2 ? view : 0;
+    }
+    void setAnalysisView(int view)
+    {
+        properties_.setValue("analysisView", view);
+    }
+    juce::String spectrumSettings() const
+    {
+        return properties_.getValue("spectrumSettings");
+    }
+    void setSpectrumSettings(const juce::String& text)
+    {
+        properties_.setValue("spectrumSettings", text);
+    }
 
     Settings(const Settings&) = delete;
     Settings& operator=(const Settings&) = delete;

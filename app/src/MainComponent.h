@@ -1,11 +1,13 @@
 #pragma once
 
 #include "IdleCursorHider.h"
+#include "ui/BandSpectrumView.h"
 #include "ui/Banner.h"
 #include "ui/ControlBar.h"
 #include "ui/DiagnosticsOverlay.h"
 #include "ui/ScopeView.h"
 #include "ui/SettingsPanel.h"
+#include "ui/SpectrumView.h"
 #include "ui/StatusBar.h"
 #include "ui/Tooltips.h"
 #include "ui/ZoomOverview.h"
@@ -55,6 +57,8 @@ private:
     float fitControlBar();
 
     /** Sets the gain by hand, which turns auto gain off. */
+    void setAnalysisView(int view);
+    int analysisView_ = 0;
     void setGainDb(int gainDb);
     void showGainDb(int gainDb);
     void setAutoGain(bool isOn);
@@ -92,6 +96,8 @@ private:
     StatusBar statusBar_;
     ZoomOverview zoomOverview_;
     ScopeView scope_;
+    SpectrumView spectrum_;
+    BandSpectrumView bandSpectrum_;
     ControlBar controlBar_;
     Banner banner_;
     DiagnosticsOverlay diagnostics_;
@@ -123,6 +129,11 @@ private:
     double lastUpdateSeconds_ = 0.0;
     std::uint64_t lastAnalysisBusyNs_ = 0;
     std::optional<double> lastCpuSeconds_;
+    const bool performanceLogging_ =
+        juce::SystemStats::getEnvironmentVariable("VISONA_PERF_LOG", "0") == "1";
+    double performanceElapsed_ = 0.0;
+    double performanceCpu_ = 0.0;
+    double performanceAnalysis_ = 0.0;
     bool allocationCheckWorks_ = false;
     bool reportedCallbackAllocation_ = false;
 

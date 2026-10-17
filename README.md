@@ -33,6 +33,8 @@ The **plugin** (pass-through stereo effect, host transport) ships as VST3, AU an
 
 ## What you get
 
+- **Spectrum view** with two configurable Peak/RMS curves, frequency colouring, octave smoothing, stereo/Mid/Side analysis and a frequency readout. Switch with the view selector (V), or Alt+1/Alt+2. See [spectrum analysis](docs/spectrum.md).
+
 - **Sweep scope** with bar grid, stacked L/R lanes and a bright write head
 - **MIDI Clock** sync with Start, Stop, Continue and Song Position Pointer
 - **FREE mode** — free-running sweep at a manual BPM when MIDI Clock is absent

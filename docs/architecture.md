@@ -342,3 +342,12 @@ Everything below runs in CI on Linux without hardware (D-032).
 - **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3. Release builds are signed and notarized, with the `com.apple.security.device.audio-input` entitlement that the hardened runtime needs for input (D-111).
 - **Ableton Live clock behavior.** It is unclear whether Live sends clock while stopped, and exactly when SPP arrives relative to Continue. *Mitigation:* the transport handles both cases; verify in step 7.
 - **Analysis thread starvation.** *Mitigation:* a ring of about 1 s, overrun counters, and a raised thread priority if needed.
+
+## Spectrum view
+
+The shared `SpectrumAnalyzer` consumes each audio region on the analysis thread alongside
+the sweep. It owns a preallocated KISS FFT plan and publishes independent
+`SpectrumSnapshot` triple buffers. `SpectrumView` renders these in both app and plugin.
+The audio callback and its ownership rules are unchanged. Analysis is enabled only when
+Spectrum is selected. View selection, scope settings and spectrum settings are independent.
+See [spectrum.md](spectrum.md) for measurement definitions and validation.

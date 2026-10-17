@@ -38,6 +38,8 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     , state_(processor.instanceState())
     , defaults_(processor.globalDefaults())
     , scope_(analysis_.snapshots(), layout_)
+    , spectrum_(analysis_.spectrum())
+    , bandSpectrum_(analysis_.spectrum().bands())
     , window_(state_.window)
     , peaks_(layout_.totalChannelCount(), 0.0f)
 {
@@ -48,6 +50,8 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     addAndMakeVisible(statusBar_);
     addChildComponent(zoomOverview_);
     addAndMakeVisible(scope_);
+    addChildComponent(spectrum_);
+    addChildComponent(bandSpectrum_);
     addAndMakeVisible(controlBar_);
     addChildComponent(banner_);
     addChildComponent(diagnostics_);
@@ -64,6 +68,20 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     appearancePanel_.setOpaque(true);
     appearancePanel_.setVisible(false);
 
+    controlBar_.viewSelector().onSelect = [this](int view) { setAnalysisView(view); };
+    controlBar_.onSpectrumSettings = [this]
+    {
+        if (analysisView_ == 2)
+            bandSpectrum_.resetPeaks();
+        else
+            spectrum_.showSettings(!spectrum_.settingsVisible());
+    };
+    spectrum_.restoreSettings(state_.spectrumSettings);
+    spectrum_.onSettingsChange = [this]
+    {
+        state_.spectrumSettings = spectrum_.saveSettings();
+        notifyStateChange();
+    };
     controlBar_.window().onWindowChange = [this](std::size_t window) { setWindow(window); };
     controlBar_.gain().onGainChange = [this](int gainDb) { setGainDb(gainDb); };
     controlBar_.gain().onAutoChange = [this](bool isOn) { setAutoGain(isOn); };
@@ -105,9 +123,12 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     analysis_.setWindow(state_.window);
     colourSwatches_.setColour(state_.waveformColour);
     scope_.setWaveformColour(palette::waveformColours[state_.waveformColour].colour);
+    spectrum_.setWaveformColour(palette::waveformColours[state_.waveformColour].colour);
+    bandSpectrum_.setWaveformColour(palette::waveformColours[state_.waveformColour].colour);
 
     controlBar_.setToggles(false, false, false);
     setWantsKeyboardFocus(true);
+    setAnalysisView(state_.analysisView);
     startTimerHz(idleRefreshHz);
 }
 
@@ -142,6 +163,8 @@ void ScopeEditor::resized()
         zoomOverview_.setBounds(area.removeFromTop(zoomOverview_.preferredHeight()));
     controlBar_.setBounds(area.removeFromBottom(controlHeight));
     scope_.setBounds(area);
+    spectrum_.setBounds(area);
+    bandSpectrum_.setBounds(area);
 
     const auto bannerBounds =
         scope_.getBounds().withSizeKeepingCentre(560, 76).translated(0, -scope_.getHeight() / 6);
@@ -160,6 +183,24 @@ void ScopeEditor::resized()
 
 bool ScopeEditor::keyPressed(const juce::KeyPress& key)
 {
+    if (key.getModifiers().isAltDown() &&
+        (key.isKeyCode('1') || key.isKeyCode('2') || key.isKeyCode('3')))
+    {
+        setAnalysisView(key.isKeyCode('3') ? 2 : key.isKeyCode('2') ? 1 : 0);
+        return true;
+    }
+    if (!key.getModifiers().isAnyModifierKeyDown() &&
+        (key.getTextCharacter() == 'v' || key.getTextCharacter() == 'V'))
+    {
+        controlBar_.viewSelector().showChoices();
+        return true;
+    }
+    if (analysisView_ == 1 && !appearancePanel_.isVisible() &&
+        key.isKeyCode(juce::KeyPress::escapeKey))
+    {
+        return spectrum_.keyPressed(key);
+    }
+
     if (key == juce::KeyPress::escapeKey)
     {
         if (appearancePanel_.isVisible())
@@ -190,6 +231,20 @@ void ScopeEditor::timerCallback()
     updateZoom();
     if (diagnostics_.isVisible())
         updateDiagnostics();
+}
+
+void ScopeEditor::setAnalysisView(int view)
+{
+    analysisView_ = std::clamp(view, 0, 2);
+    scope_.setVisible(analysisView_ == 0);
+    spectrum_.setActive(analysisView_ == 1);
+    bandSpectrum_.setActive(analysisView_ == 2);
+    controlBar_.setAnalysisView(analysisView_);
+    state_.analysisView = analysisView_;
+    notifyStateChange();
+    updateZoom();
+    resized();
+    updateStatus();
 }
 
 void ScopeEditor::setGainDb(int gainDb)
@@ -273,6 +328,8 @@ void ScopeEditor::setWaveformColour(std::size_t index)
 {
     index = std::min(index, palette::waveformColours.size() - 1);
     scope_.setWaveformColour(palette::waveformColours[index].colour);
+    spectrum_.setWaveformColour(palette::waveformColours[index].colour);
+    bandSpectrum_.setWaveformColour(palette::waveformColours[index].colour);
     colourSwatches_.setColour(index);
     state_.waveformColour = index;
     state_.hasInstanceAppearance = true;
@@ -342,9 +399,12 @@ void ScopeEditor::updateStatus()
 
     if (snapshot.hasStream && snapshot.sampleRate > 0.0)
         values.sampleRate = formatSampleRate(snapshot.sampleRate);
-    values.window = WindowControl::describe(window_);
-    values.gain = GainControl::format(shownGainDb(), state_.autoGain);
-    if (scope_.zoom().isZoomed())
+    values.window = analysisView_ == 2   ? "SPECTRUM (BAND)"
+                    : analysisView_ == 1 ? "SPECTRUM (FFT)"
+                                         : WindowControl::describe(window_);
+    if (analysisView_ == 0)
+        values.gain = GainControl::format(shownGainDb(), state_.autoGain);
+    if (analysisView_ == 0 && scope_.zoom().isZoomed())
         values.zoom = ZoomOverview::describe(scope_.zoom(), snapshot);
     statusBar_.setValues(values);
     banner_.setVisible(false);
@@ -352,7 +412,7 @@ void ScopeEditor::updateStatus()
 
 void ScopeEditor::updateZoom()
 {
-    const auto zoomed = scope_.zoom().isZoomed();
+    const auto zoomed = analysisView_ == 0 && scope_.zoom().isZoomed();
     zoomOverview_.setVisible(zoomed);
     if (zoomed)
     {
@@ -386,6 +446,19 @@ void ScopeEditor::updateDiagnostics()
     values.droppedFrames = snapshot.droppedFrames;
     values.analysisLoad = analysisLoad;
     values.rendering = scope_.stats();
+    if (analysisView_ != 0)
+    {
+        const auto stats = analysisView_ == 2 ? bandSpectrum_.stats() : spectrum_.stats();
+        values.rendering = {};
+        values.rendering.framesPerSecond = stats.framesPerSecond;
+        values.rendering.renderMsAverage = stats.renderMsAverage;
+        values.rendering.renderMsMax = stats.renderMsMax;
+        values.rendering.paintMsAverage = stats.paintMsAverage;
+        values.rendering.paintMsMax = stats.paintMsMax;
+        values.rendering.imageWidth = stats.imageWidth;
+        values.rendering.imageHeight = stats.imageHeight;
+        values.rendering.scale = stats.scale;
+    }
     values.transportState = snapshot.transportState;
     values.nextTick = snapshot.nextTick;
     values.timeSignature = snapshot.timeSignature;

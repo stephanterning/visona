@@ -152,3 +152,71 @@ Press **D** to toggle the diagnostics overlay (block size, ring overruns, alloca
 - **`X11/extensions/XInput2.h: No such file or directory`** — Install `libxi-dev`.
 - **No audio input / silence** — Check group membership (`audio`), cable and gain at the interface, and that the correct ALSA device is selected in Settings.
 - **No display** — Run from a desktop session or set `DISPLAY` appropriately for your X server.
+
+## Build on an Apple Silicon Mac and deploy over SSH
+
+With Docker Desktop running and the Pi already set up using `install-visona.sh`, run
+from your Mac checkout (replace the example SSH address with your desktop user's account):
+
+```sh
+scripts/pi/build-and-deploy-to-pi-over-network.sh user@raspberrypi.local
+```
+
+This builds the current local sources, including uncommitted changes, copies the stripped
+Linux ARM64 binary to the Pi, and restarts **Visona only**, in kiosk mode. It never pushes
+Git, reboots the Pi, or changes audio settings. The Pi desktop must already be logged in.
+SSH aliases and keys from `~/.ssh/config` work normally; use the desktop user's account.
+The existing installation defaults to `~/visona`; set `--install-dir` if yours differs.
+This is an iteration tool, not a replacement for the first-time kiosk installer.
+
+```sh
+export VISONA_PI_HOST=user@raspberrypi.local
+scripts/pi/build-and-deploy-to-pi-over-network.sh                   # Build, copy, restart
+scripts/pi/build-and-deploy-to-pi-over-network.sh --jobs 8          # If Docker has enough RAM
+scripts/pi/build-and-deploy-to-pi-over-network.sh --build-only      # No Pi connection required
+scripts/pi/build-and-deploy-to-pi-over-network.sh --install-dir /home/user/custom-visona
+```
+
+The first build downloads a Debian Bookworm ARM64 image and JUCE. Subsequent builds
+reuse the Docker image, Ninja build tree and ccache; only changed code is compiled.
+Build files live in a Docker volume per checkout, avoiding macOS shared-folder overhead
+for compiler output. The source is mounted read-only. Four compiler jobs are the default;
+reduce this with `--jobs 2` if Docker runs out of memory. Only the standalone app is built;
+plugins and tests are excluded for fast iteration. Bookworm libraries target Raspberry Pi
+OS **64-bit Bookworm or later**. The exported executable is `build/pi-local/Visona`.
+
+Before stopping the installed app, the remote helper checks shared-library dependencies
+and finds the local desktop display credentials. It then requests a graceful shutdown,
+atomically replaces the binary and starts the existing kiosk wrapper. Settings and
+kiosk configuration stay in place. `Visona.previous` stores the previous executable;
+if the new app exits during the five-second startup check, the helper restores and
+restarts the old version. The check confirms process survival, not audio or UI correctness.
+Startup output goes to `~/visona/visona-deploy.log` (or your custom installation directory).
+An interrupted SSH transfer does not touch the installed app. Deployment requires
+Python 3 on the Pi, included with Raspberry Pi OS desktop.
+
+### Measure FPS and CPU over SSH
+
+Enable opt-in performance logging when deploying:
+
+```sh
+scripts/pi/build-and-deploy-to-pi-over-network.sh user@raspberrypi.local --profile
+python3 scripts/pi/measure-performance.py user@raspberrypi.local --seconds 30
+```
+
+The app writes `VISONA_PERF` JSON lines every two seconds to `visona-deploy.log`.
+Logging also works with Diagnostics closed, avoiding the overlay's rendering cost.
+The collector prints live samples and averages grouped by analysis view and overlay
+visibility. Use `--install-dir` on both commands for a non-default installation.
+It collects new samples only; leave audio playing in the selected view and allow the
+app to warm up before comparisons. Keep the audio, window size and settings unchanged.
+
+FPS measures generated frames, not physical display refresh. Render and paint times
+are milliseconds; CPU is the whole process, with 100% representing one CPU core.
+Analysis CPU is included in the process total. CPU averages span each logging interval;
+rendering statistics describe the most recent approximately one-second window.
+Logging runs on the message thread, never the audio callback, and contains no audio.
+
+Later deployments preserve the running app's logging setting. Use `--no-profile` to
+turn it off. For a manual launch, set `VISONA_PERF_LOG=1` and redirect stderr to a file.
+The deployment log is append-only; disable profiling after measurement to limit growth.

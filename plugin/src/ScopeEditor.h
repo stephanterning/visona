@@ -2,11 +2,13 @@
 
 #include "PluginProcessor.h"
 #include "PluginState.h"
+#include "ui/BandSpectrumView.h"
 #include "ui/Banner.h"
 #include "ui/ColourSwatches.h"
 #include "ui/ControlBar.h"
 #include "ui/DiagnosticsOverlay.h"
 #include "ui/ScopeView.h"
+#include "ui/SpectrumView.h"
 #include "ui/StatusBar.h"
 #include "ui/Tooltips.h"
 #include "ui/ZoomOverview.h"
@@ -40,6 +42,8 @@ private:
     void timerCallback() override;
 
     /** Sets the gain by hand, which turns auto gain off. */
+    void setAnalysisView(int view);
+    int analysisView_ = 0;
     void setGainDb(int gainDb);
     /** The gain on screen: auto gain's while it is on, otherwise the one set by hand. */
     [[nodiscard]] int shownGainDb();
@@ -67,6 +71,8 @@ private:
     StatusBar statusBar_;
     ZoomOverview zoomOverview_;
     ScopeView scope_;
+    SpectrumView spectrum_;
+    BandSpectrumView bandSpectrum_;
     ControlBar controlBar_;
     Banner banner_;
     DiagnosticsOverlay diagnostics_;

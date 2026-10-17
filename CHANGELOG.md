@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Spectrum view in the standalone app and Visona plugin, with two Peak/RMS curves, independent response and octave smoothing, stereo/Left/Right/Mid/Side analysis, frequency colour gradients, filled/glowing styles, adjustable scale and slope, and a pointer/touch frequency readout.
+- A persistent analysis view selector, with a desktop list and touch tiles; V opens it and Alt+1/Alt+2 select Scope/Spectrum. Scope's 1–5 window shortcuts remain unchanged.
+- Saved spectrum settings and view selection, per app or plugin instance. Spectrum follows incoming audio without requiring MIDI Clock or host playback; standalone Pause holds it.
+- Offline spectrum UI checks and vendored BSD-3-Clause KISS FFT 131.1.0. Local builds can disable plugin installation with `VISONA_COPY_PLUGINS=OFF`.
+
+
 ## [1.0.0-beta.1] - 2026-10-16
 
 ### Added
