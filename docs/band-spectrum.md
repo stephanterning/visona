@@ -1,9 +1,9 @@
 # Spectrum (Band)
 
-Spectrum (Band) is a separate view alongside Scope and Spectrum (FFT). Select it in
-the desktop list or touch tiles, or with Alt+3. App preferences and plugin instance
-state remember it; Alt+1 and Alt+2 retain their previous meaning. Both spectra have
-black backgrounds. The band bars follow the shared Waveform colour setting.
+Spectrum (Band) is one of the analysis views, alongside Scope, Spectrum (FFT) and
+Stereo (D-116, D-118). Select it in the desktop list or touch tiles, or with Alt+3.
+App preferences and plugin instance state remember it, as view ID 2. Both spectra
+have black backgrounds. The band bars follow the shared Waveform colour setting.
 
 ## Analysis
 
@@ -16,16 +16,20 @@ acoustic measurement filter bank. Bands whose upper edge exceeds Nyquist are omi
 The instantaneous power is `(filteredLeft^2 + filteredRight^2) / 2`, so mono and
 opposite-phase stereo do not cancel. The bar envelope attacks immediately and releases
 with a 150 ms amplitude time constant. A centre-frequency sine is peak-calibrated;
-this is neither integrated broadband RMS nor SPL. Markers retain instantaneous peaks
-for one second, then release at 12 dB/s. Reset peaks replaces retained peaks with the
-current bar envelopes. Presentation is fixed at 0 to -60 dB, with no tilt or smoothing
-control. FFT curve settings do not affect the band view.
+this is neither integrated broadband RMS nor SPL. Peak markers retain instantaneous
+peaks for the shared Afterglow time (0.5, 1 or 2 s; D-119), then release at 12 dB/s;
+an equal or higher peak restarts the hold, and Afterglow Off hides the markers. A new
+Afterglow time restarts the markers from the current bars. The visible span is fixed
+at 60 dB and placed by the shared display gain, whose labels keep showing signal
+levels; there is no tilt or smoothing control, and the FFT view's settings do not
+affect the band view.
 
 Filters execute on the existing analysis thread, not the audio callback. State and
 triple-buffer snapshots are fixed-size, with no allocation, locks or I/O in process.
-The existing spectrum dispatcher forwards input to the band analyzer; the view switch
-enables only the chosen analyzer. A gap, stream reset or reactivation clears filter
-history. Publications occur at about 60 Hz; the UI targets 30 Hz.
+`SpectrumAnalyzer` owns the `BandAnalyzer` and forwards its input to it; the view
+switch enables only the chosen analyzer. A gap, stream reset or reactivation clears
+filter history. Snapshots are published at about 60 Hz; the UI targets 30 Hz and
+waits longer when a frame takes longer to draw.
 
 ## Rendering
 
@@ -58,6 +62,9 @@ third-octave edges, opposite-phase stereo and single-channel energy, onset, mark
 hold/reset/decay, stream gaps, disabled processing, no allocations, audio block
 independence and FFT/Band dispatch. UI checks include desktop/touch snapshots and
 switching among all three views.
+
+The measurements below were made on 2026-10-17, before the markers' hold followed
+Afterglow and before the shared display controls (D-119).
 
 With live input on the Raspberry Pi 4, diagnostics closed, a 25-second telemetry
 run of the installed version averaged 29.77 FPS, 38.61% process CPU and 6.09 ms

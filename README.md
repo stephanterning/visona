@@ -15,7 +15,7 @@ Pre-built binaries are published on **[GitHub Releases](https://github.com/steph
 | **macOS plugin, Visona Sync** | Apple Silicon, macOS 14 or later | `Visona-sync-vst3-macos-arm64.zip`, `Visona-sync-au-macos-arm64.zip` or `Visona-sync-clap-macos-arm64.zip` ([sidechain sync](docs/plugins.md#sidechain-sync-visona-sync)) |
 | **Windows plugins** | Windows 10 or 11, x64 | `Visona-vst3-windows-x64.zip`, `Visona-clap-windows-x64.zip` and the `Visona-sync-…` zips ([install](docs/plugins.md#windows)) |
 | **Linux plugins** | x86_64, Ubuntu 24.04, Debian 13, Fedora 39 or newer | `Visona-vst3-linux-x86_64.tar.gz`, `Visona-clap-linux-x86_64.tar.gz` and the `Visona-sync-…` tarballs ([install](docs/plugins.md#linux)) |
-| **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64 | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
+| **Raspberry Pi** | Raspberry Pi OS 64-bit (desktop), ARM64, based on Debian 13 (Trixie) or later | `Visona-linux-arm64-pi.tar.gz` — see [Pi setup](docs/pi-setup.md) and [kiosk mode](docs/pi-kiosk.md) |
 
 From 1.0.0 beta 1 on, the macOS app and plugins are signed with a Developer ID and notarized by Apple, so they open without Gatekeeper warnings.
 
@@ -33,16 +33,17 @@ The **plugin** (pass-through stereo effect, host transport) ships as VST3, AU an
 
 ## What you get
 
-- **Spectrum view** with two configurable Peak/RMS curves, frequency colouring, octave smoothing, stereo/Mid/Side analysis and a frequency readout. Switch with the view selector (V), or Alt+1/Alt+2. See [spectrum analysis](docs/spectrum.md).
-
-- **Stereo analysis** with Polar Sample, Polar Level and Lissajous, correlation, energy balance and per-channel signal validity. Select Stereo with Alt+4. See [stereo analysis](docs/stereo.md).
 - **Sweep scope** with bar grid, stacked L/R lanes and a bright write head
 - **MIDI Clock** sync with Start, Stop, Continue and Song Position Pointer
 - **FREE mode** — free-running sweep at a manual BPM when MIDI Clock is absent
 - **Pause** (app) — hold the view and stop the analysis when movement distracts, or to save CPU
 - **Windows** from ¼ bar to 4 bars, **horizontal zoom** and a **measurement ruler**
 - **Waveform modes** STD, PRECISE and DJ (frequency colouring in DJ mode)
-- **Display gain** 0–18 dB, with optional **auto gain** in 3 dB steps (the AUTO button), settings persistence, fullscreen
+- **Analysis views** besides the scope, one at a time, chosen with the view selector (V) or Alt+1 to Alt+4 (not yet in a release):
+  - **Spectrum (FFT)** with a fast Peak or RMS curve and a history line, octave smoothing, stereo, Left, Right, Mid and Side analysis and a frequency readout. See [spectrum analysis](docs/spectrum.md).
+  - **Spectrum (Band)** with 31 third-octave bands and peak markers. See [band spectrum](docs/band-spectrum.md).
+  - **Stereo** with Polar Sample, Polar Level and Lissajous, correlation, energy balance and per-channel signal validity. See [stereo analysis](docs/stereo.md).
+- **Display gain** 0–64 dB, with optional **auto gain** in 3 dB steps (the AUTO button), shared by every view; settings persistence, fullscreen
 
 Works with professional USB audio interfaces. Development and testing use an **RME Babyface Pro FS**; on Linux and Raspberry Pi the interface must run in **USB Class Compliant mode**.
 
@@ -62,9 +63,11 @@ See [docs/pi-setup.md](docs/pi-setup.md), [docs/pi-build.md](docs/pi-build.md) a
 
 AGPL-3.0-or-later. See [LICENSE](LICENSE).
 
+Visona builds on [JUCE](https://juce.com) (AGPL-3.0) and [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) for the CLAP plugins, and contains or builds third-party code under its own licences: [KISS FFT](third_party/kissfft/README.md) (BSD-3-Clause), the [LSP](third_party/lsp/README.md) correlation and balance meters (LGPL-3.0-or-later) and a polar projection adapted from [Signalizer](third_party/signalizer/README.md) (GPL-3.0-or-later). The tests use Catch2 (BSL-1.0).
+
 ## Developers
 
-Build and test instructions are in [AGENTS.md](AGENTS.md). Architecture, roadmap and decisions live under [docs/](docs/).
+Build and test instructions are in [AGENTS.md](AGENTS.md). Architecture, roadmap and decisions live under [docs/](docs/), and the [technical review](docs/technical-review.md) describes the condition of the code and a plan for improving it.
 
 ### Development builds
 

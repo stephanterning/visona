@@ -64,7 +64,7 @@ endif()
 target_link_libraries(Visona PRIVATE visona::core ${visona_juce_link_libs})
 
 # Local builds are ad-hoc signed. The Release workflow signs the app again with a Developer ID,
-# the hardened runtime and Visona.entitlements, and notarizes it (D-111).
+# the hardened runtime and Visona.entitlements, and notarizes it (D-114).
 if(APPLE)
     if(CMAKE_GENERATOR STREQUAL "Xcode")
         set_target_properties(Visona PROPERTIES

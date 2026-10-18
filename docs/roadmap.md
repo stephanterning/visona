@@ -2,16 +2,13 @@
 
 The plan from MVP 1.0 to the long-term platform. The architecture is described in [architecture.md](architecture.md); decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
 
-**Current development:** Spectrum (milestone 9) and an extensible analysis-view selector
-are implemented ahead of the full dashboard editor. The first version displays one view at a
-time; split-screen layouts remain future work. See [spectrum.md](spectrum.md).
-
-**Status:**
-- **MVP 1.0 proof of concept is achieved** (alpha). The maintainer verified the scenario on Apple Silicon Mac and on Raspberry Pi hardware with an RME Babyface Pro FS.
-- Steps 1–7b and step 5 (waveform modes) are merged. Step 8 (formal logging and written measurements) is deferred polish, not a blocker for alpha.
-- Raspberry Pi port and kiosk autostart landed early as a spike ([#20](https://github.com/stephanterning/visona/pull/20), [#21](https://github.com/stephanterning/visona/pull/21)); full milestone 6 (appliance hardening) remains after plugins.
-- **Milestone 12 has started:** the VST3 plugin with host transport ([#24](https://github.com/stephanterning/visona/pull/24)) and Visona Sync for sidechain latency measurement in Ableton Live ([#25](https://github.com/stephanterning/visona/pull/25)) are merged, for 0.1.0-alpha.2 (D-096, D-097). AU and CLAP builds of both plugins follow (D-098), then UX polish and Pi appliance work (milestones 5–6).
-- CI: Linux core tests on every pull request; the macOS app, the plugins and the Pi app are built on release or manual workflow trigger only (private repo Actions budget, D-095).
+**Status** (October 2026):
+- **MVP 1.0 proof of concept is achieved.** The maintainer verified the scenario on Apple Silicon Mac and on Raspberry Pi hardware with an RME Babyface Pro FS.
+- **1.0.0-beta.1 is released** (2026-10-16): the macOS app, signed and notarized (D-114); Visona and Visona Sync as VST3, AU and CLAP on macOS and as VST3 and CLAP on Windows and Linux (D-098, D-099); the Pi app with kiosk mode, touch refinements, hotplug and `install-visona.sh` (D-102–D-106, D-108); auto gain, pause, Visona Sync for the app and the steady MIDI Clock tempo (D-100, D-109–D-111).
+- **On `main`, not yet released:** the analysis views Spectrum (FFT), Spectrum (Band) and Stereo, one at a time, with shared Gain, AUTO and Afterglow controls (D-115–D-120). These are the first steps of milestones 9 and 10, ahead of the dashboard of milestone 8. See [spectrum.md](spectrum.md), [band-spectrum.md](band-spectrum.md) and [stereo.md](stereo.md).
+- Steps 1–7b and step 5 (waveform modes) are merged. Step 8 (formal logging and written measurements) is deferred polish.
+- CI: Linux core tests on every pull request; the macOS app, the plugins and the Pi app are built on release or manual workflow trigger only (D-095, D-104).
+- The condition of the code, with what to fix and rework next, is reviewed in [technical-review.md](technical-review.md).
 
 ## 1. MVP 1.0
 
@@ -145,7 +142,7 @@ v1 is the Raspberry Pi appliance: power on, the app starts fullscreen on a 7" to
 
 | v1 criterion | MVP 1.0 | Milestone |
 |---|---|---|
-| Pi boots straight into the app, fullscreen on 7" | After MVP | 6 |
+| Pi boots straight into the app, fullscreen on 7" | After MVP; kiosk autostart with `install-kiosk.sh` since 0.1.0-alpha.1 (D-103) | 6 |
 | Audio interface found automatically | Yes: last choice restored, and opened again when it is plugged in (D-102) | 1 (6) |
 | Stereo S/PDIF shown as a waveform | Yes | 1, 2 |
 | Choose MANUAL or MIDI clock | Partly: `FREE` runs at a manual tempo until MIDI Clock starts (D-090) | 3, 4 |
@@ -154,7 +151,7 @@ v1 is the Raspberry Pi appliance: power on, the app starts fullscreen on a 7" to
 | Choose ¼, ½, 1, 2, 4 bars | Yes | 3 (window part), 4 |
 | Stable sync to the chosen period | Yes, with simple sync; Start and SPP + Continue give the correct alignment | 4 |
 | Vertical (display) gain | Yes | 2 |
-| Everything usable by touch, UI fills the screen | After MVP (fullscreen on Mac is included) | 5, 6 |
+| Everything usable by touch, UI fills the screen | After MVP (fullscreen on Mac is included); in kiosk mode on the Pi since 1.0.0-beta.1 (D-105, D-108) | 5, 6 |
 | Runs on a Mac in a freely resizable window | Yes | 0, 2 |
 | Stable audio through long sessions | Yes on Mac; Pi later | all |
 
@@ -169,44 +166,55 @@ Stricter sync acceptance criteria are defined after the MVP as a dedicated focus
 | 2 | Free-running scope | A useful plain oscilloscope, isolated from transport problems | MVP 1.0 |
 | 3 | Manual musical sync | Show exactly N bars at a given BPM | MVP 1.0: window selection, and manual BPM for `FREE` (D-090) |
 | 4 | MIDI Clock | Lock the scope to external MIDI Clock | MVP 1.0 |
-| 5 | Touch UI | Use the product from a 7" touchscreen | After MVP |
-| 6 | Raspberry Pi appliance | Mount the Pi permanently and use it as an instrument | After MVP |
+| 5 | Touch UI | Use the product from a 7" touchscreen | After MVP; kiosk control bar, pinch, held-finger tooltips and in-window lists since 1.0.0-beta.1 (D-105, D-108) |
+| 6 | Raspberry Pi appliance | Mount the Pi permanently and use it as an instrument | After MVP; kiosk autostart, display following, hotplug and `install-visona.sh` since 1.0.0-beta.1 (D-102–D-106). Hardening against power loss remains |
 | 7 | Auto BPM | Work musically without MIDI Clock (audio-based tempo detection) | After MVP |
-| 8 | Modular dashboard | The scope becomes one module in a general monitoring platform | After MVP |
-| 9 | Spectrum | Scope and spectrum side by side, with an adaptive layout | After MVP |
-| 10 | Stereo/phase | Correlation, vectorscope and stereo balance | After MVP |
+| 8 | Modular dashboard | The scope becomes one module in a general monitoring platform | After MVP; one analysis view at a time with a selector so far (D-116) |
+| 9 | Spectrum | Scope and spectrum side by side, with an adaptive layout | After MVP; Spectrum (FFT) and Spectrum (Band) as separate views on `main` (D-117, D-118) |
+| 10 | Stereo/phase | Correlation, vectorscope and stereo balance | After MVP; the Stereo view on `main` (D-120); Polar Level's design is open |
 | 11 | Loudness | LUFS M/S/I, True Peak and LRA; the Pi starts replacing a hardware meter | After MVP |
-| 12 | Plugin | VST3/AU with host transport, inside the DAW | After MVP; VST3 on macOS since 0.1.0-alpha.2, AU and CLAP next (D-098) |
+| 12 | Plugin | VST3/AU with host transport, inside the DAW | After MVP; VST3, AU and CLAP on macOS and VST3 and CLAP on Windows and Linux since 1.0.0-beta.1 (D-098, D-099) |
 
 Milestone 7 is a separate DSP track and must not delay earlier milestones.
 
 ## 5. After MVP 1.0 (alpha)
 
+**Done since the MVP:**
+
+```
+Alpha releases (0.1.0-alpha.1, alpha.2)
+  → VST3 / AU / CLAP plugins and Visona Sync (milestone 12, D-096–D-099)
+  → UX polish from alpha use, touch UI and the Pi kiosk (milestones 5–6, in part)
+  → 1.0.0-beta.1, signed and notarized on macOS
+  → Spectrum (FFT), Spectrum (Band) and Stereo views (milestones 9–10, first steps; unreleased)
+```
+
 **Immediate order:**
 
 ```
-Alpha release (v0.1.0)
-  → VST3 / AU / CLAP plugins (milestone 12; VST3 and Visona Sync done, AU and CLAP built, Windows and Linux plugin builds, D-099)
-  → UX polish and open issues from alpha use
-  → Touch UI (milestone 5) and Pi appliance hardening (milestone 6)
+Release the analysis views that are on main
+  → UX polish and open issues from beta use, including the Polar Level design (below)
+  → Pi appliance hardening (milestone 6)
   → Sync precision focus area (D-035)
   → Auto BPM (milestone 7)
   → Modular dashboard and further modules (milestones 8–11)
 ```
+
+The [technical review](technical-review.md) recommends fixing the plugin and Visona Sync bugs it found and adding JUCE builds to pull-request CI first, then consolidating the analysis views before they are released, and building the dashboard on the analysis-view interface that consolidation introduces. That is a proposal, not yet a decision.
 
 **Still open from the MVP defer list:**
 
 - Sync precision as a dedicated focus area: acceptance criteria, jitter handling, possibly a PLL, and a sync offset (D-035)
 - Step 8 file logging and written measurement notes (D-040)
 
-**Longer-term module order** (after plugins and v1 appliance):
+**Longer-term module order** (after plugins and v1 appliance). Spectrum and phase/correlation arrived early, as single views, before the widget engine:
 
 ```
 v1 beat-synced scope (Mac + Pi appliance)
   → Auto BPM
   → Modular widget/layout engine
-  → Spectrum
-  → Phase / correlation
+  → Spectrum (single view exists)
+  → Phase / correlation (single view exists)
   → Peak / RMS / True Peak
   → LUFS / loudness
   → Dedicated hardware meter replacement

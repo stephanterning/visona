@@ -122,7 +122,7 @@
         <p>The first time, macOS asks for permission to use the microphone. Visona needs it to read any audio input, including your audio interface.</p>
 
         <h3 id="install-pi">Standalone on Raspberry Pi</h3>
-        <p>Visona runs on Raspberry Pi OS 64-bit with the desktop. Over SSH, this installs the newest release to <code>~/visona</code> and starts Visona full screen at login:</p>
+        <p>Visona runs on Raspberry Pi OS 64-bit with the desktop, in a release based on Debian 13 (Trixie) or later. Over SSH, this installs the newest release to <code>~/visona</code> and starts Visona full screen at login:</p>
         <pre><code>curl -fsSL https://raw.githubusercontent.com/stephanterning/visona/main/scripts/pi/install-visona.sh | bash</code></pre>
         <p>Run the same command again to upgrade; your settings are kept. The <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-setup.md">Pi setup guide</a> covers flashing the card and setting up the audio interface, and the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-kiosk.md">kiosk guide</a> covers autostart, displays and touchscreens.</p>
         <p>For local development on an Apple Silicon Mac, <code>scripts/pi/build-and-deploy-to-pi-over-network.sh user@raspberrypi.local</code> builds the Pi app with Docker, transfers it over SSH and restarts Visona in an existing kiosk installation. See the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-build.md#build-on-an-apple-silicon-mac-and-deploy-over-ssh">local build and deployment guide</a>.</p>
@@ -173,8 +173,10 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
           <dd>An input that receives Visona Sync's bar impulse, or <em>Off</em>. See <a href="#sync-app">Visona Sync with the app</a>.</dd>
           <dt>MIDI input</dt>
           <dd>The port your DAW sends MIDI Clock to, or <em>None</em> to run free.</dd>
-          <dt>Waveform colour, View</dt>
-          <dd>The shared waveform and Solid spectrum colour, and buttons for the diagnostics overlay and full screen.</dd>
+          <dt>Waveform colour</dt>
+          <dd>The colour of the waveform, the spectrum fill, the band bars and the stereo views.</dd>
+          <dt>View</dt>
+          <dd>Only in a very small window, where they do not fit in the control bar: buttons for the diagnostics overlay and full screen.</dd>
         </dl>
         <p>Close the panel with <strong>Done</strong> or <kbd>Esc</kbd>. Audio interfaces and MIDI ports can be unplugged and plugged in again while Visona runs: it shows <strong>NO AUDIO INPUT</strong> while the device is missing and carries on a few seconds after it returns.</p>
         <p>Visona is developed and tested with an RME Babyface Pro FS, but works with any professional USB audio interface.</p>
@@ -191,7 +193,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
           <li>Press Play. The sweep starts at bar 1 and follows the DAW's tempo, position and time signature.</li>
           <li>Stop, and the view freezes and dims with <strong>STOPPED</strong> in the status bar. Move the playhead and play again, and the scope picks up at the new position.</li>
         </ol>
-        <p>Use as many instances as you like. Each one saves its own window, gain, auto gain, waveform mode and colour in the project. The plugin has no tempo control, pause button or full-screen button, since the DAW drives it; <strong>Settings</strong> holds the waveform colour only.</p>
+        <p>Use as many instances as you like. Each one saves its own analysis view and view settings, window, gain, auto gain, afterglow, waveform mode and colour in the project. The plugin has no tempo control, pause button or full-screen button, since the DAW drives it; <strong>Settings</strong> holds the waveform colour only. Until the DAW plays, the state reads <strong>STOPPED</strong>, also right after the plugin is loaded.</p>
       </section>
 
       <section id="screen">
@@ -200,9 +202,9 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
           <li><strong>Status bar</strong>, at the top: tempo, sync state, sample rate, window, gain and zoom.</li>
           <li><strong>Zoom strip</strong>, under the status bar, only while you are zoomed in.</li>
           <li><strong>Analysis view</strong>: choose Scope, Spectrum (FFT), Spectrum (Band) or Stereo from the control bar. Scope has one lane per channel, left above right, with the bar grid and the green write head.</li>
-          <li><strong>Control bar</strong>, at the bottom: Pause, WINDOW, BPM, GAIN with AUTO, WAVE, then Diagnostics, Full screen and Settings.</li>
+          <li><strong>Control bar</strong>, at the bottom: the view selector, Pause, WINDOW, BPM, GAIN with AUTO, WAVE, then Diagnostics, Full screen and Settings. In the other views WINDOW, BPM and WAVE make way for Afterglow and the view's own button: <strong>Analysis settings</strong> in Spectrum (FFT) and <strong>Reset view</strong> in Stereo.</li>
         </ul>
-        <p>The layout adapts to the window. In a narrow window the buttons drop their labels and show only their icons, and in a very small window some controls move behind the gear button.</p>
+        <p>The buttons show only their icons; hover over one, or hold a finger on it, for its name. The control bar stays on one row and wraps onto a second only in a narrow desktop window. In a very small window, Diagnostics and Full screen move into Settings.</p>
       </section>
 
       <section id="status-bar">
@@ -215,8 +217,8 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
             <tr><td>State</td><td><code>MIDI RUN</code></td><td>See the list below.</td></tr>
             <tr><td>Visona Sync</td><td><code>SC +12.3 ms</code></td><td>The measured latency, or <code>SC ...</code> while waiting for the first impulse. Hover for details.</td></tr>
             <tr><td>Sample rate</td><td><code>96 kHz</code></td><td>Of the audio input.</td></tr>
-            <tr><td>Window</td><td><code>1 BAR</code></td><td>The sweep length.</td></tr>
-            <tr><td>Gain</td><td><code>+12 dB</code>, <code>AUTO +6 dB</code></td><td>The display gain.</td></tr>
+            <tr><td>Window</td><td><code>1 BAR</code>, <code>STEREO</code></td><td>The sweep length, or in the other views the view's name.</td></tr>
+            <tr><td>Gain</td><td><code>+12 dB</code>, <code>AUTO +6 dB</code></td><td>The display gain, in Scope.</td></tr>
             <tr><td>Zoom</td><td><code>ZOOM 4.0× · 1.3–1.4</code></td><td>Only while zoomed: the factor and the bars in view.</td></tr>
           </tbody>
         </table>
@@ -227,6 +229,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
           <dt>STOPPED</dt><dd>The transport is stopped. The view freezes and dims.</dd>
           <dt>FREE</dt><dd>The sweep runs at your own tempo, without clock.</dd>
           <dt>PAUSED</dt><dd>You paused the view. This takes precedence over everything else.</dd>
+          <dt>LIVE</dt><dd>In the app's spectrum and stereo views: audio is coming in and the view follows it, whatever MIDI Clock does.</dd>
           <dt class="error">MIDI CLOCK LOST</dt><dd>Clock stopped arriving while the transport ran. A banner over the scope explains what to do.</dd>
           <dt class="error">NO INPUT</dt><dd>No audio input is running. The banner says why; choose a device in Settings.</dd>
         </dl>
@@ -265,14 +268,15 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       <section id="gain">
         <h2><span class="num">15</span>Gain and auto gain</h2>
         <p><strong>GAIN</strong> and <strong>AUTO</strong> are shared by all visualizations and always appear in the bottom control bar. Gain ranges from 0 to +64 dB in 1 dB steps. It scales waveform amplitudes and stereo radii, and moves both FFT curves and Band bars and markers by the same number of dB. Spectrum scales continue to label actual signal levels: at +6 dB gain the top is −6 dBFS. Gain affects presentation only, never audio, correlation or signal validity. Drag or scroll on it, use its buttons, or use <kbd>+</kbd>/<kbd>−</kbd> and <kbd>↑</kbd>/<kbd>↓</kbd> in the standalone app. Double-click or double-tap resets it to 0 dB.</p>
-        <p><strong>AUTO</strong> uses the same incoming channel peaks in every view. It lowers gain immediately when a peak would exceed the display, and raises it in 3 dB steps after peaks have stayed low for 10 seconds. Silence below the detection threshold does not cause gain to rise. Switching views does not restart Auto. Setting gain manually turns Auto off; switching Auto off retains its current gain. Auto follows the audio level, so each individual spectrum curve or stereo profile need not fill the plot.</p>
+        <p><strong>AUTO</strong> uses the same incoming channel peaks in every view, whether or not MIDI Clock or the DAW is playing. It lowers gain immediately when a peak would exceed the display, and once peaks have stayed low for 10 seconds it raises it, in 3 dB steps, as far as the loudest of them allows, up to +63 dB. Silence below the detection threshold does not cause gain to rise. Switching views does not restart Auto. Setting gain manually turns Auto off; switching Auto off retains its current gain. Auto follows the audio level, so each individual spectrum curve or stereo profile need not fill the plot.</p>
         <p><strong>Afterglow</strong> is shared by FFT, Band and Stereo and hidden in Scope. Select Off, 0.5 s, 1 s (default) or 2 s. For FFT it sets the time for the white history line to fall 12 dB, without a hold: 0.5 s gives 24 dB/s, 1 s gives 12 dB/s, and 2 s gives 6 dB/s. For Band it sets peak-marker hold time, followed by a fall of 12 dB/s; an equal or higher peak restarts the hold. In Stereo it sets the fade to 1% brightness for sample points or 1% radius for Polar Level. Off hides the FFT history line and Band markers and removes stereo display history. The shared gain and afterglow are remembered in the app and per plugin instance.</p>
         <p>In Scope, faint reference lines mark signal levels every 3 dB after gain, without a fixed lower dB limit. Right-hand labels continue as far as screen space allows; lines continue to pixel resolution near the zero-amplitude centre. A peak beyond a lane is cut off with a grey display-overshoot marker. In Stereo, retained visible history follows gain changes; history moved outside the plot may be discarded.</p>
       </section>
 
       <section id="spectrum">
-        <h2>Spectrum and analysis views</h2>
-        <p>The view selector at the left of the control bar switches between <strong>Scope</strong>, <strong>Spectrum (FFT)</strong>, <strong>Spectrum (Band)</strong> and <strong>Stereo</strong>. On desktop it opens a compact list; on touch and in kiosk mode it opens large tiles. Press <strong>V</strong> to open the selector, or <strong>Alt+1 / Alt+2 / Alt+3 / Alt+4</strong> to select a view when the app or plugin editor has focus. The app remembers your choice; plugins save it per instance. Scope's existing 1–5 window shortcuts are unchanged.</p>
+        <h2><span class="num">16</span>Spectrum and analysis views</h2>
+        <p>The view selector at the left of the control bar switches between <strong>Scope</strong>, <strong>Spectrum (FFT)</strong>, <strong>Spectrum (Band)</strong> and <strong>Stereo</strong>. On desktop it opens a compact list; on touch and in kiosk mode it opens large tiles. Press <strong>V</strong> to open the selector, or <strong>Alt+1 / Alt+2 / Alt+3 / Alt+4</strong> to select a view when the app or plugin editor has focus. The app remembers your choice; plugins save it per instance. The window keys <kbd>1</kbd>–<kbd>5</kbd> and <kbd>W</kbd> work in Scope only.</p>
+        <p class="callout">The spectrum and stereo views come after 1.0.0 beta 1. They are on the <code>main</code> branch and will be in the next release; until then they need a build of your own from <code>main</code>, since no published development build has them yet.</p>
         <p>Both spectrum views use a black background. Spectrum (FFT) shows incoming audio on a logarithmic frequency axis. Its defaults are a fast peak curve with a solid fill in the selected waveform colour and a slow white peak line, both smoothed over 1/12 octave. It follows audio even when MIDI Clock or host playback is stopped. In the standalone app, Pause holds the spectrum and stops its analysis.</p>
         <p><strong>Analysis settings</strong> contains Channels, Range, Slope, one shared Detector (Peak or RMS) and one shared Smoothing setting (Raw or 1/24–1 octave). Both curves use the same detector and smoothing. The filled curve always uses Fast (150 ms) response and Solid drawing in the selected waveform colour. The second curve is a white history line controlled by global Afterglow. There are no per-curve visibility, response, style or colour controls, and no Reset peaks button.</p>
         <p>For the filled curve, Peak follows rises immediately and uses a 150 ms release time constant; RMS averages power with a 150 ms time constant. The history line follows new per-frame levels immediately and falls immediately without a hold, taking the selected Afterglow duration to fall 12 dB. RMS detection scales its per-frame powers consistently before the history envelope; it is not a second slow power average. The FFT window also smooths changes over time. While Analysis settings covers the plot, curve drawing is suspended; close it with Done to see the result.</p>
@@ -283,7 +287,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="stereo">
-        <h2>Stereo analysis</h2>
+        <h2><span class="num">17</span>Stereo analysis</h2>
         <p>Select <strong>Stereo</strong> from the view selector or press <strong>Alt+4</strong>. Switch between <strong>Polar Sample</strong>, <strong>Polar Level</strong> and <strong>Lissajous</strong> with the buttons above the plot. All use the same 100 ms of incoming audio; correlation, balance and signal validity use a 200 ms window, with analysis snapshots published 120 times per second and the display targeting 60 frames per second. Stereo follows incoming audio even when transport is stopped.</p>
         <p><strong>Polar Sample</strong> folds the sample directions into a semicircle. Mono is vertical, a single channel lies on its diagonal, and opposite-polarity signals extend towards the horizontal edges. <strong>Lissajous</strong> keeps the signed channel geometry: mono is vertical, opposite polarity is horizontal, and a sine with a 90-degree phase difference makes a circle. These two are sample-density views.</p>
         <p><strong>Polar Level</strong> offers two profiles over the same 100 ms window. <strong>Directional level</strong> (default) shows RMS per direction, with samples shared linearly between adjacent 2.5-degree centres. Directions with less than 1% of a window's weighted sample support are attenuated to reduce isolated side spikes. Smooth, bounded transitions join the centres. <strong>Energy contribution</strong> retains the original calculation: each direction's squared radii are divided by the entire window's sample count, so spreading energy across more directions lowers individual lobes. In both profiles the fill shows RMS and the outline shows the maximum sample radius within angular support; radius is the larger absolute channel sample. Afterglow adds display release. Switching profiles clears history and retains gain and afterglow for comparison. Neither profile claims to reproduce Ozone's unpublished calculation exactly.</p>
@@ -293,7 +297,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="waveform">
-        <h2><span class="num">16</span>Waveform modes</h2>
+        <h2><span class="num">18</span>Waveform modes</h2>
         <p><strong>WAVE</strong>, or the <kbd>W</kbd> key, switches between three ways of drawing:</p>
         <dl>
           <dt>STD</dt>
@@ -307,12 +311,12 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="colour">
-        <h2><span class="num">17</span>Waveform colour</h2>
-        <p>In <strong>Settings</strong>, choose the colour of the waveform in STD and PRECISE and the Solid spectrum fill: Teal (the default), Cyan, Blue, Violet, Pink, Amber, Yellow or Grey. Green is kept for the write head. In the plugin, each instance remembers its own colour, so you can tell instances apart at a glance.</p>
+        <h2><span class="num">19</span>Waveform colour</h2>
+        <p>In <strong>Settings</strong>, choose the colour of the waveform in STD and PRECISE, the spectrum fill, the band bars and the stereo views: Teal (the default), Cyan, Blue, Violet, Pink, Amber, Yellow or Grey. Green is kept for the write head. In the plugin, each instance remembers its own colour, so you can tell instances apart at a glance.</p>
       </section>
 
       <section id="grid">
-        <h2><span class="num">18</span>Grid, lanes and labels</h2>
+        <h2><span class="num">20</span>Grid, lanes and labels</h2>
         <ul>
           <li><strong>Bar lines</strong> are bright, <strong>beat lines</strong> darker, and finer subdivisions fainter still. The grid gets finer as you zoom in, down to sixty-fourth notes.</li>
           <li><strong>Bar numbers</strong> run along the bottom. Zoomed in, the labels read bar.beat, and the left edge always says which beat the view starts in.</li>
@@ -323,7 +327,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="zoom">
-        <h2><span class="num">19</span>Zoom</h2>
+        <h2><span class="num">21</span>Zoom</h2>
         <p>Zoom in on any part of the window to see detail, while the sweep keeps running:</p>
         <ul>
           <li><strong>Drag</strong> across the scope to zoom to that part.</li>
@@ -335,7 +339,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="ruler">
-        <h2><span class="num">20</span>Measurement ruler</h2>
+        <h2><span class="num">22</span>Measurement ruler</h2>
         <p>Drag with the <strong>right mouse button</strong>, a <strong>two-finger click</strong> or <kbd>Control</kbd>-click, or hold a finger still for half a second and then drag, to draw a ruler on the scope. While you hold it, a readout next to the pointer shows the ruler's width as:</p>
         <table>
           <tbody>
@@ -350,7 +354,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="sync-plugin">
-        <h2><span class="num">21</span>Latency and Visona Sync</h2>
+        <h2><span class="num">23</span>Latency and Visona Sync</h2>
         <p>Some DAWs, Ableton Live among them, report the same playhead to every plugin on a track, including plugins placed after plugins with latency. The audio reaching Visona is then late by that latency, and the waveform lands after the grid. <strong>Visona Sync</strong> fixes this.</p>
         <p>Visona Sync is an instrument that writes a short impulse at the start of every bar. The DAW aligns a sidechain with the main input of the plugin it feeds, so the impulse arrives exactly as late as the audio. Visona measures how far after the bar line it arrives, and draws the audio that much earlier.</p>
         <ol>
@@ -364,7 +368,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="sync-app">
-        <h2><span class="num">22</span>Visona Sync with the app</h2>
+        <h2><span class="num">24</span>Visona Sync with the app</h2>
         <p>The app allows for its own input latency, but not for what lies between your DAW's MIDI Clock and the audio reaching the interface: the DAW's output latency, clock delay settings and the interfaces on the way. Visona Sync measures that too, if its impulse comes in on an input of its own.</p>
         <ol>
           <li>In your DAW, add <strong>Visona Sync</strong> on an instrument track and send that track straight to a free output of your interface, such as 3/4, not to the master. Keep it off your speakers: it is a click on every bar.</li>
@@ -378,21 +382,22 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="diagnostics">
-        <h2><span class="num">23</span>Diagnostics overlay</h2>
-        <p>Press <kbd>D</kbd>, or the Diagnostics button, for a panel of technical readings: the audio device, sample rate, block size and level per input, overruns and device xruns, MIDI Clock messages and timing, the Visona Sync measurement, analysis load, frame rate and render times, and Visona's CPU use. Frame rate and render times follow the selected analysis view; Stereo targets approximately 60 frames per second; Polar Sample polls at 240 Hz and Polar Level at 120 Hz to allow for timer delays; only fresh 120 Hz analysis snapshots produce frames. Band targets 30; FFT targets 30 (25 for Solid curve 1 on ARM64 Linux) and adapts on slower hardware to keep controls responsive. Include a screenshot of it when you report a problem. For Raspberry Pi development, the local deployment script accepts <code>--profile</code> to log FPS, render/paint times and CPU over SSH even with this overlay closed; see the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-build.md#measure-fps-and-cpu-over-ssh">performance measurement guide</a>.</p>
+        <h2><span class="num">25</span>Diagnostics overlay</h2>
+        <p>Press <kbd>D</kbd>, or the Diagnostics button, for a panel of technical readings: the audio device, sample rate, block size and level per input, overruns and device xruns, MIDI Clock messages and timing, the Visona Sync measurement, analysis load, frame rate and render times, and Visona's CPU use. Frame rate and render times follow the selected analysis view. Stereo aims at 60 frames per second or more: Polar Sample polls at 240 Hz and Polar Level at 120 Hz to allow for timer delays, and only fresh 120 Hz analysis snapshots produce frames. Band targets 30, and FFT 30 (25 on ARM64 Linux); both slow down on slower hardware to keep the controls responsive. Include a screenshot of it when you report a problem. For Raspberry Pi development, the local deployment script accepts <code>--profile</code> to log FPS, render/paint times and CPU over SSH even with this overlay closed; see the <a href="https://github.com/stephanterning/visona/blob/main/docs/pi-build.md#measure-fps-and-cpu-over-ssh">performance measurement guide</a>.</p>
         <figure><img src="/images/visona-diagnostics.png" alt="Visona's diagnostics overlay" loading="lazy"></figure>
       </section>
 
       <section id="full-screen">
-        <h2><span class="num">24</span>Full screen and kiosk mode</h2>
+        <h2><span class="num">26</span>Full screen and kiosk mode</h2>
         <p>In the app, <kbd>F</kbd> or the Full screen button toggles full screen. On a Raspberry Pi installed with <code>install-visona.sh</code>, Visona starts full screen at login in kiosk mode, with the control bar drawn larger for touch. The display can be switched on after boot, turned off and on, or changed to another resolution, and Visona follows. To quit kiosk mode from SSH, run <code>pkill Visona</code>.</p>
       </section>
 
       <section id="touch">
-        <h2><span class="num">25</span>Touchscreen</h2>
+        <h2><span class="num">27</span>Touchscreen</h2>
         <p>Visona works with a multitouch screen, for example on a Raspberry Pi:</p>
         <ul>
           <li>A tap works as a click. Double-tap the gain to reset it, or the scope to reset the zoom.</li>
+          <li>Tap the view selector for large tiles of the analysis views.</li>
           <li>Drag across the scope to zoom to that part; pinch to zoom and move the view with your fingers.</li>
           <li>Hold a finger still on the scope for half a second, then drag, to draw the measurement ruler.</li>
           <li>Hold a finger still on a control for half a second to see its tooltip.</li>
@@ -402,18 +407,20 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="shortcuts">
-        <h2><span class="num">26</span>Keyboard and mouse</h2>
+        <h2><span class="num">28</span>Keyboard and mouse</h2>
         <table>
           <thead><tr><th>Key</th><th>Action</th><th>Where</th></tr></thead>
           <tbody>
+            <tr><td><kbd>V</kbd></td><td>Open the view selector</td><td>App and plugin</td></tr>
+            <tr><td><kbd>Alt</kbd>+<kbd>1</kbd> – <kbd>Alt</kbd>+<kbd>4</kbd></td><td>Scope, Spectrum (FFT), Spectrum (Band) or Stereo</td><td>App and plugin</td></tr>
             <tr><td><kbd>Space</kbd> or <kbd>P</kbd></td><td>Pause, Resume or Run free</td><td>App</td></tr>
-            <tr><td><kbd>1</kbd> – <kbd>5</kbd></td><td>Window ¼, ½, 1, 2 or 4 bars</td><td>App</td></tr>
+            <tr><td><kbd>1</kbd> – <kbd>5</kbd></td><td>Window ¼, ½, 1, 2 or 4 bars</td><td>App, in Scope</td></tr>
             <tr><td><kbd>+</kbd> <kbd>−</kbd> or <kbd>↑</kbd> <kbd>↓</kbd></td><td>Gain up or down 1 dB</td><td>App</td></tr>
-            <tr><td><kbd>W</kbd></td><td>Next waveform mode</td><td>App</td></tr>
+            <tr><td><kbd>W</kbd></td><td>Next waveform mode</td><td>App, in Scope</td></tr>
             <tr><td><kbd>F</kbd></td><td>Full screen</td><td>App</td></tr>
-            <tr><td><kbd>Cmd</kbd>+<kbd>,</kbd></td><td>Settings</td><td>App</td></tr>
+            <tr><td><kbd>Cmd</kbd>+<kbd>,</kbd> (<kbd>Ctrl</kbd>+<kbd>,</kbd> on Linux)</td><td>Settings</td><td>App</td></tr>
             <tr><td><kbd>D</kbd></td><td>Diagnostics overlay</td><td>App and plugin</td></tr>
-            <tr><td><kbd>Esc</kbd></td><td>Close Settings, or reset the zoom</td><td>App and plugin</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close Settings or Analysis settings, or reset the zoom</td><td>App and plugin</td></tr>
           </tbody>
         </table>
         <table>
@@ -429,7 +436,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="troubleshooting">
-        <h2><span class="num">27</span>Troubleshooting</h2>
+        <h2><span class="num">29</span>Troubleshooting</h2>
         <table>
           <thead><tr><th>Problem</th><th>What to try</th></tr></thead>
           <tbody>
@@ -444,7 +451,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
       </section>
 
       <section id="conclusion">
-        <h2><span class="num">28</span>Conclusion</h2>
+        <h2><span class="num">30</span>Conclusion</h2>
         <p>Thanks for trying Visona. It is young, and it gets better with every report of what works, what doesn't and what you miss. Open an <a href="https://github.com/stephanterning/visona/issues">issue on GitHub</a>, and include a screenshot with the diagnostics overlay when something goes wrong.</p>
       </section>
     </article>

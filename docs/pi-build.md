@@ -1,6 +1,14 @@
 # Building Visona on Raspberry Pi
 
-Visona runs on **Raspberry Pi OS 64-bit** (Bookworm or later) as a native Linux ARM64 app using JUCE's ALSA backend. The target interface is a **RME Babyface Pro FS** in USB Class Compliant mode (no RME Linux drivers).
+Visona runs on **Raspberry Pi OS 64-bit** as a native Linux ARM64 app using JUCE's ALSA backend. The target interface is a **RME Babyface Pro FS** in USB Class Compliant mode (no RME Linux drivers).
+
+Which Raspberry Pi OS release a binary runs on depends on where it was built:
+
+| Binary | Built on | Runs on |
+| --- | --- | --- |
+| Release tarball and Development builds (`Visona-linux-arm64-pi*.tar.gz`) | Ubuntu 24.04 on GitHub's arm64 runners | Raspberry Pi OS based on Debian 13 (Trixie) or later: it needs glibc 2.38 and GCC 13's libstdc++ |
+| A source build on the Pi (`pi` preset) | The Pi itself | That Pi's release, Bookworm included |
+| `build-and-deploy-to-pi-over-network.sh` | Debian 12 (Bookworm) in Docker | Bookworm or later |
 
 This document covers a developer build and manual smoke test. For boot-to-fullscreen kiosk setup, see [pi-kiosk.md](pi-kiosk.md).
 

@@ -1,6 +1,6 @@
 # macOS signing and notarization
 
-The Release workflow signs the macOS app and the VST3, AU and CLAP plugins with a Developer ID, and has Apple notarize them, so they open without Gatekeeper warnings (D-111). It needs an Apple Developer Program membership and five repository secrets. Local builds stay ad-hoc signed.
+The Release workflow signs the macOS app and the VST3, AU and CLAP plugins with a Developer ID, and has Apple notarize them, so they open without Gatekeeper warnings (D-114). It needs an Apple Developer Program membership and five repository secrets. Local builds stay ad-hoc signed.
 
 ## Secrets
 

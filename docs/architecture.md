@@ -1,18 +1,19 @@
 # Visona architecture
 
-This document describes what Visona is, the principles it is built on, and the architecture of MVP 1.0. Milestones and steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md).
+This document describes what Visona is, the principles it is built on, and its architecture: the MVP 1.0 design and what has been added to it since. Milestones and steps are in [roadmap.md](roadmap.md). Decisions are referenced as D-NNN and recorded in [decisions.md](decisions.md). Where the code falls short of this design, and what to do about it, is reviewed in [technical-review.md](technical-review.md).
 
 ## 1. Vision
 
 Visona is a platform-independent real-time engine for musical audio analysis and visualization.
 
 - **The scope is the first product.** It is a beat-synced stereo oscilloscope. It shows ¼, ½, 1, 2 or 4 bars in a sweep display, locked to musical time instead of milliseconds (D-020, D-034).
-- **The monitoring platform is the architecture.** The scope is the first module. Spectrum, phase/vectorscope, correlation, levels, True Peak and loudness are meant to follow as widgets (D-028).
+- **The monitoring platform is the architecture.** The scope is the first module. Spectrum (FFT and third-octave bands) and a stereo view with correlation and balance followed, shown one at a time (D-116). Levels, True Peak and loudness are meant to follow, and all of them are meant to become widgets of a dashboard (D-028).
 - **The long-term goal is a dedicated studio meter.** A Raspberry Pi with a small touchscreen should eventually be able to replace a hardware loudness and stereo meter.
 - **Targets:**
   - MVP 1.0 is a macOS standalone app on Apple Silicon (D-033, D-044).
-  - A VST3, AU and CLAP plugin for macOS, also built as VST3 and CLAP for Windows and Linux, follows the DAW's transport (D-096), with the Visona Sync companion instrument (D-097, D-098, D-099). A Linux ARM64 build runs on the Raspberry Pi.
-  - The Raspberry Pi appliance, and Windows and Linux desktop apps, come later, all on the same analysis engine and UI.
+  - A VST3, AU and CLAP plugin for macOS, also built as VST3 and CLAP for Windows and Linux, follows the DAW's transport (D-096), with the Visona Sync companion instrument (D-097, D-098, D-099).
+  - A Linux ARM64 build of the app runs on the Raspberry Pi, in a full-screen kiosk mode for touchscreens (D-103, D-105, D-108).
+  - Hardening the Pi into an appliance, and Windows and Linux desktop apps, come later, all on the same analysis engine and UI.
 - **More inputs than stereo.** Inputs are modeled as *sources*, each a group of 1..N channels. MVP 1.0 has exactly one stereo source, but the core never hardcodes two channels (D-049, D-052).
 - **Free software.** Visona is licensed under AGPLv3 and is not a commercial product (D-042).
 
@@ -40,24 +41,28 @@ Visona is a platform-independent real-time engine for musical audio analysis and
    - A widget model from the start, but no dashboard editor before the scope works.
 8. **Testable without hardware.** The core, transport and rendering are tested with synthetic signals and synthetic MIDI Clock (D-032).
 
-## 3. MVP architecture
+## 3. Architecture
+
+Sections 3.1–3.7 describe the MVP design as it has grown; 3.8 adds the analysis views that came after it.
 
 ### 3.1 Layers
 
 - **`core/`: plain C++20 with no JUCE dependency** (D-054). It contains:
-  - ring buffer and triple buffer
+  - ring buffer (`AudioRingBuffer`, written through `AudioInputWriter`), `SpscQueue` and `TripleBuffer`
   - source layout
   - `MidiClockTransport` and `ClockTimeMapper`
-  - `BandSplitter` and `SweepAnalyzer`
-  - snapshot types and bin-to-pixel reduction
+  - `BandSplitter` and `SweepAnalyzer`, with `SweepBuffer` and `SweepSnapshot`
+  - bin-to-pixel reduction (`ColumnReduction`), the vertical mapping and display gain range (`LaneMapping`), the grid's note values and amplitude references (`ScopeGrid`), the zoom (`SweepZoom`) and the DJ colour (`WaveformStyle`)
   - the measurement ruler's readout (`Ruler`, D-094)
+  - auto gain: `BarPeakMeter` measures peaks on the analysis thread, `AutoGain` decides on the message thread (D-100, D-119)
   - `AnalysisPipeline`, the analysis thread's work without the thread: ring in, snapshots out
   - for the plugins: `HostTransport` and `HostAnalysisPipeline`, the same work driven by the host playhead (D-096), and `BarImpulseScheduler` and `SidechainSyncDetector` for Visona Sync (D-097), which the app's `AnalysisPipeline` also uses on its sync input (D-109)
+  - the analysis views of 3.8: `SpectrumAnalyzer`, which also owns the `BandAnalyzer`, and `StereoAnalyzer` with `PolarLevel` and `StereoProjection`
 
-  Keeping JUCE out makes the core testable on Linux without a GUI, enforces the platform boundary, and lets the core be reused in plugins and on the Raspberry Pi.
+  Keeping JUCE out makes the core testable on Linux without a GUI, enforces the platform boundary, and lets the core be reused in plugins and on the Raspberry Pi. The core links two third-party DSP pieces, behind its own interfaces (D-029): KISS FFT, vendored in `third_party/kissfft` (D-117), and LSP's correlation and balance meters, fetched at pinned versions by `cmake/LspStereo.cmake` (D-120).
 - **`app/` (JUCE):** audio device management, audio callback, MIDI input, the analysis thread, settings and wiring.
 - **`plugin/` (JUCE):** the Visona effect (`PluginProcessor`, its analysis thread and `ScopeEditor`) and the Visona Sync instrument (`SyncProcessor`, `SyncEditor`). See 3.7.
-- **`ui/` (JUCE):** `ScopeView`, `StatusBar`, `ControlBar`, `SettingsPanel` and `DiagnosticsOverlay`, shared by the app and the plugin.
+- **`ui/` (JUCE):** shared by the app and the plugin: `ScopeView`, `ZoomOverview`, `StatusBar`, `ControlBar` with its controls (`AnalysisSelector`, `WindowControl`, `TempoControl`, `GainControl`, `WaveformControl`), `SettingsPanel`, `DiagnosticsOverlay`, the analysis views `SpectrumView`, `BandSpectrumView` and `StereoView`, the in-window select lists (`ChoiceList`, `ChoiceBox`, `ChoiceControl`), `Tooltips`, and the colour tokens in `Palette.h`.
 
 ### 3.2 Threads and data flow
 
@@ -73,10 +78,14 @@ Audio thread (JUCE callback)              MIDI thread (JUCE MidiInput)
               MidiClockTransport: ticks → musical position
               BandSplitter: per channel → low / mid / high (coloring only)
               SweepAnalyzer: signed min/max per bin, write head
-                           │ triple buffer (lock-free, latest wins)
+              BarPeakMeter: input peaks for auto gain
+              the selected analysis view only (3.8):
+                SpectrumAnalyzer (FFT), BandAnalyzer or StereoAnalyzer
+                           │ triple buffers (lock-free, latest wins), one per analyzer
                            ▼
-            UI thread (VBlankAttachment, ≤ 60 fps)
-              ScopeView / StatusBar / ControlBar
+            UI thread
+              ScopeView (VBlankAttachment, ≤ 60 fps) / StatusBar / ControlBar
+              SpectrumView, BandSpectrumView, StereoView (timers, 3.8)
 ```
 
 - **Audio thread.** Copies input into the ring and pushes `BlockTiming`, and nothing else.
@@ -204,15 +213,18 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
 ├──────────────────────────────────────────────────────────────┤
 │ R  ~~~~~~~~~ sweep ~~~~~~~~~│                                 │
 ├──────────────────────────────────────────────────────────────┤
-│      WINDOW    BPM         GAIN                WAVE          │
-│ [⏸] [1 BAR ▴] [− 126.0 +] [− +12 dB +] [AUTO] [STD ▴]    [⚙] │  controls
+│                WINDOW    BPM        GAIN               WAVE  │
+│ [Scope ▾] [⏸] [1 BAR ▴] [− 126.0 +] [− +12 dB +] [AUTO] [STD ▴] [⚙] │  controls
 └──────────────────────────────────────────────────────────────┘
 ```
+
+The other analysis views share the status bar and the control bar (3.8).
 
 - **Status (top)** (D-046): BPM, MIDI state (`FREE`, `RUN`, `STOPPED`, `MIDI CLOCK LOST`), sample rate, window and gain.
   - The state reads `FREE`, `MIDI RUN`, `STOPPED` or `MIDI CLOCK LOST`, or `NO INPUT` in red when no audio input runs (D-080, D-090). While the view is paused it reads `PAUSED`, which takes precedence over everything else, errors and their banners too (D-110).
   - Nothing in the status bar is a button (D-110).
   - With a Visona Sync input chosen, `SC +12.3 ms` follows the state once the offset is measured, and `SC ...` before (D-109).
+  - Outside Scope, the window's place names the view, such as `SPECTRUM (FFT)`, and the gain is left out. In the app the state then reads `LIVE` while audio runs (D-116).
   - Values are calm white or gray text with tabular digits.
   - Color is used for state only, and red is reserved for errors.
   - `MIDI CLOCK LOST` and `NO AUDIO INPUT` appear as a banner over the scope.
@@ -220,14 +232,15 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - While zoomed, the zoom comes last, such as `ZOOM 4.0× · 1.3–1.4` (D-085).
 - **Zoom strip** (D-085): only while zoomed, between the status bar and the scope. It shows the whole window with the part in view and the head, and a × that resets the zoom. Dragging anywhere on it moves the view, round past either end of the window, and a click outside the part in view centres the view there (D-089).
 - **Controls (bottom):** no knobs. Each control carries a small caption above its value: WINDOW, BPM, GAIN and WAVE (D-108).
-  - The pause button comes first, in the app only (D-110). Its icon and tooltip say what a press does: ⏸ pause while the view moves, ▶ resume, lit, while it is paused, and ▶ run free while MIDI Clock is stopped or lost.
+  - The analysis view selector comes first: Scope, Spectrum (FFT), Spectrum (Band) or Stereo (D-116). With a mouse it opens a list above itself, and in kiosk mode or after a touch, large tiles over the window.
+  - The pause button follows, in the app only (D-110). Its icon and tooltip say what a press does: ⏸ pause while the view moves, ▶ resume, lit, while it is paused, and ▶ run free while MIDI Clock is stopped or lost.
   - WINDOW is a select menu, `¼ BAR` to `4 BARS`, whose list opens above it (D-108).
   - BPM is `[−] 120.0 [+]`, the free tempo from 40 to 300 BPM: the buttons step whole BPM, and drag or scroll fine-tunes it by 0.1. While MIDI Clock sets the tempo it shows that tempo, dimmed (D-090).
-  - GAIN is `[−] +12 dB [+]`, from 0 to +64 dB in 1 dB steps. It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB (D-100).
-  - AUTO, right of GAIN, turns auto gain on and off. While it is on, the button is lit, the value is green and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, in at bar lines once the peaks have stayed low for 10 s. A change by hand turns auto gain off (D-100, D-108).
+  - GAIN is `[−] +12 dB [+]`, from 0 to +64 dB in 1 dB steps (D-115). It can be changed by drag, scroll wheel and arrow keys, and double-click or double-tap resets it to 0 dB (D-100).
+  - AUTO, right of GAIN, turns auto gain on and off. While it is on, the button is lit, the value is green and the gain moves in 3 dB steps: out as soon as a peak goes past the lane, and in once the peaks of the input have stayed low for 10 s, measured in 100 ms windows whatever the transport does. A change by hand turns auto gain off (D-100, D-108, D-119).
   - WAVE is a select menu of `STD`, `PRECISE` and `DJ`, the drawing modes (D-091, D-108).
   - Secondary buttons: Diagnostics and Full screen, next to ⚙. All the buttons in the control bar show only their icons, with the label as the tooltip (D-113).
-  - Keyboard shortcuts: Space or P for the pause button, 1–5 for window, +/− (or ↑/↓) for gain, W for the waveform mode, F for fullscreen, D for diagnostics, and Esc to reset the zoom.
+  - Keyboard shortcuts: V to open the view selector and Alt+1 to Alt+4 to choose a view (D-116), Space or P for the pause button, +/− (or ↑/↓) for gain, F for fullscreen, D for diagnostics, Cmd+, (Ctrl+, on Linux) for the settings, and Esc to close the settings or reset the zoom. In Scope, 1–5 choose the window and W the waveform mode. The plugin has V, Alt+1 to Alt+4, D and Esc.
 - **Zoom on the scope** (D-085): drag to zoom to the selection, scroll to zoom around the pointer, scroll sideways or Shift-scroll to move the view (D-089), and double-click or double-tap to reset. A pinch zooms around the point between the fingers and moves the view with them, so what was between them stays there (D-108).
 - **Measurement ruler** (D-094): drag with the right button, a two-finger click or Control, or hold a finger still for half a second and drag, to draw a rectangle. While it is held, a readout above and to the right of the pointer, or on another side where it does not fit, shows its width as ms, samples, frequency, note and musical length, read against the time axis as shown. It never reads the audio, and it goes away on release.
 - **Tooltips** (D-108): shown on hover with a mouse. On a touchscreen a finger held still on a control for half a second shows its tooltip, and lifting or moving the finger hides it.
@@ -239,13 +252,13 @@ The clock-loss timeout only applies in `Running`, so a DAW that stops sending cl
   - The status bar shrinks first, down to BPM and MIDI state.
   - Breakpoints are logical sizes of the component bounds.
 - **Diagnostics overlay** (D-070): audio input, overruns, analysis load, frame rate, render time and CPU use, hidden by default.
-- **Settings panel (⚙):** audio device, sample rate, buffer size, input channel pair, MIDI input and the waveform colour (D-093). The free tempo is saved too.
+- **Settings panel (⚙):** audio system, audio device, sample rate, buffer size, input channel pair, Visona Sync input, MIDI input and the waveform colour (D-093). The free tempo, the analysis view and each view's settings are saved too.
   - The input channel for Left and for Right is chosen separately (D-063).
   - **Visona Sync** chooses the input that Visona Sync's bar impulses come in on, or Off (D-109).
   - It is a separate overlay that never forces the scope to repaint.
   - While it is open, the rest of the window is dimmed, and a click or tap outside it closes it like Done, without reaching what is under it (D-108).
   - Its choices open in a list inside the window, like WINDOW and WAVE, so taps reach them on a touchscreen; long lists scroll (D-108).
-  - Settings are persisted with JUCE `ApplicationProperties` under `~/Library/Application Support/Visona/`.
+  - Settings are persisted with JUCE `ApplicationProperties` in `Visona.settings`, under `~/Library/Application Support/Visona/` on macOS and `~/.config/Visona/` on Linux.
   - If the saved audio device is missing, at startup or after it is unplugged, `NO AUDIO INPUT` is shown and no other device is opened. It is opened again when it is plugged in, and so is the MIDI input (D-064, D-102).
 - **Window:** freely resizable, with native fullscreen.
 
@@ -255,48 +268,68 @@ The Visona plugin is a pass-through stereo effect, built as VST3, AU and CLAP (D
 
 - **Audio thread (`processBlock`).** Copies the main input into the ring, as the app's callback does, and queues the host playhead with the stream index of the block's first frame, where hosts report it, in an SPSC queue. It never allocates, locks or waits.
 - **Analysis thread.** `HostAnalysisPipeline` hands each playhead to `HostTransport`, which builds the same kind of span timeline as the MIDI Clock transport: musical spans between consecutive playheads, a pending span after the newest one, and frozen spans while the host is stopped. A relocation starts the sweep over.
-- **Editor.** `ScopeEditor` shows the same status bar, scope and control bar without the BPM control or full screen, and a settings panel with the waveform colour only. The waveform mode and colour are saved per instance in the DAW project.
+- **Editor.** `ScopeEditor` shows the same status bar, analysis views and control bar without the pause button, the BPM control or full screen, and an Appearance panel with the waveform colour only. The state reads `HOST RUN` while the host plays and `STOPPED` otherwise. `HostTransport` starts out stopped, and the analysis thread publishes that within its first poll, so `STOPPED` also shows before the first playback; the editor's fallback `HOST` belongs to the empty snapshot before that first publication and is not normally seen. The analysis view, window, waveform mode and colour, gain, auto gain, afterglow and each view's settings are saved per instance in the DAW project. The spectrum and stereo analyzers run only while their view is shown in an open editor.
 - **Sidechain sync** (D-097). The effect has an optional mono sidechain input. Visona Sync, a separate instrument plugin, writes a −6 dBFS impulse at every bar line of the host playhead. `SidechainSyncDetector` measures, on the audio thread, how many frames after the playhead's nearest bar line the impulse arrives. The pipeline then places each playhead that many frames later on the audio timeline, so audio that passed plugins with latency lands on the grid.
+
+### 3.8 Analysis views
+
+Besides Scope, the app and the plugin have three analysis views, one shown at a time and chosen with the selector in the control bar (D-116). They follow the incoming audio whatever the transport does; the app's pause holds them too.
+
+- **Data flow.** `AnalysisPipeline` and `HostAnalysisPipeline` hand every region of the ring to the scope's analysis and, when its view is shown, to `SpectrumAnalyzer`, its `BandAnalyzer` or `StereoAnalyzer`, on the analysis thread. Each analyzer allocates its plans, history and triple-buffered snapshots when it is constructed, and does not allocate, lock or wait while processing. The audio callback is unchanged. Each view reads the latest snapshot on a message-thread timer and renders only when a new one has arrived.
+- **Spectrum (FFT)** (D-117): an 8,192-sample periodic Hann window and a 1,024-sample hop with KISS FFT, 768 logarithmic points, a Solid fast curve and a white history line. See [spectrum.md](spectrum.md).
+- **Spectrum (Band)** (D-118): 31 third-octave biquad bands with bars and peak markers. See [band-spectrum.md](band-spectrum.md).
+- **Stereo** (D-120): Polar Sample, Polar Level and Lissajous over the last 100 ms, with correlation and balance from LSP over 200 ms. See [stereo.md](stereo.md).
+- **Shared display controls** (D-119): GAIN, AUTO and Afterglow apply to every view. Display gain moves the curves, bars and radii without changing what is measured.
+- **Rendering.** Static grids and labels are cached at physical pixel resolution, and only the changed region is repainted. The spectra target 30 frames per second (25 for FFT on ARM64 Linux) and wait longer when rendering takes longer, so the message thread stays responsive on the Pi. Stereo aims at 60 or more: it polls faster than that and renders every new 120 Hz snapshot in the polar modes, and up to 60 per second in Lissajous.
+- **Settings.** Each view saves its settings as a short comma-separated string, in the app's settings and per plugin instance, and reads older versions of it.
 
 ## 4. Build and CI
 
-- **CMake ≥ 3.22.** The `VISONA_BUILD_APP` option is ON on macOS and OFF in the Linux job, so JUCE is never fetched there. `VISONA_BUILD_PLUGIN` builds the VST3, AU and CLAP plugins, and fetches [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) for CLAP (D-098); the `macos`, `macos-plugin` and `xcode` presets turn it on.
-- **JUCE 9.0.2**, pinned to the exact tag via `FetchContent`. 8.0.15 is the fallback if the skeleton does not build cleanly (D-055).
+- **CMake ≥ 3.22.** The `VISONA_BUILD_APP` option is ON on macOS and OFF in the Linux job, so JUCE is never fetched there. `VISONA_BUILD_PLUGIN` builds the VST3, AU and CLAP plugins, and fetches [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) for CLAP (D-098); the `macos`, `macos-plugin`, `xcode`, `windows-plugin` and `linux-plugin` presets turn it on.
+- **Other options.** `VISONA_BUILD_TESTS` (ON) builds the Catch2 tests, `VISONA_SANITIZERS` takes a `-fsanitize=` list, `VISONA_COPY_PLUGINS` (ON except on Windows) copies the built plugins into the user's plugin folders, and `VISONA_BUILD_UI_CHECKS` (OFF) builds `visona_ui_checks`, the offline UI checks and screenshot renderer of [spectrum.md](spectrum.md#validation).
+- **Dependencies.** JUCE 9.0.2, pinned by URL and SHA-256 via `FetchContent`; 8.0.15 is the fallback if the skeleton does not build cleanly (D-055). The core also builds LSP's meters from three pinned, checksummed archives (`cmake/LspStereo.cmake`), so core-only builds download those too, and compiles the vendored KISS FFT.
 - **macOS:**
   - `CMAKE_OSX_ARCHITECTURES=arm64` and `CMAKE_OSX_DEPLOYMENT_TARGET=14.0` (D-053).
   - Xcode generator locally, Ninja in CI.
   - Microphone permission (`MICROPHONE_PERMISSION_ENABLED` plus a usage text) is required, or audio input stays silent.
-  - Local builds are ad-hoc signed. The `Release` workflow signs the app and plugins with a Developer ID and the hardened runtime, and notarizes them (D-111).
+  - Local builds are ad-hoc signed. The `Release` workflow signs the app and plugins with a Developer ID and the hardened runtime, and notarizes them (D-114).
+- **Raspberry Pi:** the `pi` preset builds the app natively on the Pi, one compile at a time; `pi-ci` is the same build in parallel for CI, and `pi-quick` builds only the app with `ccache` and no tests. `scripts/pi/build-and-deploy-to-pi-over-network.sh` builds the Pi app in Docker on an Apple Silicon Mac and deploys it over SSH ([pi-build.md](pi-build.md)).
 - **GitHub Actions (D-043, D-095):**
-  - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs.
-  - `Release` on published GitHub releases: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (signed with a Developer ID and notarized, with `auval` and `clap-validator` runs, D-111), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
-  - `Release` run by hand on any branch builds only the artifacts ticked and publishes them to the `dev-builds` prerelease, named after the branch and commit (D-104).
+  - `CI` on every pull request and on `main`: Linux core and tests (GCC, Clang, ASan/UBSan, TSan). JUCE is not fetched in these jobs, so nothing compiles the app, the plugins or `ui/` before a release or a manual run.
+  - `Release` on published GitHub releases: the macOS arm64 app bundle, the Visona and Visona Sync VST3, AU and CLAP bundles (signed with a Developer ID and notarized, with `auval` and `clap-validator` runs, D-114), the Windows x64 and Linux x86_64 VST3 and CLAP plugins (checked with `pluginval` and `clap-validator`, D-099), and the Linux arm64 Pi binary tarball with the kiosk scripts.
+  - `Release` run by hand on any branch builds only the artifacts ticked and publishes them to the `dev-builds` prerelease, named after the branch and commit (D-104). `Pi quick build`, run by hand, publishes the Pi app there faster, with the `pi-quick` preset.
+  - `Website` builds visona.org from `site/` and the releases and deploys it to GitHub Pages ([website.md](website.md)).
   - macOS app builds locally with the `macos` or `xcode` preset while developing the GUI.
 - **Test framework:** Catch2 v3 via `FetchContent`. Its BSL-1.0 license is AGPL-compatible (D-054).
-- **Style:** `.clang-format`; warnings are errors in `core/`.
+- **Style:** `.clang-format`; warnings are errors in `core/` and the tests.
 - **Repository layout:**
 
 ```
 visona/
 ├── CMakeLists.txt
-├── cmake/       JUCE and CLAP setup, warning flags
-├── core/        C++20, no JUCE (include/visona/…, src/)
-├── app/         JUCE app: main, audio/MIDI engine, settings
-├── plugin/      JUCE plugins (VST3, AU, CLAP): Visona and Visona Sync
-├── ui/          JUCE components, shared by app and plugin
-├── tests/       Catch2, core only
-├── scripts/pi/  Pi kiosk scripts
-├── docs/        architecture, roadmap, decisions, plugin and Pi guides
-├── .github/workflows/  ci.yml, release.yml
+├── CMakePresets.json
+├── cmake/        JUCE, CLAP and LSP setup, warning flags
+├── core/         C++20, no JUCE (include/visona/…, src/)
+├── app/          JUCE app: main, audio/MIDI engine, settings
+├── plugin/       JUCE plugins (VST3, AU, CLAP): Visona and Visona Sync
+├── ui/           JUCE components, shared by app and plugin
+├── tests/        Catch2 tests of the core, and the optional JUCE UI checks (*UiChecks.cpp)
+├── third_party/  KISS FFT (vendored), LSP build glue, Signalizer provenance
+├── experiments/  stereo-analysis: the research harness behind the Stereo view
+├── assets/icon/  the app icon's master SVGs and rendered PNG
+├── scripts/      pi/: kiosk, install, deploy and measurement scripts; macos/: local install
+├── site/         visona.org and the user manual
+├── docs/         architecture, roadmap, decisions, technical review, plugin, Pi and analysis guides
+├── .github/      workflows (ci, release, pi-quick, site) and the publish action
 ├── AGENTS.md
 ├── CHANGELOG.md
 ├── README.md
-└── LICENSE      AGPLv3
+└── LICENSE       AGPLv3
 ```
 
 ## 5. Test strategy
 
-Everything below runs in CI on Linux without hardware (D-032).
+Everything below runs in CI on Linux without hardware (D-032), except the UI checks at the end.
 
 - **Signals.** Generators for sine, square, impulse, stereo phase-shifted sine and a click per beat.
 - **Transport.**
@@ -324,8 +357,11 @@ Everything below runs in CI on Linux without hardware (D-032).
   - Zooming around a point keeps it in place, stops at 1/32 of the window, and zooming out arrives at the whole window. Moving a view wraps round the window's ends and keeps its span.
   - The grid's finest note value for each amount in view, its length at a tempo, and which amplitude references show at each display gain.
 - **Channel-count independence.** The analyzer gives the same per-channel result with 1, 2 and 6 channels (D-049).
-- **Concurrency.** Stress tests for the SPSC ring and triple buffer under TSan.
+- **Auto gain and the plugins.** The auto gain decisions, the host transport and pipeline, the bar impulse scheduler and the sidechain detector.
+- **Analysis views.** Tone frequency and level at 44.1 to 192 kHz, Peak/RMS calibration, smoothing, gaps, invalid samples and block independence for the FFT; band calibration, rejection and marker hold for Band; correlation, balance, gates and every retained history sample against independent double-precision calculations at 8 to 384 kHz for Stereo, and Polar Level's definitions; all of them allocation-free while processing.
+- **Concurrency.** Stress tests for the SPSC ring and triple buffer under TSan, and concurrent settings and snapshot use of the analyzers.
 - **Performance** (informational). A benchmark of analysis cost per second of stereo audio at 96 kHz.
+- **UI checks** (optional, not in CI). `visona_ui_checks`, built with `VISONA_BUILD_UI_CHECKS=ON`, renders the analysis views and the selector offscreen from synthetic audio, compares incremental with full redraws pixel by pixel, round-trips their settings and writes screenshots ([spectrum.md](spectrum.md#validation), [stereo.md](stereo.md#verification)).
 
 ## 6. Known risks
 
@@ -339,15 +375,8 @@ Everything below runs in CI on Linux without hardware (D-032).
 - **Crossover group delay shifts the coloring.** LR4 at 200 Hz delays the low band by ≈ 2.6 ms. That is ≈ 17 px in a ¼-bar window at 174 BPM and 2000 px width. The shape is unaffected because it is full-band. *Mitigation:* the renderer reads each band later by its delay at the band's reference frequency (D-092).
 - **Rendering cost.** CPU rasterization at Retina fullscreen and 60 fps may be heavy. *Mitigation:* incremental updates, reduction to physical columns, measurement in step 4, and OpenGL as a fallback.
 - **Toolchain versions.** CI runner images lag behind new macOS and Xcode releases, and JUCE 9's CoreAudio implementation is new code. *Mitigation:* pin the JUCE tag, the runner image and the Xcode version, and treat the maintainer's local build as the reference.
-- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3. Release builds are signed and notarized, with the `com.apple.security.device.audio-input` entitlement that the hardened runtime needs for input (D-111).
+- **Microphone permission and Gatekeeper.** Without the permission, input is silent, and an unsigned `.app` from CI is quarantined. *Mitigation:* set the permission in CMake from step 3. Release builds are signed and notarized, with the `com.apple.security.device.audio-input` entitlement that the hardened runtime needs for input (D-114).
 - **Ableton Live clock behavior.** It is unclear whether Live sends clock while stopped, and exactly when SPP arrives relative to Continue. *Mitigation:* the transport handles both cases; verify in step 7.
 - **Analysis thread starvation.** *Mitigation:* a ring of about 1 s, overrun counters, and a raised thread priority if needed.
-
-## Spectrum view
-
-The shared `SpectrumAnalyzer` consumes each audio region on the analysis thread alongside
-the sweep. It owns a preallocated KISS FFT plan and publishes independent
-`SpectrumSnapshot` triple buffers. `SpectrumView` renders these in both app and plugin.
-The audio callback and its ownership rules are unchanged. Analysis is enabled only when
-Spectrum is selected. View selection, scope settings and spectrum settings are independent.
-See [spectrum.md](spectrum.md) for measurement definitions and validation.
+- **CPU on the Raspberry Pi 4.** The spectrum and stereo views use a large part of a core for rendering on the message thread, and Polar Sample with 2 s of afterglow more than one core in total (see the measurements in [spectrum.md](spectrum.md) and [stereo.md](stereo.md)). *Mitigation:* render only on new snapshots, cache static layers, repaint only what changed, and measure for 30 seconds after every change; 60 FPS is a target, not a hard limit.
+- **Third-party DSP.** The LSP integration binds a few functions from LSP's private generic headers, and Polar Sample is adapted from GPL-3.0-or-later Signalizer code. *Mitigation:* pinned, checksummed sources, oracle tests against independent double-precision calculations, and provenance notes in `third_party/`; re-run those tests whenever a pin changes.
