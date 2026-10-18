@@ -1,6 +1,8 @@
 // Bind the six DSP entry points used by LSP's Correlometer and Panometer to
 // unmodified, portable upstream implementations. This is not the full LSP API.
 // Constant initialization avoids process-global runtime dispatch and its locks.
+// Common types supplies ssize_t before the DSP API declarations on MSVC.
+#include <lsp-plug.in/common/types.h>
 #include <lsp-plug.in/dsp/dsp.h>
 #include <lsp-plug.in/stdlib/math.h>
 
@@ -9,6 +11,9 @@
 #include <private/dsp/arch/generic/correlation.h>
 #include <private/dsp/arch/generic/hmath/hsum.h>
 #include <private/dsp/arch/generic/pmath/sqr.h>
+
+static_assert(sizeof(lsp::umword_t) == sizeof(void*));
+static_assert(sizeof(ssize_t) == sizeof(size_t));
 
 namespace lsp::dsp
 {

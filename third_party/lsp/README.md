@@ -31,7 +31,20 @@ upstream headers: review it and rerun the oracle tests when updating pins. Do no
 link a second/full LSP implementation into the same binary without reconciling
 the symbols.
 
-No upstream source patches are carried. `StereoAnalyzer` works around the pinned
+On MSVC, `cmake/LspMsvc.cmake` generates an overlay for the pinned common
+`types.h`: it replaces the unused POSIX `unistd.h` include with a pointer-sized
+signed `ssize_t` and detects Windows word size and endianness explicitly. The
+fetched sources remain pristine; only this target and consumers of its headers
+see the overlay. `StereoDsp.cpp` includes common types before the DSP declarations
+so `ssize_t` is available there too. The meter algorithms and generic DSP sources
+remain unmodified. Unused upstream GNU attribute and assembly macros are not
+expanded by this subset; this is not general MSVC support for the full LSP API.
+
+When changing pins, review the overlay and include order, build the Windows
+plugins with MSVC, and run the core oracle and offline processor tests. PR CI
+runs that Windows build in addition to the Linux core and sanitizer jobs.
+
+`StereoAnalyzer` works around the pinned
 Panometer's incomplete `clear()` by forcing a period change, and starts both
 meters fresh for every published window. See [stereo analysis](../../docs/stereo.md)
 for the measurements, validity policy and integration tests.

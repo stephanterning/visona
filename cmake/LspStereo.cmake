@@ -24,3 +24,10 @@ target_include_directories(visona_lsp_stereo SYSTEM PUBLIC
     "${lsp_common_SOURCE_DIR}/include")
 target_compile_definitions(visona_lsp_stereo PUBLIC
     LSP_DSP_UNITS_BUILTIN LSP_DSP_LIB_BUILTIN LSP_COMMON_LIB_BUILTIN)
+
+if(MSVC)
+    include("${CMAKE_CURRENT_LIST_DIR}/LspMsvc.cmake")
+    set(lsp_msvc_include "${CMAKE_CURRENT_BINARY_DIR}/lsp-msvc/include")
+    visona_lsp_msvc_headers("${lsp_msvc_include}")
+    target_include_directories(visona_lsp_stereo SYSTEM BEFORE PUBLIC "${lsp_msvc_include}")
+endif()

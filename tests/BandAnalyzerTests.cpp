@@ -58,7 +58,7 @@ TEST_CASE("Band stereo energy does not cancel opposite phase", "[bands]")
     const auto stereo = read(analyzer);
     REQUIRE(stereo.db[17] == Catch::Approx(-6.0206).margin(0.2));
     analyzer.reset(48000);
-    std::fill(opposite.begin(), opposite.end(), 0);
+    std::fill(opposite.begin(), opposite.end(), 0.0f);
     analyzer.process(tone, opposite, 0);
     REQUIRE(read(analyzer).db[17] == Catch::Approx(stereo.db[17] - 3.0103f).margin(0.01));
 }
