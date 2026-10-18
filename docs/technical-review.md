@@ -48,6 +48,11 @@ Severity: **high** can crash, corrupt or silently break a promise; **medium** is
 
 ### 3.1 Bugs to fix now
 
+**Follow-up (2026-10-18):** B1, B2 and B4–B18 are addressed by the correctness follow-up. The table below preserves the original findings against `8ad1301`. B3 is resolved by retaining the documented Trixie requirement for published Pi binaries; Bookworm compatibility remains separate work, with no release-build environment change.
+
+Validation includes core regression tests, optional offline checks of both actual plugin processors (`VISONA_BUILD_PLUGIN_CHECKS`), the analysis UI checks and macOS builds. The plugin checks exercise repeated preparation, destruction without release, malformed state, modified shortcuts, audio-thread allocation and concurrent Sync status reads. Device recovery logic is tested with a hardware-independent watchdog; physical device failures and DAW integration still require hardware smoke tests.
+
+
 | # | Severity | Where | What is wrong | Fix |
 | --- | --- | --- | --- | --- |
 | B1 | high, checked | `plugin/src/PluginProcessor.cpp:46-55` | `prepareToPlay` replaces `ring_`, freeing the old ring, before it detaches the analysis thread with `setStream`. A host that prepares twice without `releaseResources`, such as JUCE's AU wrapper when Logic toggles offline rendering, can have the analysis thread read freed memory. | Detach first (`analysis_.setStream(nullptr, 0.0)`, or call `releaseResources()`), then build the ring and writer, reset the offset, and attach last. |

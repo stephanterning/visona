@@ -84,6 +84,7 @@ private:
     SpectrumView::Stats stats_;
     double lastReadout_ = 0;
     double lastAudio_ = 0, start_ = 0, renderTotal_ = 0, paintTotal_ = 0;
+    double renderMax_ = 0.0, paintMax_ = 0.0;
     int frames_ = 0, paints_ = 0;
 };
 } // namespace visona

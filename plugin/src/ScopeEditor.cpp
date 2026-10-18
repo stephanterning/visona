@@ -149,6 +149,8 @@ ScopeEditor::ScopeEditor(PluginProcessor& processor)
     controlBar_.setToggles(false, false, false);
     setWantsKeyboardFocus(true);
     setAnalysisView(state_.analysisView);
+    lastUpdateSeconds_ = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    lastAnalysisBusyNs_ = analysis_.busyNanoseconds();
     startTimerHz(idleRefreshHz);
 }
 
@@ -238,7 +240,8 @@ bool ScopeEditor::keyPressed(const juce::KeyPress& key)
             return true;
         }
     }
-    if (key.getTextCharacter() == 'd' || key.getTextCharacter() == 'D')
+    if (!key.getModifiers().isAnyModifierKeyDown() &&
+        (key.getTextCharacter() == 'd' || key.getTextCharacter() == 'D'))
     {
         showDiagnostics(!diagnostics_.isVisible());
         return true;
@@ -259,7 +262,10 @@ void ScopeEditor::timerCallback()
 
 void ScopeEditor::setAnalysisView(int view)
 {
-    analysisView_ = std::clamp(view, 0, 3);
+    view = std::clamp(view, 0, 3);
+    if (analysisView_ == view)
+        return;
+    analysisView_ = view;
     scope_.setVisible(analysisView_ == 0);
     spectrum_.setActive(analysisView_ == 1);
     bandSpectrum_.setActive(analysisView_ == 2);
@@ -455,15 +461,13 @@ void ScopeEditor::updateZoom()
 
 void ScopeEditor::updateDiagnostics()
 {
-    static double lastUpdateSeconds = juce::Time::getMillisecondCounterHiRes() * 0.001;
-    static std::uint64_t lastAnalysisBusyNs = 0;
     const auto now = juce::Time::getMillisecondCounterHiRes() * 0.001;
-    const auto elapsed = std::max(now - lastUpdateSeconds, 1.0e-3);
-    lastUpdateSeconds = now;
+    const auto elapsed = std::max(now - lastUpdateSeconds_, 1.0e-3);
+    lastUpdateSeconds_ = now;
 
     const auto busyNs = analysis_.busyNanoseconds();
-    const auto analysisLoad = static_cast<double>(busyNs - lastAnalysisBusyNs) * 1.0e-9 / elapsed;
-    lastAnalysisBusyNs = busyNs;
+    const auto analysisLoad = static_cast<double>(busyNs - lastAnalysisBusyNs_) * 1.0e-9 / elapsed;
+    lastAnalysisBusyNs_ = busyNs;
 
     const auto& snapshot = scope_.snapshot();
     DiagnosticsOverlay::Values values;
@@ -475,22 +479,11 @@ void ScopeEditor::updateDiagnostics()
     values.overruns = snapshot.overruns;
     values.droppedFrames = snapshot.droppedFrames;
     values.analysisLoad = analysisLoad;
-    values.rendering = scope_.stats();
-    if (analysisView_ != 0)
-    {
-        const auto stats = analysisView_ == 3   ? stereo_.stats()
-                           : analysisView_ == 2 ? bandSpectrum_.stats()
-                                                : spectrum_.stats();
-        values.rendering = {};
-        values.rendering.framesPerSecond = stats.framesPerSecond;
-        values.rendering.renderMsAverage = stats.renderMsAverage;
-        values.rendering.renderMsMax = stats.renderMsMax;
-        values.rendering.paintMsAverage = stats.paintMsAverage;
-        values.rendering.paintMsMax = stats.paintMsMax;
-        values.rendering.imageWidth = stats.imageWidth;
-        values.rendering.imageHeight = stats.imageHeight;
-        values.rendering.scale = stats.scale;
-    }
+    values.scopeRendering = analysisView_ == 0;
+    values.rendering = analysisView_ == 3   ? stereo_.stats()
+                       : analysisView_ == 2 ? bandSpectrum_.stats()
+                       : analysisView_ == 1 ? spectrum_.stats()
+                                            : scope_.stats();
     values.transportState = snapshot.transportState;
     values.nextTick = snapshot.nextTick;
     values.timeSignature = snapshot.timeSignature;

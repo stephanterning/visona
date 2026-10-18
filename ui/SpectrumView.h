@@ -1,5 +1,6 @@
 #pragma once
 #include "ChoiceBox.h"
+#include "RenderStats.h"
 
 #include <visona/SpectrumAnalyzer.h>
 
@@ -19,13 +20,7 @@ public:
     void setActive(bool active);
     void setDisplayGainDb(int db);
     void setAfterglow(int index);
-    struct Stats
-    {
-        double framesPerSecond = 0, renderMsAverage = 0, renderMsMax = 0;
-        int imageWidth = 0, imageHeight = 0;
-        float scale = 1;
-        double paintMsAverage = 0, paintMsMax = 0;
-    };
+    using Stats = RenderStats;
     Stats stats() const noexcept
     {
         return stats_;

@@ -46,7 +46,7 @@ void HostTransport::reset(double sampleRate) noexcept
 
 void HostTransport::syncTo(double sampleTime, const Playhead& playhead) noexcept
 {
-    if (!playhead.valid)
+    if (!playhead.valid || !playhead.timeSignature.isValid())
         return;
 
     sampleTime = clampToTimeline(sampleTime);

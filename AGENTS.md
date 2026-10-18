@@ -25,6 +25,7 @@ Requires CMake 3.22+ and Ninja; on macOS also Xcode. macOS builds target Apple S
 - `ui/`: JUCE components, compiled into the app and plugin targets.
 - `third_party/`: vendored KISS FFT, the build glue for the LSP meters, and provenance and licence notes. Its READMEs say what to check when a pin changes.
 - `tests/`: Catch2 tests for `core/`, plus the optional offline UI checks (`*UiChecks.cpp`), a JUCE program that `ui/CMakeLists.txt` builds as `visona_ui_checks` only with `-DVISONA_BUILD_UI_CHECKS=ON`. Keep JUCE out of `core/` and the Catch2 tests. Multi-threaded stress tests are tagged `[stress]`.
+- Optional `VISONA_BUILD_PLUGIN_CHECKS=ON` adds `visona_effect_checks` and `visona_sync_checks` when plugins are built. CTest runs these offline processor checks when tests are enabled; they cover lifecycle, saved state and callback allocation without a DAW.
 - `site/`: the static website, visona.org, with the download page and the user manual. `python3 site/build.py --serve` previews it; `.github/workflows/site.yml` deploys it to GitHub Pages. See `docs/website.md`. When a change alters what the user sees or does, update the manual in `site/static/manual/index.html` too.
 
 ## Website and manual on every pull request

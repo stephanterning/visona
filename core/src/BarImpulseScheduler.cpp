@@ -23,47 +23,50 @@ double samplesPerQuarterNote(double bpm, double sampleRate) noexcept
 } // namespace
 
 double BarImpulseScheduler::sampleIndexOfBarBoundary(double ppqAtReference,
-                                                     std::uint64_t referenceSample,
-                                                     double barPpq, double bpm,
-                                                     double sampleRate) noexcept
+                                                     std::uint64_t referenceSample, double barPpq,
+                                                     double bpm, double sampleRate) noexcept
 {
     return static_cast<double>(referenceSample) +
            (barPpq - ppqAtReference) * samplesPerQuarterNote(bpm, sampleRate);
 }
 
-void BarImpulseScheduler::impulsesInBlock(std::uint64_t blockStartSample,
-                                          std::uint32_t numFrames, double ppqAtBlockStart,
-                                          double bpm, TimeSignature timeSignature,
-                                          double sampleRate, std::vector<std::uint32_t>& offsetsOut)
+std::size_t BarImpulseScheduler::impulsesInBlock(std::uint64_t /*blockStartSample*/,
+                                                 std::uint32_t numFrames, double ppqAtBlockStart,
+                                                 double bpm, TimeSignature timeSignature,
+                                                 double sampleRate,
+                                                 std::span<std::uint32_t> offsetsOut) noexcept
 {
-    if (numFrames == 0 || bpm <= 0.0 || sampleRate <= 0.0)
-        return;
+    if (numFrames == 0 || offsetsOut.empty() || !std::isfinite(ppqAtBlockStart) ||
+        !std::isfinite(bpm) || bpm <= 0.0 || !std::isfinite(sampleRate) || sampleRate <= 0.0 ||
+        !timeSignature.isValid())
+        return 0;
 
-    const auto blockEndSample = blockStartSample + numFrames;
-    const auto ppqAtBlockEnd =
-        ppqAtBlockStart + static_cast<double>(numFrames) / samplesPerQuarterNote(bpm, sampleRate);
+    const auto framesPerQuarter = samplesPerQuarterNote(bpm, sampleRate);
     const auto barLength = quarterNotesPerBar(timeSignature);
+    const auto framesPerBar = framesPerQuarter * barLength;
+    if (!std::isfinite(framesPerBar) || framesPerBar < 1.0)
+        return 0;
 
-    const auto firstBar =
-        static_cast<std::int64_t>(std::floor(ppqAtBlockStart / barLength + 1.0e-12));
-    const auto lastBar =
-        static_cast<std::int64_t>(std::floor(ppqAtBlockEnd / barLength + 1.0e-12));
+    auto phase = std::fmod(ppqAtBlockStart, barLength);
+    if (phase < 0.0)
+        phase += barLength;
+    auto sample = -phase * framesPerQuarter;
+    // Decide ownership after rounding. In particular, a boundary just before this block
+    // can round to its first sample. Work locally to avoid rounding large stream indices.
+    constexpr double roundingTolerance = 1.0e-7;
+    if (sample < -0.5 - roundingTolerance)
+        sample += framesPerBar;
 
-    for (auto bar = firstBar; bar <= lastBar; ++bar)
+    std::size_t count = 0;
+    for (; count < offsetsOut.size(); sample += framesPerBar)
     {
-        const auto barPpq = static_cast<double>(bar) * barLength;
-        const auto sample = sampleIndexOfBarBoundary(ppqAtBlockStart, blockStartSample, barPpq,
-                                                     bpm, sampleRate);
-        if (sample < static_cast<double>(blockStartSample) ||
-            sample >= static_cast<double>(blockEndSample))
-            continue;
-        const auto boundarySample = static_cast<std::uint64_t>(std::llround(sample));
-        if (boundarySample < blockStartSample)
-            continue;
-        const auto offset = static_cast<std::uint32_t>(boundarySample - blockStartSample);
-        if (offset < numFrames)
-            offsetsOut.push_back(offset);
+        const auto rounded = std::floor(sample + 0.5 + roundingTolerance);
+        if (rounded >= static_cast<double>(numFrames))
+            break;
+        if (rounded >= 0.0)
+            offsetsOut[count++] = static_cast<std::uint32_t>(rounded);
     }
+    return count;
 }
 
 } // namespace visona

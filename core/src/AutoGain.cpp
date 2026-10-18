@@ -49,6 +49,16 @@ bool AutoGain::follow(const RecentBarPeaks& recent) noexcept
     }
     else
     {
+        if (seenBars_ + 1 < recent.oldest())
+        {
+            // Some peaks were overwritten while the UI stalled. Their levels are unknown:
+            // return to unity and rebuild a complete hold interval before allowing a rise.
+            changed = gainDb_ != DisplayGain::minDb;
+            gainDb_ = DisplayGain::minDb;
+            historySize_ = historyNext_ = 0;
+            heldSeconds_ = 0.0;
+            seenBars_ = recent.count;
+        }
         for (auto number = std::max(seenBars_ + 1, recent.oldest()); number <= recent.count;
              ++number)
             changed = addBar(recent.bar(number)) || changed;

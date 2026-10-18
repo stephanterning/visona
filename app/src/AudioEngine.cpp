@@ -6,6 +6,7 @@
 
 #include <visona/AudioInputWriter.h>
 #include <visona/AudioRingBuffer.h>
+#include <visona/AudioRingSizing.h>
 
 #include <algorithm>
 #include <atomic>
@@ -22,16 +23,7 @@ namespace
 // so every input channel is opened.
 constexpr int allInputChannels = 1024;
 
-constexpr double ringSeconds = 1.0;
-
-// The frames fill up before the timings unless blocks average fewer frames than this.
-constexpr std::size_t framesPerTimingSlot = 16;
-
 constexpr int devicePollMs = 500;
-
-// A running device that delivers nothing for this long is lost. JUCE's ALSA thread ends without
-// telling anyone when its device is unplugged or fails, and the device still reports that it plays.
-constexpr int stallTicks = 4;
 
 // How often opening the chosen device is tried while it is listed but does not open.
 constexpr juce::uint32 openRetryMs = 2'000;
@@ -44,13 +36,6 @@ juce::String soundCards()
 #else
     return {};
 #endif
-}
-
-std::size_t ringCapacityFrames(double sampleRate, int bufferSize)
-{
-    const auto oneSecond =
-        static_cast<std::size_t>(std::ceil(std::max(sampleRate, 1.0) * ringSeconds));
-    return std::max(oneSecond, static_cast<std::size_t>(std::max(bufferSize, 1)) * 4);
 }
 
 /** The index of a device input channel among the channels the callback delivers, or noInput. The
@@ -68,8 +53,7 @@ struct AudioEngine::Stream
 {
     Stream(std::size_t numChannels, std::size_t capacityFrames, juce::BigInteger activeInputsIn,
            int numDeviceInputsIn)
-        : ring(numChannels, capacityFrames,
-               std::max<std::size_t>(capacityFrames / framesPerTimingSlot, 1))
+        : ring(numChannels, capacityFrames, ringTimingSlots(capacityFrames))
         , writer(ring)
         , activeInputs(std::move(activeInputsIn))
         , numDeviceInputs(numDeviceInputsIn)
@@ -138,7 +122,8 @@ void AudioEngine::openSavedDevice()
 bool AudioEngine::isInputRunning() const
 {
     auto* const device = deviceManager_.getCurrentAudioDevice();
-    return device != nullptr && device->isPlaying() && !device->getActiveInputChannels().isZero();
+    return !deviceFailed_.load(std::memory_order_relaxed) && device != nullptr &&
+           device->isPlaying() && !device->getActiveInputChannels().isZero();
 }
 
 juce::String AudioEngine::noInputReason() const
@@ -158,6 +143,8 @@ juce::String AudioEngine::noInputReason() const
             return "The audio device \"" + savedDevice + "\" is not connected." +
                    (waitingForChosen_ ? " Visona opens it when it is plugged in." : "");
     }
+    if (deviceManager_.getCurrentAudioDevice() != nullptr)
+        return "The audio device stopped. Visona will try to reopen it.";
     if (lastError_.isNotEmpty())
         return lastError_;
     if (availableDevices.isEmpty())
@@ -324,6 +311,7 @@ void AudioEngine::setSyncInputChannel(int deviceInputChannel)
 
 void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device)
 {
+    deviceFailed_.store(false, std::memory_order_relaxed);
     const auto sampleRate = device->getCurrentSampleRate();
     // The source channels, and the sync input after them.
     auto stream = std::make_unique<Stream>(
@@ -460,22 +448,26 @@ bool AudioEngine::followChosenDevice()
 bool AudioEngine::closeStalledDevice()
 {
     const auto status = streamStatus();
-    if (!status.has_value() || !isInputRunning() || status->framesDelivered != lastFramesDelivered_)
-    {
-        lastFramesDelivered_ = status.has_value() ? status->framesDelivered : 0;
-        stalledTicks_ = 0;
-        return false;
-    }
-    if (++stalledTicks_ < stallTicks)
+    auto* const device = deviceManager_.getCurrentAudioDevice();
+    const bool selected =
+        device != nullptr && deviceManager_.getAudioDeviceSetup().inputDeviceName.isNotEmpty();
+    const auto frames =
+        status ? std::optional<std::uint64_t>(status->framesDelivered) : std::nullopt;
+    if (!watchdog_.shouldRestart(selected, device != nullptr && device->isPlaying(), frames,
+                                 deviceFailed_.exchange(false, std::memory_order_relaxed)))
         return false;
 
-    stalledTicks_ = 0;
     deviceManager_.closeAudioDevice();
     waitingForChosen_ = true;
-    lastError_ = "The audio device stopped delivering audio.";
-    // It may be back already, so it is opened again at once if it is listed.
-    nextOpenAttemptMs_ = juce::Time::getMillisecondCounter();
+    lastError_ = "The audio device stopped. Visona will try to reopen it.";
+    nextOpenAttemptMs_ = juce::Time::getMillisecondCounter() + openRetryMs;
     return true;
+}
+
+void AudioEngine::audioDeviceError(const juce::String& /*errorMessage*/)
+{
+    // JUCE may call this from a device thread. Recovery and UI updates stay on the timer.
+    deviceFailed_.store(true, std::memory_order_relaxed);
 }
 
 void AudioEngine::rescanDevices()

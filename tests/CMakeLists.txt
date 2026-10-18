@@ -20,6 +20,7 @@ add_executable(visona_core_tests
     BarImpulseSchedulerTests.cpp
     HostAnalysisPipelineTests.cpp
     HostTransportTests.cpp
+    HostPlayheadReaderTests.cpp
     SidechainSyncDetectorTests.cpp
     ColumnReductionTests.cpp
     LaneMappingTests.cpp

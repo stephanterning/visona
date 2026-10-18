@@ -2,9 +2,9 @@
 
 #include <visona/TimeSignature.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
-#include <vector>
 
 namespace visona
 {
@@ -21,14 +21,18 @@ class BarImpulseScheduler
 {
 public:
     /**
-        Appends sample offsets within `[0, numFrames)` where a bar impulse should fire.
+        Writes sample offsets within `[0, numFrames)` where a bar impulse should fire.
         `ppqAtBlockStart` is the host PPQ at the first frame of this block. Ableton Live
         reports playhead PPQ at block start; anchoring placement there keeps impulses on the
-        arrangement grid instead of one buffer late.
+        arrangement grid instead of one buffer late. Returns the number written. Storage for
+        numFrames offsets always suffices. With smaller storage, only the first offsets fit.
+        Non-finite inputs, invalid signatures and bar periods below one sample are ignored.
     */
-    static void impulsesInBlock(std::uint64_t blockStartSample, std::uint32_t numFrames,
-                                double ppqAtBlockStart, double bpm, TimeSignature timeSignature,
-                                double sampleRate, std::vector<std::uint32_t>& offsetsOut);
+    [[nodiscard]] static std::size_t impulsesInBlock(std::uint64_t blockStartSample,
+                                                     std::uint32_t numFrames,
+                                                     double ppqAtBlockStart, double bpm,
+                                                     TimeSignature timeSignature, double sampleRate,
+                                                     std::span<std::uint32_t> offsetsOut) noexcept;
 
     /** The stream sample index of the bar boundary for `ppq`. */
     [[nodiscard]] static double sampleIndexOfBarBoundary(double ppqAtReference,

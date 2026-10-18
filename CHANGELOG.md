@@ -23,6 +23,16 @@ All notable changes to this project are documented here. The format is based on
 - The diagnostics overlay refreshes at 4 Hz in the app, so it costs less while measuring.
 
 
+### Fixed
+
+- Plugin preparation detaches the old audio stream before replacing it, including repeated host preparation and destruction without an explicit release.
+- Visona Sync schedules bar impulses without heap allocation and retains impulses that round across a block boundary. Missing PPQ positions no longer produce repeated bar impulses; invalid host tempo and time signatures retain valid defaults.
+- Plugin state clamps saved colour and window indices. Small host blocks retain enough timing slots, and time-signature changes update the scope's window length.
+- Auto gain retains more than ten seconds of input peaks. If the UI misses the entire retained history, gain returns to unity and waits for a new ten-second history before rising. App settings writes are coalesced and flushed on shutdown.
+- The app retries an input device that fails to start, stops or reports an error. Selecting the active view preserves its history, and plugin diagnostics no longer share timing counters between instances or consume modified D shortcuts.
+- Visona Sync's editor reads atomic transport display values. Stereo diagnostics report the physical display scale and recent timing maxima; scope-only counters are hidden in other views. The spectrum stress test consumes the final snapshot even when its producer finishes first.
+
+
 ## [1.0.0-beta.1] - 2026-10-16
 
 ### Added

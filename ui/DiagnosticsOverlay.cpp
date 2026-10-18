@@ -128,8 +128,8 @@ int DiagnosticsOverlay::numRows() const
 {
     return headingRows + audioRows + midiRows + static_cast<int>(values_.channels.size()) +
            (values_.callbackAllocations.has_value() ? 1 : 0) +
-           (values_.sidechainSync.isNotEmpty() ? 1 : 0) + analysisRows + renderingRows +
-           processRows;
+           (values_.sidechainSync.isNotEmpty() ? 1 : 0) + analysisRows + renderingRows -
+           (values_.scopeRendering ? 0 : 1) + processRows;
 }
 
 juce::Rectangle<int> DiagnosticsOverlay::preferredSize() const
@@ -267,16 +267,19 @@ void DiagnosticsOverlay::paint(juce::Graphics& g)
 
     drawHeading("RENDERING");
     const auto& rendering = values_.rendering;
-    drawRow("Frame rate", juce::String(juce::roundToInt(rendering.framesPerSecond)) +
-                              " fps (display " +
-                              juce::String(juce::roundToInt(rendering.vblanksPerSecond)) + " Hz)");
+    auto rate = juce::String(juce::roundToInt(rendering.framesPerSecond)) + " fps";
+    if (values_.scopeRendering)
+        rate += " (display " + juce::String(juce::roundToInt(rendering.vblanksPerSecond)) + " Hz)";
+    drawRow("Frame rate", rate);
     drawRow("Render", formatMs(rendering.renderMsAverage, rendering.renderMsMax));
     drawRow("Paint", formatMs(rendering.paintMsAverage, rendering.paintMsMax));
-    drawRow("Full redraws", juce::String(rendering.fullRedrawsPerSecond, 1) + " per second");
-    drawRow("Image", juce::String(rendering.imageWidth) + " x " +
-                         juce::String(rendering.imageHeight) + " px at " +
-                         juce::String(rendering.scale, 1) + "x, " +
-                         juce::String(static_cast<int>(rendering.tiles)) + " tiles");
+    if (values_.scopeRendering)
+        drawRow("Full redraws", juce::String(rendering.fullRedrawsPerSecond, 1) + " per second");
+    auto image = juce::String(rendering.imageWidth) + " x " + juce::String(rendering.imageHeight) +
+                 " px at " + juce::String(rendering.scale, 1) + "x";
+    if (values_.scopeRendering)
+        image += ", " + juce::String(static_cast<int>(rendering.tiles)) + " tiles";
+    drawRow("Image", image);
 
     drawHeading("PROCESS");
     drawRow("Visona CPU",

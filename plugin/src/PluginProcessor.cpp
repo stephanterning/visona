@@ -1,8 +1,10 @@
 #include "PluginProcessor.h"
 
+#include "HostPlayheadReader.h"
 #include "PluginEditor.h"
 #include "ui/Palette.h"
 
+#include <visona/AudioRingSizing.h>
 #include <visona/SweepWindow.h>
 
 #include <algorithm>
@@ -11,20 +13,6 @@
 
 namespace visona
 {
-
-namespace
-{
-
-constexpr double ringSeconds = 1.0;
-
-std::size_t ringCapacityFrames(double sampleRate, int bufferSize)
-{
-    const auto oneSecond =
-        static_cast<std::size_t>(std::ceil(std::max(sampleRate, 1.0) * ringSeconds));
-    return std::max(oneSecond, static_cast<std::size_t>(std::max(bufferSize, 1)) * 4);
-}
-
-} // namespace
 
 PluginProcessor::PluginProcessor()
     : juce::AudioProcessor(BusesProperties()
@@ -38,25 +26,28 @@ PluginProcessor::PluginProcessor()
                                                                    palette::defaultWaveformColour);
 }
 
-PluginProcessor::~PluginProcessor() = default;
+PluginProcessor::~PluginProcessor()
+{
+    releaseResources();
+}
 
 void PluginProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
+    releaseResources(); // Detach before freeing a ring the analysis thread may still read.
+    playheadReader_ = {};
     sampleRate_ = sampleRate;
     ring_ = std::make_unique<AudioRingBuffer>(
         layout_.totalChannelCount(), ringCapacityFrames(sampleRate, samplesPerBlock),
-        std::max<std::size_t>(ringCapacityFrames(sampleRate, samplesPerBlock) /
-                                  static_cast<std::size_t>(std::max(samplesPerBlock, 1)),
-                              1));
+        ringTimingSlots(ringCapacityFrames(sampleRate, samplesPerBlock)));
     writer_ = std::make_unique<AudioInputWriter>(*ring_);
     writer_->route(0, 0);
     writer_->route(1, 1);
     channelPointers_.assign(layout_.totalChannelCount(), nullptr);
-    analysis_.setStream(ring_.get(), sampleRate);
     analysis_.setWindow(instanceState_.window);
     analysis_.setBandSplitting(instanceState_.waveformMode == WaveformMode::dj);
     sidechainSync_.reset();
     analysis_.setAnalysisOffset(0.0);
+    analysis_.setStream(ring_.get(), sampleRate);
 }
 
 void PluginProcessor::releaseResources()
@@ -146,42 +137,9 @@ void PluginProcessor::updateSidechainSync(juce::AudioBuffer<float>& buffer,
     syncImpulsePeak_.store(sidechainSync_.impulsePeak(), std::memory_order_relaxed);
 }
 
-HostTransport::Playhead PluginProcessor::readPlayhead() const noexcept
+HostTransport::Playhead PluginProcessor::readPlayhead() noexcept
 {
-    HostTransport::Playhead playhead;
-    if (auto* head = getPlayHead())
-    {
-        if (auto position = head->getPosition())
-        {
-            playhead.isPlaying = position->getIsPlaying();
-            if (position->getPpqPosition())
-                playhead.ppqPosition = *position->getPpqPosition();
-            else
-                playhead.ppqPosition = lastKnownPpq_;
-            if (position->getBpm())
-                playhead.bpm = *position->getBpm();
-            else
-                playhead.bpm = lastKnownBpm_;
-            if (position->getTimeSignature())
-                playhead.timeSignature = {position->getTimeSignature()->numerator,
-                                          position->getTimeSignature()->denominator};
-            else
-                playhead.timeSignature = lastKnownTimeSignature_;
-
-            playhead.valid =
-                playhead.bpm > 0.0 && (position->getPpqPosition().hasValue() ||
-                                       position->getBpm().hasValue() || position->getIsPlaying());
-
-            if (playhead.valid)
-            {
-                lastKnownBpm_ = playhead.bpm;
-                lastKnownPpq_ = playhead.ppqPosition;
-                lastKnownPlaying_ = playhead.isPlaying;
-                lastKnownTimeSignature_ = playhead.timeSignature;
-            }
-        }
-    }
-    return playhead;
+    return readHostPlayhead(getPlayHead(), playheadReader_);
 }
 
 juce::AudioProcessorEditor* PluginProcessor::createEditor()

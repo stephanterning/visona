@@ -43,7 +43,7 @@ void runAnalysisSelectorUiChecks()
     host.addAndMakeVisible(selector);
     selector.setBounds(0, 430, 190, 50);
     selector.setTouchMode(true);
-    int selected = -1;
+    int selected = 0;
     int picks = 0;
     selector.onSelect = [&](int view)
     {
@@ -64,6 +64,7 @@ void runAnalysisSelectorUiChecks()
             check(dynamic_cast<juce::Button*>(button) != nullptr, "Selector button missing");
             const auto event = eventFor(*button, button->getLocalBounds().toFloat().getCentre());
             const auto before = picks;
+            const bool changesView = index < 4 && index != selected;
 
             button->mouseUp(event);
             check(panel->isVisible() && picks == before,
@@ -77,7 +78,7 @@ void runAnalysisSelectorUiChecks()
             button->mouseExit(event);
             button->mouseUp(event);
             check(!panel->isVisible(), "Pointer exit swallowed selector tap");
-            check(picks == before + (index < 4 ? 1 : 0), "Selector callback count incorrect");
+            check(picks == before + (changesView ? 1 : 0), "Selector callback count incorrect");
             if (index < 4)
                 check(selected == index, "Selector picked wrong view");
         }

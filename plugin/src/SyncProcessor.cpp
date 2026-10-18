@@ -1,8 +1,12 @@
 #include "SyncProcessor.h"
 
+#include "HostPlayheadReader.h"
 #include "SyncEditor.h"
 
 #include <visona/BarImpulseScheduler.h>
+
+#include <algorithm>
+#include <array>
 
 namespace visona
 {
@@ -21,6 +25,7 @@ SyncProcessor::~SyncProcessor() = default;
 void SyncProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused(samplesPerBlock);
+    playheadReader_ = {};
     sampleRate_ = sampleRate;
     streamSample_ = 0;
 }
@@ -41,59 +46,31 @@ void SyncProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
     const auto blockStartSample = streamSample_;
     streamSample_ += numSamples;
 
-    const auto playhead = readPlayhead(static_cast<int>(numSamples));
-    lastPlayhead_ = playhead;
+    const auto playhead = readHostPlayhead(getPlayHead(), playheadReader_);
+    hostValid_.store(playhead.valid, std::memory_order_relaxed);
+    hostPlaying_.store(playhead.isPlaying, std::memory_order_relaxed);
+    hostBpm_.store(playhead.bpm, std::memory_order_relaxed);
     if (!playhead.valid || !playhead.isPlaying || sampleRate_ <= 0.0)
         return;
 
-    std::vector<std::uint32_t> offsets;
-    BarImpulseScheduler::impulsesInBlock(blockStartSample, numSamples, playhead.ppqPosition,
-                                         playhead.bpm, playhead.timeSignature, sampleRate_,
-                                         offsets);
-    for (const auto offset : offsets)
+    // At most one impulse per sample. Chunking bounds stack storage even if the host
+    // exceeds its advertised maximum block size, without dropping any impulses.
+    std::array<std::uint32_t, 128> offsets{};
+    for (std::uint32_t first = 0; first < numSamples;)
     {
-        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
-            buffer.setSample(channel, static_cast<int>(offset), syncImpulseAmplitude);
+        const auto frames =
+            std::min(numSamples - first, static_cast<std::uint32_t>(offsets.size()));
+        const auto ppq =
+            playhead.ppqPosition + static_cast<double>(first) / sampleRate_ * playhead.bpm / 60.0;
+        const auto count = BarImpulseScheduler::impulsesInBlock(
+            blockStartSample + first, frames, ppq, playhead.bpm, playhead.timeSignature,
+            sampleRate_, offsets);
+        for (std::size_t i = 0; i < count; ++i)
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                buffer.setSample(channel, static_cast<int>(first + offsets[i]),
+                                 syncImpulseAmplitude);
+        first += frames;
     }
-}
-
-HostTransport::Playhead SyncProcessor::readPlayhead(int numSamples) noexcept
-{
-    HostTransport::Playhead playhead;
-    if (auto* head = getPlayHead())
-    {
-        if (auto position = head->getPosition())
-        {
-            playhead.isPlaying = position->getIsPlaying();
-            if (position->getPpqPosition())
-                playhead.ppqPosition = *position->getPpqPosition();
-            else
-                playhead.ppqPosition = lastKnownPpq_;
-            if (position->getBpm())
-                playhead.bpm = *position->getBpm();
-            else
-                playhead.bpm = lastKnownBpm_;
-            if (position->getTimeSignature())
-                playhead.timeSignature = {position->getTimeSignature()->numerator,
-                                          position->getTimeSignature()->denominator};
-            else
-                playhead.timeSignature = lastKnownTimeSignature_;
-
-            playhead.valid = playhead.bpm > 0.0 &&
-                             (position->getPpqPosition().hasValue() ||
-                              position->getBpm().hasValue() || position->getIsPlaying());
-
-            if (playhead.valid)
-            {
-                lastKnownBpm_ = playhead.bpm;
-                lastKnownPpq_ = playhead.ppqPosition;
-                lastKnownPlaying_ = playhead.isPlaying;
-                lastKnownTimeSignature_ = playhead.timeSignature;
-            }
-        }
-    }
-    juce::ignoreUnused(numSamples);
-    return playhead;
 }
 
 juce::AudioProcessorEditor* SyncProcessor::createEditor()
@@ -177,8 +154,7 @@ bool SyncProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
     if (layouts.inputBuses.size() > 0)
     {
         const auto& input = layouts.getMainInputChannelSet();
-        if (input != juce::AudioChannelSet::disabled() &&
-            input != juce::AudioChannelSet::stereo())
+        if (input != juce::AudioChannelSet::disabled() && input != juce::AudioChannelSet::stereo())
             return false;
     }
 

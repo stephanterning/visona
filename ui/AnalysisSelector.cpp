@@ -174,6 +174,8 @@ void AnalysisSelector::setView(int view)
 }
 void AnalysisSelector::choose(int view)
 {
+    if (view == selected_)
+        return;
     setView(view);
     if (onSelect)
         onSelect(view);

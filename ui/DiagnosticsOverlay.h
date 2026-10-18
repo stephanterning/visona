@@ -67,7 +67,8 @@ public:
 
         /** Fraction of one CPU core. */
         double analysisLoad = 0.0;
-        ScopeView::Stats rendering;
+        RenderStats rendering;
+        bool scopeRendering = true;
         /** Fraction of one CPU core, if known. */
         std::optional<double> processCpu;
     };

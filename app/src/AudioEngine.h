@@ -4,6 +4,7 @@
 #include "MidiClockInput.h"
 #include "ui/AudioSettings.h"
 
+#include <visona/AudioDeviceWatchdog.h>
 #include <visona/SourceLayout.h>
 #include <visona/SweepSnapshot.h>
 #include <visona/TripleBuffer.h>
@@ -158,6 +159,7 @@ private:
                                      int numSamples,
                                      const juce::AudioIODeviceCallbackContext& context) override;
     void audioDeviceStopped() override;
+    void audioDeviceError(const juce::String& errorMessage) override;
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
     void timerCallback() override;
 
@@ -167,7 +169,7 @@ private:
     /** Closes a device that is not the chosen one or has gone, and opens the chosen device while it
         is missing and listed again. */
     bool followChosenDevice();
-    /** Closes a running device that has delivered nothing for stallTicks timer ticks. */
+    /** Closes an input that failed to start, stopped or stalled. */
     bool closeStalledDevice();
     /** Replaces the device types with fresh ones, which list the devices there are now. */
     void rescanDevices();
@@ -199,8 +201,8 @@ private:
     // error it shows.
     bool waitingForChosen_ = false;
     juce::uint32 nextOpenAttemptMs_ = 0;
-    std::uint64_t lastFramesDelivered_ = 0;
-    int stalledTicks_ = 0;
+    AudioDeviceWatchdog watchdog_;
+    std::atomic<bool> deviceFailed_{false};
     juce::String soundCards_;
     juce::MidiDeviceListConnection midiDevicesChanged_;
 

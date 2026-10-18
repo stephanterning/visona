@@ -14,12 +14,14 @@ namespace visona
 
 /**
     Visona's saved user configuration, kept with juce::ApplicationProperties. On macOS the file is
-    ~/Library/Application Support/Visona/Visona.settings. Every change is written to disk at once.
+    ~/Library/Application Support/Visona/Visona.settings. Changes are coalesced for one second and
+   flushed on orderly shutdown.
 */
 class Settings
 {
 public:
     Settings();
+    ~Settings();
     int analysisView() const
     {
         const auto view = properties_.getIntValue("analysisView", 0);

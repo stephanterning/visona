@@ -34,6 +34,8 @@ public:
         double ppqPosition = 0.0;
         double bpm = 0.0;
         TimeSignature timeSignature{};
+        /** A partial host report may carry play/stop even when its PPQ is missing. */
+        bool hasTransportState = false;
     };
 
     /** Throws std::invalid_argument if `spanCapacity` is less than 2. */

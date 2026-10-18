@@ -59,7 +59,7 @@ private:
 
     /** Sets the gain by hand, which turns auto gain off. */
     void setAnalysisView(int view);
-    int analysisView_ = 0;
+    int analysisView_ = -1;
     void setGainDb(int gainDb);
     void showGainDb(int gainDb);
     void setAutoGain(bool isOn);
