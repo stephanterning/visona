@@ -20,11 +20,11 @@ TEST_CASE("BarImpulseScheduler places one impulse per bar boundary", "[sync]")
     for (const auto start : {0u, 96000u})
     {
         const auto count = BarImpulseScheduler::impulsesInBlock(
-            start, 96000, static_cast<double>(start) / 24000.0, 120, {4, 4}, 48000, offsets);
+            96000, static_cast<double>(start) / 24000.0, 120, {4, 4}, 48000, offsets);
         REQUIRE(count == 1);
         CHECK(offsets[0] == 0);
     }
-    CHECK(BarImpulseScheduler::impulsesInBlock(100000, 1024, 0, 120, {4, 4}, 48000, offsets) == 1);
+    CHECK(BarImpulseScheduler::impulsesInBlock(1024, 0, 120, {4, 4}, 48000, offsets) == 1);
     CHECK(offsets[0] == 0);
 }
 
@@ -42,8 +42,8 @@ TEST_CASE("BarImpulseScheduler rounds boundary ownership across adjacent blocks"
             for (std::uint32_t start : {0u, 512u})
             {
                 const double ppq = barPpq + (static_cast<double>(start) - boundary) / 24000.0;
-                const auto count = BarImpulseScheduler::impulsesInBlock(start, 512, ppq, 120,
-                                                                        {4, 4}, 48000, offsets);
+                const auto count =
+                    BarImpulseScheduler::impulsesInBlock(512, ppq, 120, {4, 4}, 48000, offsets);
                 for (std::size_t i = 0; i < count; ++i)
                 {
                     CHECK(start + offsets[i] == expected);
@@ -60,15 +60,15 @@ TEST_CASE("BarImpulseScheduler bounds output and never allocates", "[sync][realt
     std::array<std::uint32_t, 128> offsets{};
     visona::test::AllocationCounter allocations;
     // One sample per bar, the densest supported timeline.
-    const auto count = BarImpulseScheduler::impulsesInBlock(0, 128, 0, 60, {1, 4}, 1, offsets);
+    const auto count = BarImpulseScheduler::impulsesInBlock(128, 0, 60, {1, 4}, 1, offsets);
     const auto allocated = allocations.count();
     REQUIRE(allocated == 0);
     REQUIRE(count == offsets.size());
     for (std::size_t i = 0; i < count; ++i)
         CHECK(offsets[i] == i);
-    CHECK(BarImpulseScheduler::impulsesInBlock(0, 128, 0, 60, {1, 4}, 1,
+    CHECK(BarImpulseScheduler::impulsesInBlock(128, 0, 60, {1, 4}, 1,
                                                std::span(offsets).first(3)) == 3);
-    CHECK(BarImpulseScheduler::impulsesInBlock(0, 128, 0, 60, {1, 4}, 1, {}) == 0);
+    CHECK(BarImpulseScheduler::impulsesInBlock(128, 0, 60, {1, 4}, 1, {}) == 0);
 }
 
 TEST_CASE("BarImpulseScheduler rejects malformed host values", "[sync]")
@@ -76,13 +76,13 @@ TEST_CASE("BarImpulseScheduler rejects malformed host values", "[sync]")
     std::array<std::uint32_t, 8> offsets{};
     for (const auto signature : {TimeSignature{0, 4}, TimeSignature{4, 0}, TimeSignature{5, 64},
                                  TimeSignature{-1, 4}, TimeSignature{4, 3}})
-        CHECK(BarImpulseScheduler::impulsesInBlock(0, 512, 0, 120, signature, 48000, offsets) == 0);
+        CHECK(BarImpulseScheduler::impulsesInBlock(512, 0, 120, signature, 48000, offsets) == 0);
     for (const double invalid :
          {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()})
     {
-        CHECK(BarImpulseScheduler::impulsesInBlock(0, 512, invalid, 120, {}, 48000, offsets) == 0);
-        CHECK(BarImpulseScheduler::impulsesInBlock(0, 512, 0, invalid, {}, 48000, offsets) == 0);
-        CHECK(BarImpulseScheduler::impulsesInBlock(0, 512, 0, 120, {}, invalid, offsets) == 0);
+        CHECK(BarImpulseScheduler::impulsesInBlock(512, invalid, 120, {}, 48000, offsets) == 0);
+        CHECK(BarImpulseScheduler::impulsesInBlock(512, 0, invalid, {}, 48000, offsets) == 0);
+        CHECK(BarImpulseScheduler::impulsesInBlock(512, 0, 120, {}, invalid, offsets) == 0);
     }
 }
 
@@ -115,8 +115,8 @@ TEST_CASE("Bar impulses are independent of host block partitioning", "[sync]")
             {
                 const auto frames = std::min(blockSize, totalFrames - start);
                 const auto count = BarImpulseScheduler::impulsesInBlock(
-                    start, frames, -0.25 + static_cast<double>(start) / framesPerQuarter, bpm,
-                    {4, 4}, 48000, offsets);
+                    frames, -0.25 + static_cast<double>(start) / framesPerQuarter, bpm, {4, 4},
+                    48000, offsets);
                 for (std::size_t i = 0; i < count; ++i)
                     actual.push_back(start + offsets[i]);
                 start += frames;

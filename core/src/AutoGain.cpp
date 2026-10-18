@@ -52,9 +52,8 @@ bool AutoGain::follow(const RecentBarPeaks& recent) noexcept
         if (seenBars_ + 1 < recent.oldest())
         {
             // Some peaks were overwritten while the UI stalled. Their levels are unknown:
-            // return to unity and rebuild a complete hold interval before allowing a rise.
-            changed = gainDb_ != DisplayGain::minDb;
-            gainDb_ = DisplayGain::minDb;
+            // keep the current gain and rebuild a complete hold interval before allowing a rise.
+            // The current peak below can still lower gain immediately.
             historySize_ = historyNext_ = 0;
             heldSeconds_ = 0.0;
             seenBars_ = recent.count;

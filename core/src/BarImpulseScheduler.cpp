@@ -30,8 +30,7 @@ double BarImpulseScheduler::sampleIndexOfBarBoundary(double ppqAtReference,
            (barPpq - ppqAtReference) * samplesPerQuarterNote(bpm, sampleRate);
 }
 
-std::size_t BarImpulseScheduler::impulsesInBlock(std::uint64_t /*blockStartSample*/,
-                                                 std::uint32_t numFrames, double ppqAtBlockStart,
+std::size_t BarImpulseScheduler::impulsesInBlock(std::uint32_t numFrames, double ppqAtBlockStart,
                                                  double bpm, TimeSignature timeSignature,
                                                  double sampleRate,
                                                  std::span<std::uint32_t> offsetsOut) noexcept

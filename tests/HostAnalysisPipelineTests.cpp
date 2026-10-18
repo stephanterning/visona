@@ -116,8 +116,7 @@ public:
             if (playhead.isPlaying)
             {
                 const auto count = BarImpulseScheduler::impulsesInBlock(
-                    blockStart, blockSize_, playhead.ppqPosition, bpm_, fourFour, sampleRate,
-                    impulses);
+                    blockSize_, playhead.ppqPosition, bpm_, fourFour, sampleRate, impulses);
                 for (std::size_t i = 0; i < count; ++i)
                     syncOutput[blockStart + impulses[i]] = visona::syncImpulseAmplitude;
             }

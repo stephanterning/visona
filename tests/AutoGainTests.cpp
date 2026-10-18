@@ -273,24 +273,40 @@ TEST_CASE("Auto gain retains a loud input window across a multi-second UI stall"
     CHECK(gain.gainDb() == 0);
 }
 
-TEST_CASE("Auto gain returns to unity and rebuilds its hold after history is overwritten",
+TEST_CASE("Auto gain preserves gain and restarts its hold after history is overwritten",
           "[autogain]")
 {
     AutoGain gain;
-    gain.reset(18);
+    gain.reset(6);
     RecentBarPeaks peaks;
     gain.follow(peaks);
-    peaks.count = RecentBarPeaks::capacity + 1;
     peaks.bars.fill({0.1f, 0.1});
-    CHECK(gain.follow(peaks));
-    CHECK(gain.gainDb() == 0);
-    for (int window = 0; window < 99; ++window)
+    for (int window = 0; window < 90; ++window)
     {
         ++peaks.count;
-        gain.follow(peaks);
+        CHECK_FALSE(gain.follow(peaks));
+    }
+
+    peaks.count += RecentBarPeaks::capacity + 1;
+    SECTION("A quiet current peak preserves gain and requires a fresh full hold")
+    {
+        peaks.currentPeak = 0.1f;
+        CHECK_FALSE(gain.follow(peaks));
+        CHECK(gain.gainDb() == 6);
+        for (int window = 0; window < 99; ++window)
+        {
+            ++peaks.count;
+            CHECK_FALSE(gain.follow(peaks));
+            CHECK(gain.gainDb() == 6);
+        }
+        ++peaks.count;
+        CHECK(gain.follow(peaks));
+        CHECK(gain.gainDb() == 18);
+    }
+    SECTION("A loud current peak still lowers gain immediately after the gap")
+    {
+        peaks.currentPeak = 0.9f;
+        CHECK(gain.follow(peaks));
         CHECK(gain.gainDb() == 0);
     }
-    ++peaks.count;
-    gain.follow(peaks);
-    CHECK(gain.gainDb() == 18);
 }

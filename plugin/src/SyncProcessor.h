@@ -50,7 +50,6 @@ public:
 
 private:
     double sampleRate_ = 0.0;
-    std::uint64_t streamSample_ = 0;
 
     // Independent display values; the editor never reads the audio thread's mutable playhead.
     std::atomic<bool> hostValid_{false}, hostPlaying_{false};

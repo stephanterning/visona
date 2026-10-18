@@ -27,13 +27,11 @@ void SyncProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     juce::ignoreUnused(samplesPerBlock);
     playheadReader_ = {};
     sampleRate_ = sampleRate;
-    streamSample_ = 0;
 }
 
 void SyncProcessor::releaseResources()
 {
     sampleRate_ = 0.0;
-    streamSample_ = 0;
 }
 
 void SyncProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -43,8 +41,6 @@ void SyncProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
 
     buffer.clear();
     const auto numSamples = static_cast<std::uint32_t>(buffer.getNumSamples());
-    const auto blockStartSample = streamSample_;
-    streamSample_ += numSamples;
 
     const auto playhead = readHostPlayhead(getPlayHead(), playheadReader_);
     hostValid_.store(playhead.valid, std::memory_order_relaxed);
@@ -63,8 +59,7 @@ void SyncProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
         const auto ppq =
             playhead.ppqPosition + static_cast<double>(first) / sampleRate_ * playhead.bpm / 60.0;
         const auto count = BarImpulseScheduler::impulsesInBlock(
-            blockStartSample + first, frames, ppq, playhead.bpm, playhead.timeSignature,
-            sampleRate_, offsets);
+            frames, ppq, playhead.bpm, playhead.timeSignature, sampleRate_, offsets);
         for (std::size_t i = 0; i < count; ++i)
             for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
                 buffer.setSample(channel, static_cast<int>(first + offsets[i]),

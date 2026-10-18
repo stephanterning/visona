@@ -28,8 +28,7 @@ public:
         numFrames offsets always suffices. With smaller storage, only the first offsets fit.
         Non-finite inputs, invalid signatures and bar periods below one sample are ignored.
     */
-    [[nodiscard]] static std::size_t impulsesInBlock(std::uint64_t blockStartSample,
-                                                     std::uint32_t numFrames,
+    [[nodiscard]] static std::size_t impulsesInBlock(std::uint32_t numFrames,
                                                      double ppqAtBlockStart, double bpm,
                                                      TimeSignature timeSignature, double sampleRate,
                                                      std::span<std::uint32_t> offsetsOut) noexcept;
