@@ -62,3 +62,21 @@ On a push to `main` that changes `site/`, `docs/images/` or the workflow; when a
 3. **Verify the domain.** In your GitHub account, open **Settings → Pages → Add a domain**, add `visona.org` and put the TXT record GitHub shows into Loopia's DNS. This stops anyone else from claiming the domain for their Pages site.
 4. **Custom domain.** Back in the repository's **Settings → Pages**, enter `visona.org` as the custom domain. When the DNS check passes, tick **Enforce HTTPS**. The certificate can take up to an hour; DNS changes at Loopia can take a few hours to spread.
 5. Optionally, set the repository's **Website** field (the gear next to **About**) to `https://visona.org`.
+
+## Homepage demo
+
+`site/static/media/visona-views.mp4` is a silent 24-second H.264 montage,
+1600 × 926 at 30 fps, with four seconds each of Scope, FFT, Band,
+Polar Sample, Polar Level and Lissajous. The source is the maintainer's
+2026-10-18 screen recording; keep the original recording outside the repository.
+The source intervals start at 0, 10, 29, 48, 65 and 77 seconds.
+
+`site/static/home.js` handles playback and chapter buttons. Keep its four-second
+chapter boundaries and the buttons in `index.template.html` in sync with edits.
+The demo starts muted unless reduced motion is requested. A poster remains
+visible until playback starts; without JavaScript, native video controls work.
+The JPEG stills in the same folder are extracted from the recording.
+
+The manual already documents the spectrum and stereo controls; the homepage
+showcase changes presentation only. Keep release availability notes until a
+release containing these views is available to download.

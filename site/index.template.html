@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Visona: beat-synced stereo oscilloscope</title>
-  <meta name="description" content="Visona is a beat-synced stereo oscilloscope for music production. Standalone app for macOS and Raspberry Pi, and VST3, AU and CLAP plugins.">
+  <title>Visona: scope, spectrum &amp; stereo analysis</title>
+  <meta name="description" content="Beat-synced scope, FFT and band spectrum analysis, and three stereo views for music production. Standalone for macOS and Raspberry Pi, or a plugin in your DAW.">
   <link rel="canonical" href="{{SITE_URL}}/">
-  <meta property="og:title" content="Visona: beat-synced stereo oscilloscope">
-  <meta property="og:description" content="A beat-synced stereo oscilloscope. Run standalone on macOS or Raspberry Pi, or as a plugin in your DAW.">
+  <meta property="og:title" content="Visona: scope, spectrum &amp; stereo analysis">
+  <meta property="og:description" content="See the rhythm, frequency balance and stereo image of your music. Standalone on macOS or Raspberry Pi, or as a plugin in your DAW.">
   <meta property="og:image" content="{{SITE_URL}}/images/visona-scope.png">
   <meta property="og:url" content="{{SITE_URL}}/">
   <meta name="theme-color" content="#0b0c0f">
@@ -28,18 +28,34 @@
   <main>
     <section class="hero">
       <div class="hero-text">
-        <p class="eyebrow">Beat-synced scope &amp; spectrum analysis</p>
+        <p class="eyebrow">Scope · Spectrum · Stereo</p>
         <h1>See the groove,<br>not just the waveform.</h1>
-        <p class="lead">Visona draws your audio as a sweep scope locked to the bar. Run it as a standalone app on macOS or Raspberry Pi, with audio from your interface and optional MIDI Clock sync. Or use the plugin inside your DAW.</p>
+        <p class="lead">See the rhythm, frequency balance and stereo image of your music. A beat-synced scope, two spectrum analyzers and three stereo views — in your DAW or on a dedicated studio display.</p>
         <div class="cta">
           <a class="button" href="#download">Download {{LATEST_TAG}}</a>
           <a class="button button-ghost" href="/manual/">Read the manual</a>
         </div>
         <p class="platforms">Standalone: macOS · Raspberry Pi<br>Plugins: VST3 · AU · CLAP · macOS · Windows · Linux</p>
       </div>
+    </section>
+
+    <section class="showcase" aria-label="Visona in action">
       <figure class="screen">
-        <img src="/images/visona-scope.png" alt="Visona showing a stereo sweep over one bar with the bar grid" width="2556" height="1502">
+        <video id="views-video" controls muted loop playsinline preload="none" poster="/media/visona-poster.jpg" width="1600" height="926" aria-label="Silent demo of Scope, Spectrum FFT, Spectrum Band, Polar Sample, Polar Level and Lissajous">
+          <source src="/media/visona-views.mp4" type="video/mp4">
+          <a href="/media/visona-views.mp4">Watch the Visona demo</a>
+        </video>
+        <figcaption class="demo-caption"><span>Real music. Six ways to see it.</span><button id="video-toggle" type="button" hidden>Play demo</button></figcaption>
       </figure>
+      <div class="view-chapters" aria-label="Choose a demo view" hidden>
+        <button type="button" data-time="0">Scope</button>
+        <button type="button" data-time="4">FFT</button>
+        <button type="button" data-time="8">Band</button>
+        <button type="button" data-time="12">Polar Sample</button>
+        <button type="button" data-time="16">Polar Level</button>
+        <button type="button" data-time="20">Lissajous</button>
+      </div>
+      <p class="demo-note">Silent recording of Visona in use. Spectrum and Stereo are coming in the next release after 1.0.0 beta 1.</p>
     </section>
 
     <section id="features" class="features">
@@ -89,9 +105,10 @@
       </article>
     </section>
 
-    <section class="gallery">
-      <figure><img src="/images/visona-settings.png" alt="Visona settings panel" loading="lazy"><figcaption>Settings</figcaption></figure>
-      <figure><img src="/images/visona-diagnostics.png" alt="Visona diagnostics overlay" loading="lazy"><figcaption>Diagnostics overlay</figcaption></figure>
+    <section class="gallery views-gallery" aria-label="Explore the visualizations">
+      <figure><img src="/media/visona-fft.jpg" alt="FFT spectrum with a filled frequency curve and fading peak history" width="960" height="556" loading="lazy"><figcaption><strong>Spectrum · FFT</strong><br>Find the shape of your mix, from sub bass to air.</figcaption></figure>
+      <figure><img src="/media/visona-band.jpg" alt="Third-octave spectrum bars with peak markers" width="960" height="556" loading="lazy"><figcaption><strong>Spectrum · Band</strong><br>Read the balance with responsive third-octave bars.</figcaption></figure>
+      <figure><img src="/media/visona-stereo.jpg" alt="Polar Level stereo display with correlation and energy balance" width="960" height="556" loading="lazy"><figcaption><strong>Stereo</strong><br>Explore channel relationships in three complementary views.</figcaption></figure>
     </section>
 
     <section id="download" class="download">
@@ -126,5 +143,6 @@
     <p>© {{YEAR}} Stephan Terning · Visona is free software under the <a href="https://github.com/{{REPO}}/blob/main/LICENSE">AGPL-3.0</a> · <a href="/manual/">Manual</a> · <a href="https://github.com/{{REPO}}">Source on GitHub</a> · <a href="https://github.com/{{REPO}}/releases">All releases</a></p>
     <p>Raspberry Pi is a trademark of Raspberry Pi Ltd.</p>
   </footer>
+  <script src="/home.js" defer></script>
 </body>
 </html>
