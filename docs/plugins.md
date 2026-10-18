@@ -83,7 +83,7 @@ In Ableton Live, turn on **Use Audio Units** under **Settings → Plug-Ins**, th
 
 ## Transport
 
-The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW, as reported at the first frame of each audio block. There is no MIDI Clock input and no FREE mode in the plugin editor. The status bar shows **HOST RUN** while the DAW plays, **STOPPED** while it is stopped, and **HOST** before the DAW has reported a playhead.
+The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW, as reported at the first frame of each audio block. There is no MIDI Clock input and no FREE mode in the plugin editor. The status bar shows **HOST RUN** while the DAW plays and **STOPPED** while it is stopped, which is also the state right after the plugin is loaded, before the first playback.
 The standalone app still uses MIDI Clock and manual FREE tempo.
 
 ## Sidechain sync (Visona Sync)
