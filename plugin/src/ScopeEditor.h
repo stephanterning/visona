@@ -44,7 +44,7 @@ private:
 
     /** Sets the gain by hand, which turns auto gain off. */
     void setAnalysisView(int view);
-    int analysisView_ = 0;
+    int analysisView_ = -1;
     void setGainDb(int gainDb);
     /** The gain on screen: auto gain's while it is on, otherwise the one set by hand. */
     [[nodiscard]] int shownGainDb();
@@ -92,6 +92,8 @@ private:
 
     std::size_t window_ = 2;
     std::vector<float> peaks_;
+    double lastUpdateSeconds_ = 0.0;
+    std::uint64_t lastAnalysisBusyNs_ = 0;
 };
 
 } // namespace visona

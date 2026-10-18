@@ -6,7 +6,7 @@
 #include <visona/AudioInputWriter.h>
 #include <visona/AudioRingBuffer.h>
 #include <visona/AutoGain.h>
-#include <visona/HostTransport.h>
+#include <visona/HostPlayheadReader.h>
 #include <visona/SidechainSyncDetector.h>
 #include <visona/SourceLayout.h>
 
@@ -109,7 +109,7 @@ public:
     }
 
 private:
-    [[nodiscard]] HostTransport::Playhead readPlayhead() const noexcept;
+    [[nodiscard]] HostTransport::Playhead readPlayhead() noexcept;
     void updateSidechainSync(juce::AudioBuffer<float>& buffer,
                              const HostTransport::Playhead& playhead) noexcept;
 
@@ -131,10 +131,7 @@ private:
     std::atomic<float> sidechainPeak_{0.0f};
     std::atomic<std::uint32_t> lastBlockSize_{0};
 
-    mutable double lastKnownBpm_ = 120.0;
-    mutable double lastKnownPpq_ = 0.0;
-    mutable bool lastKnownPlaying_ = false;
-    mutable TimeSignature lastKnownTimeSignature_{};
+    HostPlayheadReader playheadReader_;
 };
 
 } // namespace visona

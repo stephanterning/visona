@@ -15,6 +15,13 @@ struct TimeSignature
     int numerator = 4;
     int denominator = 4;
 
+    /** Supported signatures have whole MIDI ticks per beat and a bounded numerator. */
+    [[nodiscard]] constexpr bool isValid() const noexcept
+    {
+        return numerator >= 1 && numerator <= 64 && denominator >= 1 && denominator <= 32 &&
+               (denominator & (denominator - 1)) == 0;
+    }
+
     /** 96 in 4/4, 72 in 3/4 and 6/8. */
     [[nodiscard]] constexpr int ticksPerBar() const noexcept
     {

@@ -31,6 +31,7 @@ set(visona_ui_sources
     ControlText.h
     DiagnosticsOverlay.cpp
     DiagnosticsOverlay.h
+    RenderStats.h
     GainControl.cpp
     GainControl.h
     Palette.h

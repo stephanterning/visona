@@ -99,6 +99,18 @@ struct StereoUiChecks
         view.timerCallback();
         check(view.snapshot_->correlationValid(), "Stereo UI did not receive measurement");
         check(view.status().isEmpty(), "Valid stereo shows a no-signal message");
+        // Publishing a new interval must replace maxima, not retain a lifetime maximum.
+        view.stats_.renderMsMax = view.stats_.paintMsMax = 99.0;
+        view.renderMax_ = 2.0;
+        view.paintMax_ = 3.0;
+        view.start_ = juce::Time::getMillisecondCounterHiRes() - 1100.0;
+        view.timerCallback();
+        check(view.stats().renderMsMax == 2.0 && view.stats().paintMsMax == 3.0,
+              "Stereo diagnostics retained an old interval's maximum");
+        view.start_ -= 1100.0;
+        view.timerCallback();
+        check(view.stats().renderMsMax == 0.0 && view.stats().paintMsMax == 0.0,
+              "Stereo diagnostics did not reset interval counters");
         const auto correlation = view.snapshot_->correlation;
         for (int mode = 0; mode < 3; ++mode)
             for (int gain = 0; gain < view.gain_.getNumItems(); ++gain)
@@ -414,6 +426,8 @@ struct StereoUiChecks
             {
                 const auto screenshot =
                     view.createComponentSnapshot(view.getLocalBounds(), true, scale);
+                check(std::abs(view.stats().scale - scale) < 0.001f,
+                      "Stereo diagnostics scale is incorrect");
                 check(std::abs(view.renderScale_ - scale) < 0.001f,
                       "Stereo cache ignored physical display scale");
                 check(view.density_.getWidth() == juce::roundToInt(view.plot().getWidth() * scale),

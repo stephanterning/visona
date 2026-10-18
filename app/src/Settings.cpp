@@ -32,7 +32,7 @@ juce::PropertiesFile::Options fileOptions()
     options.folderName = "Visona";
 #endif
     options.storageFormat = juce::PropertiesFile::storeAsXML;
-    options.millisecondsBeforeSaving = 0;
+    options.millisecondsBeforeSaving = 1000;
     return options;
 }
 
@@ -47,6 +47,11 @@ juce::PropertiesFile& openUserSettings(juce::ApplicationProperties& applicationP
 Settings::Settings()
     : properties_(openUserSettings(applicationProperties_))
 {
+}
+
+Settings::~Settings()
+{
+    applicationProperties_.saveIfNeeded();
 }
 
 std::unique_ptr<juce::XmlElement> Settings::audioDeviceState() const

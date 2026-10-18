@@ -197,6 +197,15 @@ void HostAnalysisPipeline::syncPlayheads() noexcept
                 playhead.ppqPosition +=
                     static_cast<double>(next->sampleIndex - lastPlayhead_.sampleIndex) /
                     sampleRate_ * playhead.bpm / 60.0;
+            if (next->playhead.hasTransportState)
+            {
+                playhead.isPlaying = next->playhead.isPlaying;
+                playhead.bpm = next->playhead.bpm;
+                playhead.timeSignature = next->playhead.timeSignature;
+            }
+            // Retain the extrapolated anchor as well, so a stop without PPQ freezes time
+            // instead of extrapolating across the entire stopped interval on resume.
+            lastPlayhead_ = {next->sampleIndex, playhead};
         }
         else
         {
@@ -204,7 +213,15 @@ void HostAnalysisPipeline::syncPlayheads() noexcept
         }
 
         // The audio of this playhead reaches the plugin `offset_` frames later.
+        const auto previousSignature = transport_.timeSignature();
         transport_.syncTo(static_cast<double>(next->sampleIndex) + offset_, playhead);
+        if (transport_.timeSignature() != previousSignature)
+        {
+            analyzer_.startMusical(windowTicks());
+            barPeaks_.restart();
+            followsStart_ = false;
+            changed_ = true;
+        }
     }
 }
 

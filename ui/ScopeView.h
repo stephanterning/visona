@@ -1,4 +1,5 @@
 #pragma once
+#include "RenderStats.h"
 
 #include <visona/ColumnReduction.h>
 #include <visona/Ruler.h>
@@ -129,20 +130,7 @@ public:
     std::function<void()> onFrame;
 
     /** Rendering statistics over the most recent whole second. */
-    struct Stats
-    {
-        double framesPerSecond = 0.0;
-        double vblanksPerSecond = 0.0;
-        double fullRedrawsPerSecond = 0.0;
-        double renderMsAverage = 0.0;
-        double renderMsMax = 0.0;
-        double paintMsAverage = 0.0;
-        double paintMsMax = 0.0;
-        int imageWidth = 0;
-        int imageHeight = 0;
-        float scale = 1.0f;
-        std::size_t tiles = 0;
-    };
+    using Stats = RenderStats;
 
     [[nodiscard]] Stats stats() const noexcept
     {

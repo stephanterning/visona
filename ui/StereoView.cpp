@@ -190,7 +190,7 @@ void StereoView::setActive(bool active)
         stale_ = true;
         lastAudio_ = start_ = now();
         frames_ = paints_ = 0;
-        renderTotal_ = paintTotal_ = 0;
+        renderTotal_ = paintTotal_ = renderMax_ = paintMax_ = 0;
         stats_ = {};
         render();
         startTimerHz(refreshRate());
@@ -539,11 +539,10 @@ void StereoView::render()
     const double duration = now() - start;
     renderTotal_ += duration;
     ++frames_;
-    stats_.renderMsAverage = renderTotal_ / frames_;
-    stats_.renderMsMax = std::max(stats_.renderMsMax, duration);
+    renderMax_ = std::max(renderMax_, duration);
     stats_.imageWidth = width;
     stats_.imageHeight = height;
-    stats_.scale = 1;
+    stats_.scale = renderScale_;
 }
 void StereoView::renderLevel()
 {
@@ -710,8 +709,8 @@ void StereoView::paint(juce::Graphics& g)
     }
     const double duration = now() - start;
     paintTotal_ += duration;
-    stats_.paintMsAverage = paintTotal_ / ++paints_;
-    stats_.paintMsMax = std::max(stats_.paintMsMax, duration);
+    ++paints_;
+    paintMax_ = std::max(paintMax_, duration);
 }
 void StereoView::timerCallback()
 {
@@ -738,8 +737,12 @@ void StereoView::timerCallback()
     if (time - start_ >= 1000)
     {
         stats_.framesPerSecond = 1000.0 * frames_ / (time - start_);
+        stats_.renderMsAverage = frames_ > 0 ? renderTotal_ / frames_ : 0.0;
+        stats_.paintMsAverage = paints_ > 0 ? paintTotal_ / paints_ : 0.0;
+        stats_.renderMsMax = renderMax_;
+        stats_.paintMsMax = paintMax_;
         frames_ = paints_ = 0;
-        renderTotal_ = paintTotal_ = 0;
+        renderTotal_ = paintTotal_ = renderMax_ = paintMax_ = 0;
         start_ = time;
     }
     if (changed)

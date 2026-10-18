@@ -84,6 +84,8 @@ In Ableton Live, turn on **Use Audio Units** under **Settings → Plug-Ins**, th
 ## Transport
 
 The plugin follows the **host playhead**: tempo, position, play/stop and time signature come from the DAW, as reported at the first frame of each audio block. There is no MIDI Clock input and no FREE mode in the plugin editor. The status bar shows **HOST RUN** while the DAW plays and **STOPPED** while it is stopped, which is also the state right after the plugin is loaded, before the first playback.
+Both plugins reject missing or non-finite PPQ positions rather than treating an old position as current. Visona Sync emits no impulses for such a block; the scope's analysis can continue from its last valid playhead. Invalid tempo or time signatures retain the last valid value (initially 120 BPM and 4/4). Supported host time signatures have a numerator of 1–64 and a power-of-two denominator up to 32.
+
 The standalone app still uses MIDI Clock and manual FREE tempo.
 
 ## Sidechain sync (Visona Sync)

@@ -23,7 +23,8 @@ struct BarPeak
 */
 struct RecentBarPeaks
 {
-    static constexpr std::size_t capacity = 16;
+    // Covers the complete ten-second auto-gain hold at 100 ms per input window.
+    static constexpr std::size_t capacity = 128;
 
     /** How many bars have ended in all. */
     std::uint64_t count = 0;

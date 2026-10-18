@@ -19,6 +19,9 @@ add_library(visona_core STATIC
     include/visona/AnalysisPipeline.h
     include/visona/AudioInputWriter.h
     include/visona/AudioRingBuffer.h
+    include/visona/AudioRingSizing.h
+    include/visona/AudioDeviceWatchdog.h
+    include/visona/HostPlayheadReader.h
     include/visona/AutoGain.h
     include/visona/Band.h
     include/visona/BarPeaks.h

@@ -2,6 +2,7 @@
 #include <visona/AudioRingBuffer.h>
 #include <visona/BarImpulseScheduler.h>
 #include <visona/HostAnalysisPipeline.h>
+#include <visona/HostPlayheadReader.h>
 #include <visona/HostTransport.h>
 #include <visona/SidechainSyncDetector.h>
 #include <visona/SweepWindow.h>
@@ -97,7 +98,7 @@ public:
         std::vector<float> sidechain(blockSize_);
         // Visona Sync's output on its own track, before the host delays it.
         std::vector<float> syncOutput(end + blockSize_, 0.0f);
-        std::vector<std::uint32_t> impulses;
+        std::vector<std::uint32_t> impulses(blockSize_);
         const std::array<const float*, 2> inputs{main.data(), main.data()};
         detector_.setSidechainEnabled(withSidechain);
 
@@ -114,11 +115,10 @@ public:
 
             if (playhead.isPlaying)
             {
-                impulses.clear();
-                BarImpulseScheduler::impulsesInBlock(blockStart, blockSize_, playhead.ppqPosition,
-                                                     bpm_, fourFour, sampleRate, impulses);
-                for (const auto offset : impulses)
-                    syncOutput[blockStart + offset] = visona::syncImpulseAmplitude;
+                const auto count = BarImpulseScheduler::impulsesInBlock(
+                    blockSize_, playhead.ppqPosition, bpm_, fourFour, sampleRate, impulses);
+                for (std::size_t i = 0; i < count; ++i)
+                    syncOutput[blockStart + impulses[i]] = visona::syncImpulseAmplitude;
             }
 
             for (std::uint32_t index = 0; index < blockSize_; ++index)
@@ -371,4 +371,56 @@ TEST_CASE("Global gain input peaks continue while host transport is stopped", "[
     REQUIRE(snapshot.inputPeaks.count >= 2);
     REQUIRE(snapshot.inputPeaks.currentPeak == 0.75f);
     REQUIRE(snapshot.barPeaks.count == 0);
+}
+
+TEST_CASE("Host pipeline updates window ticks on a time signature change", "[host]")
+{
+    AudioRingBuffer ring(2, 48000, 128);
+    AudioInputWriter writer(ring);
+    writer.route(0, 0);
+    writer.route(1, 1);
+    HostAnalysisPipeline pipeline(2);
+    pipeline.setStream(&ring, sampleRate);
+    playSilence(writer, pipeline, 4);
+    while (pipeline.poll() > 0)
+    {
+    }
+    pipeline.snapshots().fetch();
+    CHECK(pipeline.snapshots().readBuffer().windowTicks == 96);
+
+    const auto start = writer.nextSampleIndex();
+    auto head = playingAt(static_cast<double>(start) / 24000.0);
+    head.timeSignature = {3, 4};
+    pipeline.pushPlayhead(start, head);
+    pipeline.poll();
+    pipeline.snapshots().fetch();
+    CHECK(pipeline.snapshots().readBuffer().timeSignature == TimeSignature{3, 4});
+    CHECK(pipeline.snapshots().readBuffer().windowTicks == 72);
+}
+
+TEST_CASE("Host pipeline observes stop and resume in partial reports without PPQ", "[host]")
+{
+    AudioRingBuffer ring(2, 48000, 128);
+    AudioInputWriter writer(ring);
+    writer.route(0, 0);
+    writer.route(1, 1);
+    HostAnalysisPipeline pipeline(2);
+    pipeline.setStream(&ring, sampleRate);
+    visona::HostPlayheadReader reader;
+    pipeline.pushPlayhead(0, reader.read(true, 0, 120, {}));
+    pipeline.pushPlayhead(512, reader.read(true, {}, 120, {}));
+    pipeline.pushPlayhead(1024, reader.read(false, {}, 120, {}));
+    pipeline.poll();
+    pipeline.snapshots().fetch();
+    CHECK(pipeline.snapshots().readBuffer().transportState == TransportState::stopped);
+    const auto stoppedTick = pipeline.snapshots().readBuffer().nextTick;
+    pipeline.pushPlayhead(48000, reader.read(false, {}, 120, {}));
+    pipeline.poll();
+    pipeline.snapshots().fetch();
+    CHECK(pipeline.snapshots().readBuffer().nextTick == stoppedTick);
+    pipeline.pushPlayhead(96000, reader.read(true, {}, 120, {}));
+    pipeline.poll();
+    pipeline.snapshots().fetch();
+    CHECK(pipeline.snapshots().readBuffer().transportState == TransportState::running);
+    CHECK(pipeline.snapshots().readBuffer().nextTick == stoppedTick);
 }

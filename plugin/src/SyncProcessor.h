@@ -1,8 +1,10 @@
 #pragma once
 
-#include <visona/HostTransport.h>
+#include <visona/HostPlayheadReader.h>
 
 #include <juce_audio_processors/juce_audio_processors.h>
+
+#include <atomic>
 
 namespace visona
 {
@@ -39,20 +41,20 @@ public:
 
     [[nodiscard]] HostTransport::Playhead lastPlayhead() const noexcept
     {
-        return lastPlayhead_;
+        HostTransport::Playhead result;
+        result.valid = hostValid_.load(std::memory_order_relaxed);
+        result.isPlaying = hostPlaying_.load(std::memory_order_relaxed);
+        result.bpm = hostBpm_.load(std::memory_order_relaxed);
+        return result;
     }
 
 private:
-    [[nodiscard]] HostTransport::Playhead readPlayhead(int numSamples) noexcept;
-
     double sampleRate_ = 0.0;
-    std::uint64_t streamSample_ = 0;
 
-    HostTransport::Playhead lastPlayhead_;
-    double lastKnownBpm_ = 120.0;
-    double lastKnownPpq_ = 0.0;
-    bool lastKnownPlaying_ = false;
-    TimeSignature lastKnownTimeSignature_{};
+    // Independent display values; the editor never reads the audio thread's mutable playhead.
+    std::atomic<bool> hostValid_{false}, hostPlaying_{false};
+    std::atomic<double> hostBpm_{0.0};
+    HostPlayheadReader playheadReader_;
 };
 
 } // namespace visona

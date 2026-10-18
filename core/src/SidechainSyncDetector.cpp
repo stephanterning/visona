@@ -37,7 +37,9 @@ void SidechainSyncDetector::processBlock(std::span<const float> sidechain, doubl
                                          double bpm, TimeSignature timeSignature, double sampleRate,
                                          bool hostPlaying) noexcept
 {
-    if (!enabled_ || !hostPlaying || bpm <= 0.0 || sampleRate <= 0.0 || sidechain.empty())
+    if (!enabled_ || !hostPlaying || !timeSignature.isValid() || !std::isfinite(ppqAtBlockStart) ||
+        !std::isfinite(bpm) || bpm <= 0.0 || !std::isfinite(sampleRate) || sampleRate <= 0.0 ||
+        sidechain.empty())
         return;
 
     std::size_t peakIndex = 0;

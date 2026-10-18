@@ -3,6 +3,7 @@
 #include "ui/Palette.h"
 
 #include <visona/LaneMapping.h>
+#include <visona/SweepWindow.h>
 
 namespace visona
 {
@@ -92,6 +93,7 @@ void PluginInstanceState::writeTo(juce::XmlElement& root) const
     root.setAttribute("spectrumSettings", spectrumSettings);
     root.setAttribute("stereoSettings", stereoSettings);
     root.setAttribute("gainDb", gainDb);
+    root.setAttribute("version", 1);
     root.setAttribute("afterglow", afterglow);
     root.setAttribute("autoGain", autoGain);
     root.setAttribute("window", static_cast<int>(window));
@@ -110,12 +112,18 @@ void PluginInstanceState::readFrom(const juce::XmlElement& root, PluginGlobalDef
     afterglow = juce::jlimit(0, 3, root.getIntAttribute("afterglow", 2));
     gainDb = DisplayGain::clampDb(root.getIntAttribute("gainDb", gainDb));
     autoGain = root.getBoolAttribute("autoGain", false);
-    window = static_cast<std::size_t>(root.getIntAttribute("window", static_cast<int>(window)));
+    window = static_cast<std::size_t>(
+        juce::jlimit(0, static_cast<int>(sweepWindowBars.size()) - 1,
+                     root.getIntAttribute("window", static_cast<int>(defaultSweepWindow))));
     waveformMode = modeFromString(
         root.getStringAttribute("waveformMode", modeToString(defaults.waveformMode())));
-    waveformColour = static_cast<std::size_t>(root.getIntAttribute(
+    const auto colour = root.getIntAttribute(
         "waveformColour", static_cast<int>(defaults.waveformColour(
-                              palette::waveformColours.size(), palette::defaultWaveformColour))));
+                              palette::waveformColours.size(), palette::defaultWaveformColour)));
+    waveformColour =
+        colour >= 0 && static_cast<std::size_t>(colour) < palette::waveformColours.size()
+            ? static_cast<std::size_t>(colour)
+            : palette::defaultWaveformColour;
     hasInstanceAppearance = root.getBoolAttribute("hasInstanceAppearance", false);
     if (!hasInstanceAppearance)
     {

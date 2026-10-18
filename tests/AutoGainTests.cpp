@@ -179,12 +179,11 @@ TEST_CASE("Auto gain follows the bars that ended since it last looked", "[autoga
     CHECK_FALSE(autoGain.follow(recent));
     CHECK(autoGain.gainDb() == 0);
 
-    // More bars than the snapshot holds: only those still held are added, so the loud bar that
-    // was missed does not keep the gain down.
+    // Missing peaks are unknown. Do not raise gain from an incomplete history.
     for (std::size_t bar = 0; bar < RecentBarPeaks::capacity + 4; ++bar)
         end(bar == 0 ? 1.0f : 0.1f);
-    CHECK(autoGain.follow(recent));
-    CHECK(autoGain.gainDb() == 18);
+    CHECK_FALSE(autoGain.follow(recent));
+    CHECK(autoGain.gainDb() == 0);
 }
 
 TEST_CASE("BarPeakMeter ends a bar when the next one starts", "[autogain][bars]")
@@ -255,4 +254,59 @@ TEST_CASE("Global auto gain follows input time without musical transport", "[aut
     for (int i = 0; i < 1100; ++i)
         feed();
     CHECK(gain.gainDb() == 0);
+}
+
+TEST_CASE("Auto gain retains a loud input window across a multi-second UI stall", "[autogain]")
+{
+    AutoGain gain;
+    gain.reset(18);
+    BarPeakMeter meter;
+    std::vector<float> input(4800, 0.1f);
+    std::array<const float*, 1> channels{input.data()};
+    gain.follow(meter.recent());
+    for (std::uint64_t window = 0; window < 51; ++window)
+    {
+        std::fill(input.begin(), input.end(), window == 1 ? 1.0f : 0.1f);
+        meter.processInput(channels, input.size(), window * input.size(), 48000);
+    }
+    gain.follow(meter.recent());
+    CHECK(gain.gainDb() == 0);
+}
+
+TEST_CASE("Auto gain preserves gain and restarts its hold after history is overwritten",
+          "[autogain]")
+{
+    AutoGain gain;
+    gain.reset(6);
+    RecentBarPeaks peaks;
+    gain.follow(peaks);
+    peaks.bars.fill({0.1f, 0.1});
+    for (int window = 0; window < 90; ++window)
+    {
+        ++peaks.count;
+        CHECK_FALSE(gain.follow(peaks));
+    }
+
+    peaks.count += RecentBarPeaks::capacity + 1;
+    SECTION("A quiet current peak preserves gain and requires a fresh full hold")
+    {
+        peaks.currentPeak = 0.1f;
+        CHECK_FALSE(gain.follow(peaks));
+        CHECK(gain.gainDb() == 6);
+        for (int window = 0; window < 99; ++window)
+        {
+            ++peaks.count;
+            CHECK_FALSE(gain.follow(peaks));
+            CHECK(gain.gainDb() == 6);
+        }
+        ++peaks.count;
+        CHECK(gain.follow(peaks));
+        CHECK(gain.gainDb() == 18);
+    }
+    SECTION("A loud current peak still lowers gain immediately after the gap")
+    {
+        peaks.currentPeak = 0.9f;
+        CHECK(gain.follow(peaks));
+        CHECK(gain.gainDb() == 0);
+    }
 }

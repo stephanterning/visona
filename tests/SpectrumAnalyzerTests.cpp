@@ -288,8 +288,12 @@ TEST_CASE("Spectrum publishes coherent snapshots during concurrent settings chan
     std::thread consumer(
         [&]
         {
-            while (!done.load(std::memory_order_acquire))
+            bool finished = false;
+            do
             {
+                // Observe completion before fetching, so the final published frame is
+                // consumed even if the producer finished before this thread was scheduled.
+                finished = done.load(std::memory_order_acquire);
                 if (analyzer.snapshots().fetch())
                 {
                     const auto& snapshot = analyzer.snapshots().readBuffer();
@@ -303,7 +307,7 @@ TEST_CASE("Spectrum publishes coherent snapshots during concurrent settings chan
                     }
                 }
                 std::this_thread::yield();
-            }
+            } while (!finished);
         });
     for (int i = 0; i < 20; ++i)
     {
