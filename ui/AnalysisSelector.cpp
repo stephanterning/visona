@@ -8,6 +8,41 @@ namespace
 {
 const juce::StringArray viewNames{"Scope", "Spectrum (FFT)", "Spectrum (Band)", "Stereo"};
 
+void drawViewIcon(juce::Graphics& g, juce::Rectangle<float> icon, int view)
+{
+    juce::Path p;
+    for (int i = 0; i <= 64; ++i)
+    {
+        const auto x = static_cast<float>(i) / 64.0f;
+        const auto y = view == 0 ? 0.5f + 0.32f * std::sin(x * 19.0f)
+                                 : 0.9f - 0.7f * std::exp(-50.0f * (x - 0.3f) * (x - 0.3f)) -
+                                       0.35f * std::exp(-35.0f * (x - 0.7f) * (x - 0.7f));
+        if (i == 0)
+            p.startNewSubPath(icon.getX(), icon.getY() + y * icon.getHeight());
+        else
+            p.lineTo(icon.getX() + x * icon.getWidth(), icon.getY() + y * icon.getHeight());
+    }
+    if (view == 3)
+    {
+        juce::Path stereo;
+        stereo.addEllipse(icon.withSizeKeepingCentre(icon.getWidth() * 0.28f, icon.getHeight()));
+        g.strokePath(stereo, juce::PathStrokeType(2.0f));
+        g.drawVerticalLine(juce::roundToInt(icon.getCentreX()), icon.getY(), icon.getBottom());
+    }
+    else if (view == 2)
+    {
+        for (int i = 0; i < 12; ++i)
+        {
+            const auto height = icon.getHeight() *
+                                (0.25f + 0.65f * std::abs(std::sin(static_cast<float>(i) * 0.37f)));
+            g.fillRect(icon.getX() + static_cast<float>(i) * icon.getWidth() / 12,
+                       icon.getBottom() - height, icon.getWidth() / 12 * 0.7f, height);
+        }
+    }
+    else
+        g.strokePath(p, juce::PathStrokeType(2.0f));
+}
+
 class SelectorButton : public juce::TextButton
 {
 public:
@@ -56,42 +91,8 @@ struct AnalysisSelector::Tiles final : juce::Component
             g.setFont(18.0f);
             g.drawText(getButtonText(), area.removeFromBottom(28), juce::Justification::centred);
             auto icon = area.toFloat().reduced(12.0f, 8.0f);
-            juce::Path p;
-            for (int i = 0; i <= 64; ++i)
-            {
-                const auto x = static_cast<float>(i) / 64.0f;
-                const auto y = view == 0
-                                   ? 0.5f + 0.32f * std::sin(x * 19.0f)
-                                   : 0.9f - 0.7f * std::exp(-50.0f * (x - 0.3f) * (x - 0.3f)) -
-                                         0.35f * std::exp(-35.0f * (x - 0.7f) * (x - 0.7f));
-                if (i == 0)
-                    p.startNewSubPath(icon.getX(), icon.getY() + y * icon.getHeight());
-                else
-                    p.lineTo(icon.getX() + x * icon.getWidth(), icon.getY() + y * icon.getHeight());
-            }
             g.setColour(juce::Colour(0xff79ddc6).withAlpha(down ? 0.6f : over ? 1.0f : 0.85f));
-            if (view == 3)
-            {
-                juce::Path stereo;
-                stereo.addEllipse(
-                    icon.withSizeKeepingCentre(icon.getWidth() * 0.28f, icon.getHeight()));
-                g.strokePath(stereo, juce::PathStrokeType(2.0f));
-                g.drawVerticalLine(juce::roundToInt(icon.getCentreX()), icon.getY(),
-                                   icon.getBottom());
-            }
-            else if (view == 2)
-            {
-                for (int i = 0; i < 12; ++i)
-                {
-                    const auto height =
-                        icon.getHeight() *
-                        (0.25f + 0.65f * std::abs(std::sin(static_cast<float>(i) * 0.37f)));
-                    g.fillRect(icon.getX() + static_cast<float>(i) * icon.getWidth() / 12,
-                               icon.getBottom() - height, icon.getWidth() / 12 - 3, height);
-                }
-            }
-            else
-                g.strokePath(p, juce::PathStrokeType(2.0f));
+            drawViewIcon(g, icon, view);
         }
     };
     std::vector<std::unique_ptr<Tile>> buttons;
@@ -162,15 +163,30 @@ struct AnalysisSelector::Tiles final : juce::Component
 AnalysisSelector::AnalysisSelector()
 {
     setView(0);
-    setTooltip("Analysis view (V). Alt+1: Scope; Alt+2: Spectrum (FFT); Alt+3: Spectrum (Band); "
-               "Alt+4: Stereo.");
     onClick = [this] { showChoices(); };
 }
 AnalysisSelector::~AnalysisSelector() = default;
 void AnalysisSelector::setView(int view)
 {
     selected_ = std::clamp(view, 0, viewNames.size() - 1);
-    setButtonText(viewNames[selected_] + "  ▾");
+    setButtonText(viewNames[selected_]);
+    setTitle("Analysis view: " + viewNames[selected_]);
+    setTooltip("Analysis view: " + viewNames[selected_] +
+               " (V). Alt+1: Scope; Alt+2: Spectrum (FFT); Alt+3: Spectrum (Band); Alt+4: Stereo.");
+    repaint();
+}
+void AnalysisSelector::paintButton(juce::Graphics& g, bool over, bool down)
+{
+    getLookAndFeel().drawButtonBackground(g, *this, findColour(buttonColourId), over, down);
+    auto area = getLocalBounds().toFloat().withSizeKeepingCentre(40.0f, 20.0f);
+    g.setColour(palette::level.withMultipliedAlpha(isEnabled() ? 1.0f : 0.5f));
+    drawViewIcon(g, area.removeFromLeft(24.0f), selected_);
+    g.setColour(palette::text.withMultipliedAlpha(isEnabled() ? 1.0f : 0.5f));
+    juce::Path arrow;
+    const auto x = area.getRight() - 8.0f;
+    const auto y = area.getCentreY();
+    arrow.addTriangle(x, y - 2.0f, x + 8.0f, y - 2.0f, x + 4.0f, y + 3.0f);
+    g.fillPath(arrow);
 }
 void AnalysisSelector::choose(int view)
 {
