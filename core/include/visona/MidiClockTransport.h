@@ -107,8 +107,10 @@ public:
     void reset(double sampleRate) noexcept;
 
     /** Handles one message at stream position `sampleTime`. `sppValue` is for Song Position
-        Pointer only. */
-    void handle(MidiClockEvent::Type type, std::uint16_t sppValue, double sampleTime) noexcept;
+        Pointer only. `timelineOffset` aligns the musical spans with audio, but does not
+        change the clock-loss deadline. */
+    void handle(MidiClockEvent::Type type, std::uint16_t sppValue, double sampleTime,
+                double timelineOffset = 0.0) noexcept;
 
     /**
         Leaves Stopped or clock loss for the free-running sweep from `sampleTime` on, as before the
@@ -194,9 +196,9 @@ private:
     std::uint64_t startCount_ = 0;
     std::uint64_t ignoredSpp_ = 0;
 
-    // While running: either waiting for the first clock since runStart_, or following ticks.
+    // The clock-loss deadline uses unshifted event times, independently of musical alignment.
     bool awaitingTick_ = false;
-    double runStart_ = 0.0;
+    double lastClockActivity_ = 0.0;
     double lastTickTime_ = 0.0;
     double lastInterval_ = 0.0;
 

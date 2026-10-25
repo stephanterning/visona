@@ -251,8 +251,8 @@ bool AnalysisPipeline::handleMidi() noexcept
         ++midiEvents_;
         changed_ = true;
         if (ring_ != nullptr)
-            transport_.handle(event->type, event->sppValue,
-                              mapper_.sampleTimeOf(event->hostTimeNs) + offset);
+            transport_.handle(event->type, event->sppValue, mapper_.sampleTimeOf(event->hostTimeNs),
+                              offset);
     }
     return true;
 }

@@ -43,6 +43,7 @@ void MidiClockTransport::reset(double sampleRate) noexcept
     ignoredSpp_ = 0;
     awaitingTick_ = false;
     lastInterval_ = 0.0;
+    lastClockActivity_ = 0.0;
     tempoCount_ = 0;
     framesPerClock_ = 0.0;
     tempoFollowClocks_ = 0;
@@ -52,9 +53,15 @@ void MidiClockTransport::reset(double sampleRate) noexcept
 }
 
 void MidiClockTransport::handle(MidiClockEvent::Type type, std::uint16_t sppValue,
-                                double sampleTime) noexcept
+                                double sampleTime, double timelineOffset) noexcept
 {
-    sampleTime = clampToTimeline(sampleTime);
+    // A sync correction can exceed the timeout in either direction. Only the original
+    // event time tells us whether MIDI Clock is still arriving. An ignored Continue must
+    // not keep an already running transport alive.
+    if (type == MidiClockEvent::Type::Clock || type == MidiClockEvent::Type::Start ||
+        (type == MidiClockEvent::Type::Continue && state_ != TransportState::running))
+        lastClockActivity_ = sampleTime;
+    sampleTime = clampToTimeline(sampleTime + timelineOffset);
     switch (type)
     {
     case MidiClockEvent::Type::Clock:
@@ -97,8 +104,7 @@ void MidiClockTransport::advanceTo(double sampleTime) noexcept
     if (state_ != TransportState::running)
         return;
     const auto timeout = clockLossSeconds * sampleRate_;
-    const auto lastSeen = awaitingTick_ ? runStart_ : lastTickTime_;
-    if (sampleTime - lastSeen <= timeout)
+    if (sampleTime - lastClockActivity_ <= timeout)
         return;
 
     state_ = TransportState::clockLost;
@@ -288,7 +294,6 @@ void MidiClockTransport::onStart(double sampleTime) noexcept
     tempoFollowClocks_ = 0;
     state_ = TransportState::running;
     awaitingTick_ = true;
-    runStart_ = sampleTime;
     closeOpenAt(sampleTime);
     pushOpen(TransportSpan::Kind::frozen, sampleTime, 0.0);
 }
@@ -303,7 +308,6 @@ void MidiClockTransport::onContinue(double sampleTime) noexcept
         ++startCount_;
     state_ = TransportState::running;
     awaitingTick_ = true;
-    runStart_ = sampleTime;
     closeOpenAt(sampleTime);
     pushOpen(TransportSpan::Kind::frozen, sampleTime, 0.0);
 }

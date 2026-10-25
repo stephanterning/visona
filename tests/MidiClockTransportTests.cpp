@@ -687,3 +687,34 @@ TEST_CASE("MidiClockTransport does not allocate", "[transport][realtime]")
 
     CHECK(allocationCount == 0);
 }
+
+TEST_CASE("MIDI clock loss ignores musical alignment offsets", "[transport][midi]")
+{
+    const auto offset = GENERATE(-0.75 * rate, 0.75 * rate);
+    const auto startType = GENERATE(Type::Start, Type::Continue);
+    CAPTURE(offset, startType);
+    MidiClockTransport transport(rate);
+    const double start = 2.0 * rate;
+    transport.handle(startType, 0, start, offset);
+    transport.advanceTo(start + 0.49 * rate);
+    REQUIRE(transport.state() == TransportState::running);
+    transport.advanceTo(start + 0.51 * rate);
+    REQUIRE(transport.state() == TransportState::clockLost);
+
+    // Fresh clocks recover and stay running with either sign of correction.
+    double now = start + rate;
+    for (int tick = 0; tick < 100; ++tick)
+    {
+        now += framesPerTick(120.0);
+        transport.handle(Type::Clock, 0, now, offset);
+        transport.advanceTo(now);
+        REQUIRE(transport.state() == TransportState::running);
+    }
+    CHECK(transport.span(transport.numSpans() - 1).start == now + offset);
+    transport.advanceTo(now + 0.49 * rate);
+    CHECK(transport.state() == TransportState::running);
+    // A Continue while running does not postpone genuine clock loss.
+    transport.handle(Type::Continue, 0, now + 0.49 * rate, offset);
+    transport.advanceTo(now + 0.51 * rate);
+    CHECK(transport.state() == TransportState::clockLost);
+}

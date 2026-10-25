@@ -851,7 +851,7 @@ TEST_CASE("Stop, SPP and Continue relocate the head without clearing", "[analysi
 TEST_CASE("Visona Sync on the sync input moves MIDI Clock onto the audio's bar lines",
           "[analysis][midi][sync]")
 {
-    const auto lag = GENERATE(1'234.0, -700.0);
+    const auto lag = GENERATE(1'234.0, -700.0, -36'000.0);
     CAPTURE(lag);
 
     // 120 BPM at 48 kHz: 1 000 frames per tick and 96 000 per bar.
@@ -876,6 +876,7 @@ TEST_CASE("Visona Sync on the sync input moves MIDI Clock onto the audio's bar l
     session.run(static_cast<std::uint64_t>(firstClock + 2.5 * barFrames), click, impulse);
     auto snapshot = session.snapshot();
     REQUIRE(snapshot.syncState == visona::SidechainSyncState::locked);
+    CHECK(snapshot.transportState == TransportState::running);
     CHECK(std::abs(snapshot.syncOffsetFrames - lag) <= 1.0);
     CHECK(snapshot.syncImpulsePeak == 0.5f);
 
@@ -1165,4 +1166,24 @@ TEST_CASE("AnalysisPipeline follows MIDI Clock across threads", "[analysis][midi
     CHECK(analysisAllocations == 0);
     CHECK(snapshots.readBuffer().musical);
     CHECK(snapshots.readBuffer().transportState == TransportState::running);
+}
+
+TEST_CASE("AnalysisPipeline checks MIDI clock loss before alignment offsets", "[analysis][midi]")
+{
+    const auto offset = GENERATE(-36'000.0, 36'000.0);
+    CAPTURE(offset);
+    MidiSession session(48'000.0, false, 0.0);
+    session.pipeline().setMidiOffset(offset);
+    constexpr double firstClock = 48'000.0;
+    session.midi(MidiClockEvent::Type::Start, firstClock);
+    const auto end = session.clocks(firstClock, 200, session.framesPerTick(120.0));
+    for (auto frame = 60'000u; frame < static_cast<unsigned>(end); frame += 4'096)
+    {
+        session.run(frame);
+        REQUIRE(session.snapshot().transportState == TransportState::running);
+    }
+    session.run(static_cast<std::uint64_t>(end + 48'000.0 * 0.45));
+    CHECK(session.snapshot().transportState == TransportState::running);
+    session.run(static_cast<std::uint64_t>(end + 48'000.0 * 0.55));
+    CHECK(session.snapshot().transportState == TransportState::clockLost);
 }

@@ -369,7 +369,7 @@ tar xzf Visona-clap-linux-x86_64.tar.gz -C ~/.clap</code></pre>
 
       <section id="sync-app">
         <h2><span class="num">24</span>Visona Sync with the app</h2>
-        <p>The app allows for its own input latency, but not for what lies between your DAW's MIDI Clock and the audio reaching the interface: the DAW's output latency, clock delay settings and the interfaces on the way. Visona Sync measures that too, if its impulse comes in on an input of its own.</p>
+        <p>The app allows for its own input latency, but not for what lies between your DAW's MIDI Clock and the audio reaching the interface: the DAW's output latency, clock delay settings and the interfaces on the way. Visona Sync measures that too, if its impulse comes in on an input of its own. This alignment correction does not affect MIDI Clock loss detection: the warning appears only when clock pulses stop arriving for more than half a second.</p>
         <ol>
           <li>In your DAW, add <strong>Visona Sync</strong> on an instrument track and send that track straight to a free output of your interface, such as 3/4, not to the master. Keep it off your speakers: it is a click on every bar.</li>
           <li>Connect that output to a free input of the interface Visona listens to, with a cable or the interface's loopback routing (TotalMix on an RME interface, for example).</li>
