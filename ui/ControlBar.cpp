@@ -215,7 +215,7 @@ std::array<int, ControlBar::numGroups> ControlBar::groupWidths() const
         if (button->isVisible())
             buttons +=
                 (buttons > 0 ? metrics.gap : 0) + button->preferredWidth(metrics.controlHeight);
-    return {190,
+    return {60,
             pauseVisible_ ? pause_.preferredWidth(metrics.controlHeight) : 0,
             spectrum_ ? 0 : window_.preferredWidth(metrics.controlHeight),
             tempoVisible_ && !spectrum_ ? tempo_.preferredWidth(metrics.controlHeight) : 0,

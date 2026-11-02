@@ -26,6 +26,7 @@ public:
     void parentSizeChanged() override;
 
 private:
+    void paintButton(juce::Graphics& g, bool over, bool down) override;
     struct Tiles;
     void choose(int view);
     int selected_ = 0;
